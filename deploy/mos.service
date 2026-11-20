@@ -1,0 +1,33 @@
+[Unit]
+Description=mos
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=mos
+Group=mos
+# current는 자동 배포가 바꾸는 링크. 재시작할 때마다 새 버전을 가리킨다
+WorkingDirectory=/opt/mos/current/app
+EnvironmentFile=/opt/mos/.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/mos/current/venv/bin/python -m mos.main
+Restart=always
+RestartSec=5
+MemoryMax=450M
+
+# 보안 제한
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+ReadWritePaths=/opt/mos/data
+
+[Install]
+WantedBy=multi-user.target
