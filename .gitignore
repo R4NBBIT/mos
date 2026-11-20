@@ -35,3 +35,7 @@ out/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# 초기 검증 결과·상태
+tools/verify/results.md
+tools/verify/state.json
