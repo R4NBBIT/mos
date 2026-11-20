@@ -3,8 +3,8 @@ import { ApiError } from "./api";
 import type { Message } from "./types";
 
 const MAX_LENGTH = 2000;
-// 맨 앞이 /명령 모양이면(디스코드 슬래시 명령) 웹에서는 실행되지 않아 한 번 더 묻는다
-const SLASH_COMMAND = /^\/\S/;
+// 맨 앞이 /로 시작하면(디스코드 슬래시 명령처럼 보이면) 웹에서는 실행되지 않아 한 번 더 묻는다
+const SLASH_COMMAND = /^\//;
 const SHOW_COUNT_FROM = 1800;
 
 const sendErrors: Record<string, string> = {
