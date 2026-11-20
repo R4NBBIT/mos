@@ -199,6 +199,12 @@ button {
   background: var(--bg);
 }
 
+.menu-check {
+  width: 14px;
+  color: #3bb273;
+  font-weight: 700;
+}
+
 .account-menu-list .danger {
   color: #c0392b;
 }

@@ -131,11 +131,18 @@ export interface ChannelEmoji {
   group_name: string;
 }
 
-export async function fetchEmojis(channelId: string): Promise<{ premium: boolean; emojis: ChannelEmoji[] }> {
-  return (await request(`/api/channels/${encodeURIComponent(channelId)}/emojis`)).json() as Promise<{
-    premium: boolean;
-    emojis: ChannelEmoji[];
-  }>;
+export interface ChannelEmojis {
+  premium: boolean;
+  nitro: "none" | "pending" | "verified";
+  emojis: ChannelEmoji[];
+}
+
+export async function fetchEmojis(channelId: string): Promise<ChannelEmojis> {
+  return (await request(`/api/channels/${encodeURIComponent(channelId)}/emojis`)).json() as Promise<ChannelEmojis>;
+}
+
+export async function setNitroClaim(claimed: boolean): Promise<void> {
+  await postJson("/api/account/nitro", { claimed });
 }
 
 export async function sendFiles(

@@ -120,6 +120,10 @@ class PinBody(BaseModel):
     id: str = Field(pattern=SNOWFLAKE_PATTERN)
 
 
+class NitroBody(BaseModel):
+    claimed: bool
+
+
 class ReadBody(BaseModel):
     last_id: str = Field(pattern=SNOWFLAKE_PATTERN)
 
@@ -185,6 +189,7 @@ def create_app(
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.sender = sender  # 디스코드 앱 메시지 명령(봇)도 같은 서비스를 쓴다
+    app.state.sessions = sessions  # 봇이 니트로 증거를 보면 알려 준다
 
     # ------------------------------------------------------------ 공통 보호
 
@@ -329,6 +334,12 @@ def create_app(
             # 잠금 해제 때마다 기기 토큰을 바꿔, 새어 나간 예전 쿠키를 무효로 만든다
             set_device_cookie(response, await sessions.rotate_token(device))
 
+    @app.post("/api/account/nitro", status_code=204)
+    async def set_nitro(body: NitroBody, request: Request) -> None:
+        """'니트로 있어요' 켜기·끄기. 켠 계정만 디스코드 앱 사용으로 7일씩 확인한다."""
+        account = await require_account(request)
+        await sessions.set_nitro_claim(account, body.claimed)
+
     @app.post("/api/session/lock", status_code=204)
     async def lock(request: Request) -> None:
         await sessions.lock(await current_device(request))
@@ -444,8 +455,17 @@ def create_app(
         require_ready()
         access = await require_channel(account, channel_id)
         items = await emojis.usable(account.discord_user_id, account.premium, access)
+        state = next(
+            (
+                item["nitro"]
+                for item in (await sessions.describe(await current_device(request)))["accounts"]
+                if item["id"] == str(account.account_id)
+            ),
+            "none",
+        )
         return {
             "premium": account.premium,
+            "nitro": state,
             "emojis": [
                 {
                     "id": str(item.emoji.id),

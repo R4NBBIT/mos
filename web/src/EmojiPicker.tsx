@@ -42,7 +42,7 @@ interface Props {
 
 export default function EmojiPicker({ channelId, onPick, onClose }: Props) {
   const [custom, setCustom] = useState<ChannelEmoji[] | null>(null);
-  const [premium, setPremium] = useState(false);
+  const [nitro, setNitro] = useState<"none" | "pending" | "verified">("none");
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -51,7 +51,7 @@ export default function EmojiPicker({ channelId, onPick, onClose }: Props) {
       .then((body) => {
         if (stopped) return;
         setCustom(body.emojis);
-        setPremium(body.premium);
+        setNitro(body.nitro);
       })
       .catch(() => {
         if (!stopped) setFailed(true);
@@ -95,8 +95,17 @@ export default function EmojiPicker({ channelId, onPick, onClose }: Props) {
           </div>
         </section>
       ))}
-      {custom !== null && !premium && (
-        <p className="emoji-note">움직이는 이모지와 다른 모임 이모지는 니트로가 있어야 쓸 수 있어요.</p>
+      {custom !== null && nitro === "none" && (
+        <p className="emoji-note">
+          움직이는 이모지와 다른 모임 이모지는 니트로가 있어야 쓸 수 있어요. 니트로가 있으면 프로필 메뉴에서
+          '니트로 있어요'를 켜 주세요.
+        </p>
+      )}
+      {custom !== null && nitro === "pending" && (
+        <p className="emoji-note">
+          니트로 확인이 필요해요. 디스코드 앱에서 움직이는 이모지나 다른 서버 이모지를 한 번 보내거나 반응으로 달아
+          주세요(확인되면 7일 동안 유지돼요).
+        </p>
       )}
       {failed && <p className="emoji-note">모임 이모지를 불러오지 못했어요.</p>}
       {UNICODE_GROUPS.map((group) => (

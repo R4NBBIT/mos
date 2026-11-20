@@ -29,7 +29,10 @@ KEEP_SIGNED_IN_SEC = 30 * 24 * 3600
 MAX_PASSWORD_FAILURES = 5
 PASSWORD_LOCK_SEC = 5 * 60
 EMPTY_DEVICE_TTL_SEC = 24 * 3600
-SLIDE_MIN_STEP_SEC = 60  # 잠금 시간 연장은 1분에 한 번만 DB에 쓴다
+SLIDE_MIN_STEP_SEC = 60
+NITRO_PROOF_SEC = (
+    7 * 24 * 3600
+)  # 니트로 확인은 마지막 증거부터 7일  # 잠금 시간 연장은 1분에 한 번만 DB에 쓴다
 
 MIN_PASSWORD_LENGTH = 8
 MAX_PASSWORD_LENGTH = 128
@@ -159,6 +162,10 @@ class SessionService:
                     "can_set_password": setup_until > now,
                     "locked": not self._is_unlocked(link, now),
                     "kept": (link.get("keep_until") or 0) > now,
+                    "nitro": self._nitro_state(link, now),
+                    "nitro_until": link.get("nitro_verified_until")
+                    if self._nitro_state(link, now) == "verified"
+                    else None,
                     "disconnected": link["status"] != "active",
                 }
             )
@@ -170,6 +177,19 @@ class SessionService:
             "active_account_id": str(active) if active is not None else None,
             "max_accounts": MAX_ACCOUNTS_PER_DEVICE,
         }
+
+    @staticmethod
+    def _nitro_state(link: dict[str, Any], now: int) -> str:
+        """none: 안 켬, pending: 켰지만 확인 전·만료, verified: 7일 안에 확인됨"""
+        if not link.get("nitro_claimed"):
+            return "none"
+        return "verified" if (link.get("nitro_verified_until") or 0) > now else "pending"
+
+    async def set_nitro_claim(self, account: ActiveAccount, claimed: bool) -> None:
+        await self.repo.set_nitro_claim(account.account_id, claimed)
+
+    async def nitro_seen(self, discord_user_id: int) -> bool:
+        return await self.repo.mark_nitro_seen(discord_user_id, self.now() + NITRO_PROOF_SEC)
 
     async def require_active(self, device: Device | None, touch: bool = True) -> ActiveAccount:
         """잠금이 풀린 활성 계정. touch면 자동 잠금 시간을 늦춘다(실시간 확인은 늦추지 않음)."""
@@ -194,7 +214,7 @@ class SessionService:
             device_id=device.id,
             account_id=device.active_account_id,
             discord_user_id=int(link["discord_user_id"]),
-            premium=bool(link.get("premium_type")),
+            premium=self._nitro_state(link, now) == "verified",
         )
 
     # ------------------------------------------------------------ OAuth 연결

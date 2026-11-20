@@ -63,6 +63,7 @@ async def run() -> int:
         notify_operator=bot.notify_operator,
     )
     bot.sender = app.state.sender  # 디스코드 앱의 'ㅁㅇㅅ 메시지 삭제' 명령
+    bot.nitro_seen = app.state.sessions.nitro_seen  # '니트로 있어요' 계정의 7일 확인
     server = uvicorn.Server(
         uvicorn.Config(
             app,

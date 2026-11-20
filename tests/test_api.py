@@ -195,6 +195,7 @@ class Env:
     clock: list[float]
     permissions: PermissionService
     messenger: FakeMessenger
+    app: Any = None
 
     def tick(self, seconds: float) -> None:
         self.clock[0] += seconds
@@ -235,7 +236,7 @@ def build_client(tmp_path: Path) -> Iterator[Env]:
         messenger=messenger,
     )
     with TestClient(app, base_url=ORIGIN) as client:
-        yield Env(client, bot, hub, repo, oauth, clock, permissions, messenger)
+        yield Env(client, bot, hub, repo, oauth, clock, permissions, messenger, app)
 
 
 @pytest.fixture
@@ -969,25 +970,56 @@ def test_unread_counts_and_mentions(env: Env) -> None:
     assert secret.status_code == 404
 
 
+def set_nitro(env: Env, claimed: bool) -> int:
+    return env.client.post(
+        "/api/account/nitro", json={"claimed": claimed}, headers=POST
+    ).status_code
+
+
+def nitro_seen(env: Env, user_id: int) -> bool:
+    return env.client.portal.call(env.app.state.sessions.nitro_seen, user_id)
+
+
 def test_emoji_rules_follow_nitro(env: Env) -> None:
-    signed_up(env, "latte")  # 니트로 없음, 비밀 역할 없음
+    signed_up(env, "latte")  # 비밀 역할 없음, 니트로 안 켬
     body = env.client.get(f"/api/channels/{CHANNEL}/emojis").json()
-    assert body["premium"] is False
+    assert (body["premium"], body["nitro"]) == (False, "none")
     assert [e["name"] for e in body["emojis"]] == ["smile"]  # 움직이는·역할 전용·다른 모임 빠짐
     assert send(env, "<a:dance:1573320336554852802>").json()["detail"] == "emoji_not_allowed"
     env.tick(2)
     assert send(env, "<:smile:1573320336554852801> 좋아").status_code == 200
 
-    env.oauth.add("nitro", 42, "모카", {GUILD}, premium=2)  # 비밀 역할 + 니트로
+
+def test_nitro_needs_claim_and_weekly_proof(env: Env) -> None:
     env.bot.members[(OTHER_GUILD, 42)] = frozenset({OTHER_GUILD})
     env.bot.guild_map[GUILD] = GuildInfo(
         GUILD, "서버 A", None, 1, {GUILD: BASIC | (1 << 18), SECRET_ROLE: MENTION_EVERYONE}
     )
-    signed_up(env, "nitro")
+    signed_up(env, "mocha")
+    assert nitro_seen(env, 42) is False  # '니트로 있어요'를 안 켠 사람은 검사하지 않는다
+    assert session(env)["accounts"][0]["nitro"] == "none"
+
+    assert set_nitro(env, True) == 204
+    assert session(env)["accounts"][0]["nitro"] == "pending"
+    names = [e["name"] for e in env.client.get(f"/api/channels/{CHANNEL}/emojis").json()["emojis"]]
+    assert names == ["smile", "vip"]  # 확인 전에는 니트로 없음과 같다
+
+    assert nitro_seen(env, 42) is True  # 디스코드 앱에서 니트로 이모지를 씀
+    account = session(env)["accounts"][0]
+    assert account["nitro"] == "verified" and account["nitro_until"] is not None
     names = [e["name"] for e in env.client.get(f"/api/channels/{CHANNEL}/emojis").json()["emojis"]]
     assert names == ["smile", "dance", "vip", "other"]  # 이 모임 먼저, 외부 이모지 포함
     env.tick(2)
     assert send(env, "<a:dance:1573320336554852802><:other:1573320336554852804>").status_code == 200
+
+    unlock(env, account["id"], keep=True)  # 일주일 뒤에도 잠기지 않게(로그인 유지)
+    env.tick(7 * 24 * 3600 + 1)  # 일주일 동안 증거가 없으면 다시 확인 필요
+    assert session(env)["accounts"][0]["nitro"] == "pending"
+    assert send(env, "<a:dance:1573320336554852802>").json()["detail"] == "emoji_not_allowed"
+
+    assert set_nitro(env, False) == 204
+    assert nitro_seen(env, 42) is False
+    assert session(env)["accounts"][0]["nitro"] == "none"
 
 
 def upload(env: Env, files: list[tuple[str, bytes]], content: str = "", channel: int = CHANNEL):

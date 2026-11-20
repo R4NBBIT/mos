@@ -111,6 +111,10 @@ export interface SessionAccount {
   locked: boolean;
   /** '로그인 유지' 중 */
   kept: boolean;
+  /** 니트로: none(안 켬) · pending(켰지만 확인 전·만료) · verified(7일 안에 확인됨) */
+  nitro: "none" | "pending" | "verified";
+  /** 확인이 유지되는 때(유닉스 초) */
+  nitro_until: number | null;
   disconnected: boolean;
 }
 

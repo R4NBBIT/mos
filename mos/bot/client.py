@@ -8,7 +8,8 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
-from collections.abc import Callable
+import re
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 import discord
@@ -35,6 +36,8 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 MemberChanged = Callable[[int, int | None], None]  # (서버 ID, 사용자 ID 또는 서버 전체)
+NitroSeen = Callable[[int], Awaitable[bool]]  # (디스코드 사용자 ID) → 확인 기간을 늘렸나
+_CUSTOM_EMOJI = re.compile(r"<(a?):[A-Za-z0-9_]{1,32}:(\d{15,21})>")
 WEBHOOK_NAME = "ㅁㅇㅅ"
 DELETE_COMMAND_NAME = "ㅁㅇㅅ 메시지 삭제"
 UNKNOWN_WEBHOOK = 10015
@@ -136,6 +139,7 @@ class MosBot(discord.Client):
         self.hub = hub
         self.member_changed: MemberChanged | None = None
         self.sender: SenderService | None = None  # main에서 연결(메시지 명령이 쓴다)
+        self.nitro_seen: NitroSeen | None = None  # main에서 연결(니트로 확인)
         self.tree = app_commands.CommandTree(self)
         self._backfill_lock = asyncio.Lock()
         self._synced: set[int] = set()
@@ -295,6 +299,37 @@ class MosBot(discord.Client):
         if message.guild is None:
             return  # DM은 다루지 않는다
         await self.store_and_publish(message, "message_create")
+        if not message.author.bot and message.webhook_id is None:
+            for animated, emoji_id in _CUSTOM_EMOJI.findall(message.content or ""):
+                if self._needs_nitro(message.guild.id, int(emoji_id), animated == "a"):
+                    await self._record_nitro(message.author.id)
+                    break
+
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
+        emoji = payload.emoji
+        if payload.guild_id is None or emoji.id is None:
+            return
+        member = payload.member
+        if member is not None and member.bot:
+            return
+        if self._needs_nitro(payload.guild_id, emoji.id, emoji.animated):
+            await self._record_nitro(payload.user_id)
+
+    def _needs_nitro(self, guild_id: int, emoji_id: int, animated: bool) -> bool:
+        """디스코드 앱에서 니트로 없이는 쓸 수 없는 이모지인가(움직이는 것, 다른 서버 것)."""
+        if animated:
+            return True
+        known = self.get_emoji(emoji_id)
+        return known is None or known.guild_id != guild_id
+
+    async def _record_nitro(self, user_id: int) -> None:
+        if self.nitro_seen is None:
+            return
+        try:
+            if await self.nitro_seen(user_id):
+                log.info("니트로 확인 갱신: 사용자 %s", user_id)
+        except Exception:
+            log.exception("니트로 확인 기록 실패")
 
     async def on_raw_message_edit(self, payload: discord.RawMessageUpdateEvent) -> None:
         if payload.guild_id is None:

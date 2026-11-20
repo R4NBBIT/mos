@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { lock, removeAccount, startConnect, switchAccount } from "./api";
+import { lock, removeAccount, setNitroClaim, startConnect, switchAccount } from "./api";
 import { AccountFace } from "./AuthScreens";
 import type { SessionAccount, SessionState } from "./types";
 
@@ -9,7 +9,16 @@ interface Props {
   onChanged: () => void;
 }
 
-/** 채팅방 오른쪽 위: 잠그기, 계정 바꾸기·추가·빼기 */
+function nitroText(account: SessionAccount): string {
+  if (account.nitro === "verified" && account.nitro_until) {
+    const until = new Date(account.nitro_until * 1000);
+    return `확인됨 · ${until.getMonth() + 1}/${until.getDate()}까지`;
+  }
+  if (account.nitro === "pending") return "확인 기다리는 중";
+  return "";
+}
+
+/** 채팅방 오른쪽 위: 잠그기, 니트로, 계정 바꾸기·추가·빼기 */
 export default function AccountMenu({ session, account, onChanged }: Props) {
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -59,6 +68,16 @@ export default function AccountMenu({ session, account, onChanged }: Props) {
           </div>
           <button type="button" role="menuitem" onClick={() => void run(lock)}>
             잠그기
+          </button>
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked={account.nitro !== "none"}
+            onClick={() => void run(() => setNitroClaim(account.nitro === "none"))}
+          >
+            <span className="menu-check">{account.nitro !== "none" ? "✓" : ""}</span>
+            니트로 있어요
+            <span className="account-state">{nitroText(account)}</span>
           </button>
           {others.map((item) => (
             <button key={item.id} type="button" role="menuitem" onClick={() => void run(() => switchAccount(item.id))}>

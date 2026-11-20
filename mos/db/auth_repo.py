@@ -138,6 +138,26 @@ class AuthRepo:
             )
             await conn.execute("DELETE FROM login_attempt WHERE account_id = ?", (account_id,))
 
+    async def set_nitro_claim(self, account_id: int, claimed: bool) -> None:
+        async with self.db.writing() as conn:
+            await conn.execute(
+                "UPDATE account SET nitro_claimed = ?,"
+                " nitro_verified_until = CASE WHEN ? THEN nitro_verified_until ELSE NULL END"
+                " WHERE id = ?",
+                (1 if claimed else 0, 1 if claimed else 0, account_id),
+            )
+
+    async def mark_nitro_seen(self, discord_user_id: int, until: int) -> bool:
+        """'니트로 있어요'를 켠 계정만 확인 기간을 늘린다. 바뀌었으면 True."""
+        async with self.db.writing() as conn:
+            cursor = await conn.execute(
+                "UPDATE account SET nitro_verified_until = ?"
+                " WHERE discord_user_id = ? AND nitro_claimed = 1"
+                " AND (nitro_verified_until IS NULL OR nitro_verified_until < ?)",
+                (until, discord_user_id, until),
+            )
+            return cursor.rowcount > 0
+
     async def account_in_guild(self, account_id: int, guild_id: int) -> bool:
         row = await self.db.fetch_one(
             "SELECT 1 FROM account_guild WHERE account_id = ? AND guild_id = ?",
@@ -149,7 +169,8 @@ class AuthRepo:
 
     async def device_accounts(self, device_id: int) -> list[dict[str, Any]]:
         rows = await self.db.fetch_all(
-            "SELECT da.*, a.name, a.avatar_url, a.status, a.discord_user_id, a.premium_type,"
+            "SELECT da.*, a.name, a.avatar_url, a.status, a.discord_user_id,"
+            " a.nitro_claimed, a.nitro_verified_until,"
             " a.password_hash IS NOT NULL AS password_set"
             " FROM device_account da JOIN account a ON a.id = da.account_id"
             " WHERE da.device_id = ? ORDER BY da.added_at, da.account_id",
