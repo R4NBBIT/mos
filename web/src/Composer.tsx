@@ -3,6 +3,8 @@ import { ApiError } from "./api";
 import type { Message } from "./types";
 
 const MAX_LENGTH = 2000;
+// 맨 앞이 /명령 모양이면(디스코드 슬래시 명령) 웹에서는 실행되지 않아 한 번 더 묻는다
+const SLASH_COMMAND = /^\/\S/;
 const SHOW_COUNT_FROM = 1800;
 
 const sendErrors: Record<string, string> = {
@@ -42,6 +44,7 @@ export default function Composer({ canSend, replyTo, editing, onCancel, onSubmit
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [confirmSlash, setConfirmSlash] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // 같은 내용을 다시 보내면(네트워크 오류 뒤 재시도) 같은 nonce → 서버가 한 번만 보낸다
   const nonceRef = useRef(newNonce());
@@ -69,9 +72,16 @@ export default function Composer({ canSend, replyTo, editing, onCancel, onSubmit
     return <footer className="room-footer">이 채널은 읽기만 할 수 있어요.</footer>;
   }
 
+  const looksLikeCommand = !editing && SLASH_COMMAND.test(text);
+
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
     if (busy || !text.trim()) return;
+    if (looksLikeCommand && !confirmSlash) {
+      setConfirmSlash(true);
+      return;
+    }
+    setConfirmSlash(false);
     setBusy(true);
     setError("");
     try {
@@ -92,6 +102,9 @@ export default function Composer({ canSend, replyTo, editing, onCancel, onSubmit
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       void submit();
+    } else if (event.key === "Escape" && confirmSlash) {
+      event.preventDefault();
+      setConfirmSlash(false); // 입력한 내용은 그대로 둔다
     } else if (event.key === "Escape" && (editing || replyTo)) {
       event.preventDefault();
       setText(editing ? "" : text);
@@ -125,6 +138,27 @@ export default function Composer({ canSend, replyTo, editing, onCancel, onSubmit
         </div>
       )}
       {error && <p className="composer-error">{error}</p>}
+      {looksLikeCommand && !confirmSlash && (
+        <p className="composer-hint">슬래시 명령은 디스코드 앱에서만 실행돼요. 여기서는 글자로만 올라가요.</p>
+      )}
+      {looksLikeCommand && confirmSlash && (
+        <div className="composer-confirm" role="alert">
+          <span>명령으로 실행되지 않고 글자로 올라가요. 그대로 보낼까요?</span>
+          <button type="button" className="composer-confirm-send" onClick={() => void submit()} disabled={busy}>
+            그대로 보내기
+          </button>
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => {
+              setConfirmSlash(false);
+              inputRef.current?.focus();
+            }}
+          >
+            취소
+          </button>
+        </div>
+      )}
       <div className="composer-row">
         <textarea
           ref={inputRef}
@@ -136,6 +170,7 @@ export default function Composer({ canSend, replyTo, editing, onCancel, onSubmit
           aria-label="메시지 입력"
           onChange={(event) => {
             setText(event.target.value);
+            setConfirmSlash(false); // 고치면 다시 묻는다
             if (!editing) nonceRef.current = newNonce(); // 내용이 바뀌면 새 메시지
           }}
           onKeyDown={onKeyDown}
