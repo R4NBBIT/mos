@@ -21,6 +21,7 @@ def make_row(message_id: int, channel_id: int = 10, content: str = "hi") -> dict
         "embeds_json": "[]",
         "attachments_json": "[]",
         "components_json": "[]",
+        "mentions_json": "{}",
         "reference_id": None,
         "flags": 0,
         "created_at": "2026-11-20T00:00:00+00:00",
@@ -42,7 +43,7 @@ def test_migrate_twice_is_safe(tmp_path: Path) -> None:
             await db.close()
         return [row[0] for row in rows]
 
-    assert asyncio.run(scenario()) == [1]
+    assert asyncio.run(scenario()) == [number for number, _name, _sql in list_migrations()]
 
 
 def test_repo_upsert_page_delete(tmp_path: Path) -> None:

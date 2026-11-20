@@ -20,6 +20,7 @@ MESSAGE_COLUMNS = (
     "embeds_json",
     "attachments_json",
     "components_json",
+    "mentions_json",
     "reference_id",
     "flags",
     "created_at",

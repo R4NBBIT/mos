@@ -26,6 +26,13 @@ export interface Embed {
   url?: string;
 }
 
+/** 본문 멘션 코드의 ID → 받을 때 시점의 이름 */
+export interface Mentions {
+  users: Record<string, string>;
+  roles: Record<string, string>;
+  channels: Record<string, string>;
+}
+
 export interface Message {
   id: string;
   channel_id: string;
@@ -34,6 +41,7 @@ export interface Message {
   content: string;
   embeds: Embed[];
   attachments: Attachment[];
+  mentions: Mentions;
   reference_id: string | null;
   created_at: string;
   edited_at: string | null;

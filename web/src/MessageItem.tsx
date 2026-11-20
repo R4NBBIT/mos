@@ -1,4 +1,5 @@
 import { memo } from "react";
+import MessageContent from "./MessageContent";
 import { formatSize, formatTime, isDiscordMediaUrl, thumbnailUrl } from "./format";
 import type { Attachment, Message } from "./types";
 
@@ -53,7 +54,7 @@ function MessageItem({ message, grouped }: Props) {
         )}
         <div className="msg-row">
           <div className="bubble">
-            {message.content && <p className="msg-text">{message.content}</p>}
+            {message.content && <MessageContent content={message.content} mentions={message.mentions} />}
             {message.embeds.map((embed, index) => (
               <div className="embed" key={index}>
                 {embed.title && <strong>{embed.title}</strong>}

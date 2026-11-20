@@ -25,6 +25,22 @@ log = logging.getLogger("mos")
 SHUTDOWN_TIMEOUT_SEC = 10
 
 
+def error_hint(error: BaseException) -> str | None:
+    """사람이 고쳐야 하는 봇 오류에 할 일을 알려 준다. 토큰 같은 비밀 값은 넣지 않는다."""
+    if isinstance(error, discord.PrivilegedIntentsRequired):
+        return (
+            "디스코드 개발자 포털 > 이 앱 > Bot > Privileged Gateway Intents에서 "
+            "Server Members Intent와 Message Content Intent를 켜고 Save Changes를 누른 뒤 "
+            "다시 실행하세요."
+        )
+    if isinstance(error, discord.LoginFailure):
+        return (
+            "봇 토큰이 맞지 않습니다. 개발자 포털 > Bot > Reset Token으로 새 토큰을 받아 "
+            ".env의 DISCORD_BOT_TOKEN을 바꾼 뒤 다시 실행하세요."
+        )
+    return None
+
+
 async def run() -> int:
     settings = load_settings()
     db = Database(settings.db_path)
@@ -58,6 +74,9 @@ async def run() -> int:
         error = task.exception()
         if error is not None:
             log.error("%s 작업이 오류로 멈춤: %s", task.get_name(), type(error).__name__)
+            hint = error_hint(error)
+            if hint:
+                log.error("해결 방법: %s", hint)
             exit_code = 1
     if bot_task in done and api_task not in done:
         exit_code = exit_code or 1  # 봇이 끊겼는데 API만 도는 상태로 두지 않는다

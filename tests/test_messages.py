@@ -67,3 +67,24 @@ def test_webhook_message_without_reference() -> None:
     api = row_to_api(row)
     assert api["author"]["webhook"] is True
     assert api["reference_id"] is None
+
+
+def test_mentions_saved_with_names() -> None:
+    message = fake_message(
+        content="<@42> <@&7> <#9>",
+        mentions=[SimpleNamespace(id=42, name="mocha", display_name="모카")],
+        role_mentions=[SimpleNamespace(id=7, name="운영")],
+        channel_mentions=[SimpleNamespace(id=9, name="일반")],
+    )
+    api = row_to_api(message_to_row(message))
+    assert api["mentions"] == {
+        "users": {"42": "모카"},
+        "roles": {"7": "운영"},
+        "channels": {"9": "일반"},
+    }
+
+
+def test_old_rows_without_mentions() -> None:
+    row = message_to_row(fake_message())
+    del row["mentions_json"]
+    assert row_to_api(row)["mentions"] == {"users": {}, "roles": {}, "channels": {}}

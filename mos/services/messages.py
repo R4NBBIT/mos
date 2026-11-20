@@ -29,6 +29,26 @@ def attachment_to_dict(attachment: Any) -> dict[str, Any]:
     return data
 
 
+def _display_name(item: Any) -> str:
+    return str(getattr(item, "display_name", None) or getattr(item, "name", None) or "")
+
+
+def mentions_to_dict(message: Any) -> dict[str, dict[str, str]]:
+    """본문에 들어 있는 멘션 코드의 이름을 받을 때 시점 기준으로 모아 둔다."""
+    return {
+        "users": {
+            str(user.id): _display_name(user) for user in getattr(message, "mentions", []) or []
+        },
+        "roles": {
+            str(role.id): str(role.name) for role in getattr(message, "role_mentions", []) or []
+        },
+        "channels": {
+            str(channel.id): str(channel.name)
+            for channel in getattr(message, "channel_mentions", []) or []
+        },
+    }
+
+
 def message_to_row(message: Any) -> dict[str, Any]:
     """discord.Message(또는 같은 모양의 객체)를 DB 행으로."""
     author = message.author
@@ -52,6 +72,7 @@ def message_to_row(message: Any) -> dict[str, Any]:
             [attachment_to_dict(item) for item in message.attachments], ensure_ascii=False
         ),
         "components_json": "[]",
+        "mentions_json": json.dumps(mentions_to_dict(message), ensure_ascii=False),
         "reference_id": int(reference.message_id)
         if reference is not None and reference.message_id
         else None,
@@ -59,6 +80,11 @@ def message_to_row(message: Any) -> dict[str, Any]:
         "created_at": _iso(message.created_at),
         "edited_at": _iso(message.edited_at),
     }
+
+
+def _load_mentions(raw: str | None) -> dict[str, dict[str, str]]:
+    data = json.loads(raw) if raw else {}
+    return {key: dict(data.get(key) or {}) for key in ("users", "roles", "channels")}
 
 
 def row_to_api(row: dict[str, Any]) -> dict[str, Any]:
@@ -81,6 +107,7 @@ def row_to_api(row: dict[str, Any]) -> dict[str, Any]:
         "content": row["content"],
         "embeds": json.loads(row["embeds_json"]),
         "attachments": json.loads(row["attachments_json"]),
+        "mentions": _load_mentions(row.get("mentions_json")),
         "reference_id": snowflake(row["reference_id"]),
         "created_at": row["created_at"],
         "edited_at": row["edited_at"],
