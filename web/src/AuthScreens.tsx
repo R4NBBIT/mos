@@ -231,7 +231,7 @@ export function UnlockScreen({
           비밀번호를 잊었어요
         </button>
         {session.accounts.length < session.max_accounts && (
-          <button type="button" className="text-button" onClick={() => startConnect("connect")}>
+          <button type="button" className="text-button" onClick={() => startConnect("add")}>
             다른 계정 추가
           </button>
         )}

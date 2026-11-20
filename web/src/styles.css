@@ -261,6 +261,22 @@ button {
   cursor: pointer;
 }
 
+.room-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 8px 12px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 214, 107, 0.35); /* --honey 연하게 */
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.room-notice span {
+  flex: 1;
+}
+
 .room-list {
   flex: 1;
   overflow-y: auto;

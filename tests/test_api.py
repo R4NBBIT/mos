@@ -355,6 +355,17 @@ def test_switch_accounts_and_reconnect_existing(env: Env) -> None:
     assert messages_status(env) == 200
 
 
+def test_add_with_same_account_is_reported(env: Env) -> None:
+    mocha = signed_up(env, "mocha")
+    env.client.post("/api/session/lock", headers=POST)
+    assert connect(env, "mocha", purpose="add") == "/?connect_error=already_added"
+    state = session(env)
+    assert state["active_account_id"] == mocha
+    assert state["accounts"][0]["locked"] is True  # 아무것도 바뀌지 않음
+    assert connect(env, "latte", purpose="add") == "/"
+    assert len(session(env)["accounts"]) == 2
+
+
 def test_account_limit_per_device(env: Env) -> None:
     for index in range(5):
         env.oauth.add(f"user{index}", 100 + index, f"u{index}", {GUILD})

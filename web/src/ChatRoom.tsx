@@ -13,6 +13,9 @@ interface Props {
   menu: ReactNode;
   /** 잠겼거나 세션이 끝나 401을 받았을 때 */
   onAuthLost: () => void;
+  /** 계정 추가 실패 같은 한 번 보여 줄 안내 */
+  notice?: string;
+  onNoticeClose?: () => void;
 }
 
 function mergeMessages(current: Message[], incoming: Message[]): Message[] {
@@ -23,7 +26,7 @@ function mergeMessages(current: Message[], incoming: Message[]): Message[] {
   return [...byId.values()].sort((a, b) => compareIds(a.id, b.id));
 }
 
-export default function ChatRoom({ menu, onAuthLost }: Props) {
+export default function ChatRoom({ menu, onAuthLost, notice, onNoticeClose }: Props) {
   const [channel, setChannel] = useState<ChannelInfo | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -166,6 +169,14 @@ export default function ChatRoom({ menu, onAuthLost }: Props) {
         <span className={connected ? "dot dot-on" : "dot"} title={connected ? "실시간 연결됨" : "연결 중"} />
         {menu}
       </header>
+      {notice && (
+        <div className="room-notice" role="status">
+          <span>{notice}</span>
+          <button type="button" className="text-button" onClick={onNoticeClose} aria-label="안내 닫기">
+            닫기
+          </button>
+        </div>
+      )}
 
       <div className="room-list" ref={listRef} onScroll={onScroll}>
         {hasMore && (

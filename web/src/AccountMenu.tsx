@@ -67,7 +67,7 @@ export default function AccountMenu({ session, account, onChanged }: Props) {
             </button>
           ))}
           {session.accounts.length < session.max_accounts && (
-            <button type="button" role="menuitem" onClick={() => startConnect("connect")}>
+            <button type="button" role="menuitem" onClick={() => startConnect("add")}>
               다른 계정 추가
             </button>
           )}

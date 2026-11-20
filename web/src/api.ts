@@ -37,7 +37,7 @@ function postJson(path: string, body?: unknown): Promise<Response> {
 }
 
 /** 계정 연결(새 계정 추가·비밀번호 재설정)은 페이지 이동으로 시작한다 */
-export function startConnect(purpose: "connect" | "reset" = "connect"): void {
+export function startConnect(purpose: "connect" | "add" | "reset" = "connect"): void {
   window.location.assign(`/api/auth/connect/start?purpose=${purpose}`);
 }
 

@@ -193,7 +193,7 @@ class SessionService:
     # ------------------------------------------------------------ OAuth 연결
 
     async def start_connect(self, device: Device, purpose: str) -> str:
-        if purpose not in ("connect", "reset"):
+        if purpose not in ("connect", "add", "reset"):
             raise SessionError("bad_purpose")
         now = self.now()
         await self.repo.delete_stale(now, now - EMPTY_DEVICE_TTL_SEC)
@@ -226,6 +226,9 @@ class SessionService:
 
         links = await self.repo.device_accounts(device.id)
         known = {int(link["discord_user_id"]): link["account_id"] for link in links}
+        if saved["purpose"] == "add" and user.id in known:
+            # 디스코드 승인 화면은 브라우저에 로그인된 계정으로 열린다. 같은 계정이면 알려 준다
+            raise SessionError("already_added", status=409)
         if user.id not in known and len(links) >= MAX_ACCOUNTS_PER_DEVICE:
             raise SessionError("too_many_accounts", status=409)
 

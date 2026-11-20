@@ -106,6 +106,8 @@ export default function App() {
       key={active.id}
       menu={<AccountMenu session={session} account={active} onChanged={changed} />}
       onAuthLost={changed}
+      notice={notice}
+      onNoticeClose={() => setNotice("")}
     />
   );
 }
