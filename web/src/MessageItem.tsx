@@ -31,8 +31,8 @@ interface Props {
   onReply: (message: Message) => void;
   onEdit: (message: Message) => void;
   onDelete: (message: Message) => Promise<void>;
-  /** bubble: 채팅 말풍선(기본), comment: 포럼 글·스레드의 게시판식 댓글 */
-  layout?: "bubble" | "comment";
+  /** bubble: 채팅 말풍선(기본), comment: 포럼 글·스레드의 게시판식 댓글, line: 메모장 한 줄 기록 */
+  layout?: "bubble" | "comment" | "line";
 }
 
 /** 본문·임베드·첨부(말풍선과 댓글이 같이 쓴다) */
@@ -48,6 +48,38 @@ export function MessageBody({ message }: { message: Message }) {
       ))}
       {message.attachments.map((attachment) => (
         <AttachmentView key={attachment.id} attachment={attachment} />
+      ))}
+    </>
+  );
+}
+
+/** 글자만 보이는 테마(메모장·시트): "[사진] 파일명" 링크 */
+export function AttachmentText({ attachment }: { attachment: Attachment }) {
+  const isImage = attachment.content_type?.startsWith("image/") ?? false;
+  const href = isDiscordMediaUrl(attachment.url) ? attachment.url : undefined;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="attachment-text">
+      [{isImage ? "사진" : "파일"}] {attachment.filename}
+    </a>
+  );
+}
+
+/** 글자만: 본문 + 임베드 제목 + 첨부 이름 */
+export function MessageTextOnly({ message }: { message: Message }) {
+  return (
+    <>
+      {message.content && <MessageContent content={message.content} mentions={message.mentions} />}
+      {message.embeds.map((embed, index) => (
+        <span className="embed-text" key={index}>
+          {" "}
+          [{embed.title || embed.description || "링크 미리보기"}]
+        </span>
+      ))}
+      {message.attachments.map((attachment) => (
+        <span key={attachment.id}>
+          {" "}
+          <AttachmentText attachment={attachment} />
+        </span>
       ))}
     </>
   );
@@ -155,6 +187,27 @@ function MessageItem({
       )}
     </>
   );
+
+  if (layout === "line") {
+    // 메모장: "오후 3:10 모카: 내용" 한 줄씩
+    return (
+      <div className={selected ? "line-msg line-msg-selected" : "line-msg"}>
+        <span className="line-time">{formatTime(message.created_at)}</span>
+        <div
+          className="line-main"
+          onClick={hasActions ? () => onSelect(selected ? null : message.id) : undefined}
+        >
+          {message.reference_id && (
+            <span className="line-time">↪ {reply ? `${reply.author}: ${reply.text} / ` : ""}</span>
+          )}
+          <span className="line-name">{author.name}</span>
+          {isApp && " [앱]"}: <MessageTextOnly message={message} />
+          {message.edited_at && <span className="line-time"> (수정됨)</span>}
+          {actions}
+        </div>
+      </div>
+    );
+  }
 
   if (layout === "comment") {
     // 게시판식 댓글: 말풍선 없이 왼쪽 정렬, 이름·시간 줄 + 내용

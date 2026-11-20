@@ -1287,3 +1287,32 @@ def test_create_forum_post(env: Env) -> None:
     assert with_file.status_code == 200
     env.tick(2)
     assert post(env, channel=CHANNEL).status_code == 403  # 일반 채널에는 글을 만들 수 없음
+
+
+# ------------------------------------------------------------ 5-2 설정
+
+
+def test_settings_per_account(env: Env) -> None:
+    signed_up(env, "mocha")
+    assert env.client.get("/api/settings").json() == {"theme": "moon", "tab_title": None}
+    changed = env.client.patch(
+        "/api/settings", json={"theme": "sheet", "tab_title": "  주간   보고  "}, headers=POST
+    )
+    assert changed.json() == {"theme": "sheet", "tab_title": "주간 보고"}
+    assert (
+        env.client.patch("/api/settings", json={"theme": "pink"}, headers=POST).status_code == 400
+    )
+    assert env.client.patch("/api/settings", json={"admin": True}, headers=POST).status_code == 400
+    assert (
+        env.client.patch("/api/settings", json={"tab_title": "x" * 41}, headers=POST).status_code
+        == 400
+    )
+    assert (
+        env.client.patch("/api/settings", json={"tab_title": ""}, headers=POST).json()["tab_title"]
+        is None
+    )
+
+    signed_up(env, "latte")  # 다른 계정은 따로
+    assert env.client.get("/api/settings").json()["theme"] == "moon"
+    env.client.post("/api/session/lock", headers=POST)
+    assert env.client.get("/api/settings").status_code == 401

@@ -198,3 +198,18 @@ export async function createPost(
   });
   return response.json() as Promise<{ thread_id: string }>;
 }
+
+export async function fetchSettings(): Promise<import("./theme").Settings> {
+  return (await request("/api/settings")).json() as Promise<import("./theme").Settings>;
+}
+
+export async function updateSettings(
+  changes: Partial<import("./theme").Settings>,
+): Promise<import("./theme").Settings> {
+  const response = await request("/api/settings", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(changes),
+  });
+  return response.json() as Promise<import("./theme").Settings>;
+}

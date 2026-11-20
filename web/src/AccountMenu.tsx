@@ -7,6 +7,7 @@ interface Props {
   session: SessionState;
   account: SessionAccount;
   onChanged: () => void;
+  onOpenSettings: () => void;
 }
 
 function nitroText(account: SessionAccount): string {
@@ -19,7 +20,7 @@ function nitroText(account: SessionAccount): string {
 }
 
 /** 채팅방 오른쪽 위: 잠그기, 니트로, 계정 바꾸기·추가·빼기 */
-export default function AccountMenu({ session, account, onChanged }: Props) {
+export default function AccountMenu({ session, account, onChanged, onOpenSettings }: Props) {
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   const others = session.accounts.filter((item) => item.id !== account.id);
@@ -66,6 +67,16 @@ export default function AccountMenu({ session, account, onChanged }: Props) {
             <strong>{account.name}</strong>
             {account.kept && <span className="account-state">로그인 유지 중</span>}
           </div>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onOpenSettings();
+            }}
+          >
+            설정
+          </button>
           <button type="button" role="menuitem" onClick={() => void run(lock)}>
             잠그기
           </button>

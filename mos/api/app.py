@@ -52,6 +52,7 @@ from mos.services.sender import (
     safe_filename,
 )
 from mos.services.session import ActiveAccount, Device, SessionError, SessionService
+from mos.services.settings import SettingsError, SettingsStore
 from mos.version import current_version
 
 log = logging.getLogger(__name__)
@@ -185,6 +186,7 @@ def create_app(
     cipher = TokenCipher(settings.secret_key)
     emojis = EmojiService(directory, perms)
     lists = ListsRepo(db)
+    settings_store = SettingsStore(db, clock=clock)
     egress = EgressMeter(lists, settings.egress_limit_bytes, notify=notify_operator, clock=clock)
     sender = (
         SenderService(
@@ -396,6 +398,25 @@ def create_app(
         """'니트로 있어요' 켜기·끄기. 켠 계정만 디스코드 앱 사용으로 7일씩 확인한다."""
         account = await require_account(request)
         await sessions.set_nitro_claim(account, body.claimed)
+
+    @app.get("/api/settings")
+    async def get_settings(request: Request) -> dict[str, Any]:
+        account = await require_account(request)
+        return await settings_store.get(account.account_id)
+
+    @app.patch("/api/settings")
+    async def update_settings(request: Request) -> dict[str, Any]:
+        account = await require_account(request)
+        try:
+            body = await request.json()
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="bad_json") from error
+        if not isinstance(body, dict) or len(body) > 10:
+            raise HTTPException(status_code=400, detail="bad_json")
+        try:
+            return await settings_store.update(account.account_id, body)
+        except SettingsError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
 
     @app.post("/api/session/lock", status_code=204)
     async def lock(request: Request) -> None:

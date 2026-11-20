@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import AccountMenu from "./AccountMenu";
-import { fetchSession, lock } from "./api";
+import { fetchSession, fetchSettings, lock } from "./api";
 import { ConnectScreen, PasswordSetup, ReconnectScreen, UnlockScreen } from "./AuthScreens";
 import { authText } from "./authText";
 import ChatRoom from "./ChatRoom";
 import { ChannelList, GroupList } from "./Lists";
 import Posts from "./Posts";
+import SettingsScreen from "./SettingsScreen";
+import { applyLook, cachedLook, type Settings } from "./theme";
 import type { ChannelInfo, SessionAccount, SessionState } from "./types";
 
 // 서버의 자동 잠금(30분)과 같게. 조작이 없으면 화면도 잠금으로 간다
@@ -24,6 +26,7 @@ function takeConnectError(): string {
 
 type Route =
   | { view: "groups" }
+  | { view: "settings" }
   | { view: "channels"; groupId: string }
   | { view: "chat"; groupId: string; channelId: string }
   | { view: "posts"; groupId: string; parentId: string }
@@ -34,6 +37,7 @@ type Route =
  * #/g/모임/p/채널 포럼 글·스레드 목록, #/g/모임/p/채널/t/글 글(스레드) 채팅. ID는 숫자만 받는다
  */
 function parseRoute(hash: string): Route {
+  if (hash === "#/settings") return { view: "settings" };
   const thread = /^#\/g\/(\d{1,21})\/p\/(\d{1,21})\/t\/(\d{1,21})$/.exec(hash);
   if (thread?.[1] && thread[2] && thread[3]) {
     return { view: "thread", groupId: thread[1], parentId: thread[2], threadId: thread[3] };
@@ -109,6 +113,8 @@ export default function App() {
   const [notice, setNotice] = useState(takeConnectError);
   const [route, go] = useHashRoute();
   const wide = useWide();
+  const [look, setLook] = useState<Settings>(cachedLook);
+  useEffect(() => applyLook(look), [look]);
 
   const refresh = useCallback(async () => {
     try {
@@ -136,6 +142,20 @@ export default function App() {
 
   const active = session ? pickActive(session) : null;
   const open = Boolean(active && !active.locked && active.password_set && !active.disconnected);
+  const openAccountId = open ? active?.id : undefined;
+  // 열린 계정의 설정(테마·탭 제목)을 받아 온다. 계정을 바꾸면 그 계정 것으로
+  useEffect(() => {
+    if (!openAccountId) return;
+    let stopped = false;
+    fetchSettings()
+      .then((value) => {
+        if (!stopped) setLook(value);
+      })
+      .catch(() => {});
+    return () => {
+      stopped = true;
+    };
+  }, [openAccountId]);
   useIdleLock(open && !active?.kept, changed);
 
   if (session === null) {
@@ -158,7 +178,14 @@ export default function App() {
     return <UnlockScreen session={session} account={active} notice={notice} onChanged={changed} />;
   }
   const common = {
-    menu: <AccountMenu session={session} account={active} onChanged={changed} />,
+    menu: (
+      <AccountMenu
+        session={session}
+        account={active}
+        onChanged={changed}
+        onOpenSettings={() => go("#/settings")}
+      />
+    ),
     onAuthLost: changed,
     notice,
     onNoticeClose: () => setNotice(""),
@@ -195,6 +222,8 @@ export default function App() {
       onAuthLost={changed}
       notice={inSplit ? "" : notice}
       onNoticeClose={common.onNoticeClose}
+      theme={look.theme}
+      onOpenChannel={(channel) => openChannel(groupId, channel)}
     />
   );
 
@@ -212,7 +241,20 @@ export default function App() {
     />
   );
 
-  if (wide) {
+  if (route.view === "settings") {
+    return (
+      <SettingsScreen
+        settings={look}
+        onChange={setLook}
+        onBack={() => window.history.back()}
+        menu={common.menu}
+      />
+    );
+  }
+
+  // 시트 테마의 대화방은 화면 전체가 문서 한 장이다(채널은 아래 시트 탭으로)
+  const sheetRoom = look.theme === "sheet" && (route.view === "chat" || route.view === "thread");
+  if (wide && !sheetRoom) {
     return (
       <div className="split">
         <aside className="split-list">

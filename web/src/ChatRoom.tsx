@@ -12,6 +12,8 @@ import {
 import Composer from "./Composer";
 import { compareIds, dayKey, formatDay, formatTime } from "./format";
 import MessageItem, { Avatar, MessageBody, type ReplyPreview } from "./MessageItem";
+import SheetView from "./SheetView";
+import type { Theme } from "./theme";
 import type { ChannelInfo, Message, RealtimeEvent } from "./types";
 import { useRealtime } from "./useRealtime";
 
@@ -35,6 +37,10 @@ interface Props {
   /** 계정 추가 실패 같은 한 번 보여 줄 안내 */
   notice?: string;
   onNoticeClose?: () => void;
+  /** 테마: 시트는 표로, 메모장은 한 줄 기록으로 */
+  theme?: Theme;
+  /** 시트 탭에서 다른 채널 열기 */
+  onOpenChannel?: (channel: ChannelInfo) => void;
 }
 
 function mergeMessages(current: Message[], incoming: Message[]): Message[] {
@@ -55,6 +61,8 @@ export default function ChatRoom({
   onAuthLost,
   notice,
   onNoticeClose,
+  theme = "moon",
+  onOpenChannel,
 }: Props) {
   const [channel, setChannel] = useState<ChannelInfo | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -273,6 +281,69 @@ export default function ChatRoom({
     setUnseen(0);
   };
 
+  const composer = channel ? (
+    <Composer
+      placeholder={isThread ? (isForumPost ? "댓글 입력" : "스레드에 메시지 입력") : "메시지 입력"}
+      readOnlyText={
+        isThread
+          ? channel.locked
+            ? "잠긴 글이라 댓글을 쓸 수 없어요."
+            : "이 글에는 댓글을 쓸 수 없어요."
+          : undefined
+      }
+      channelId={channel.id}
+      canSend={channel.can_send}
+      replyTo={replyTo}
+      editing={editing}
+      onCancel={() => {
+        setReplyTo(null);
+        setEditing(null);
+      }}
+      onSubmit={submit}
+    />
+  ) : null;
+
+  if (theme === "sheet") {
+    return (
+      <SheetView
+        channel={channel}
+        rows={isThread && starter ? [starter, ...shownMessages] : shownMessages}
+        myUserId={myUserId}
+        hasMore={hasMore}
+        loadingOlder={loadingOlder}
+        onLoadOlder={() => void loadOlder()}
+        error={error}
+        notice={notice}
+        onNoticeClose={onNoticeClose}
+        unseen={unseen}
+        onScrollToBottom={scrollToBottom}
+        connected={connected}
+        listRef={listRef}
+        onScroll={onScroll}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
+        replyPreview={replyPreview}
+        onReply={(target) => {
+          setEditing(null);
+          setReplyTo(target);
+          setSelectedId(null);
+        }}
+        onEdit={(target) => {
+          setReplyTo(null);
+          setEditing(target);
+          setSelectedId(null);
+        }}
+        onDelete={remove}
+        composer={composer}
+        showBack={Boolean(showBack)}
+        onBack={onBack}
+        onOpenThreads={onOpenThreads}
+        onOpenTab={onOpenChannel}
+        menu={menu}
+      />
+    );
+  }
+
   return (
     <div className="room">
       <header className="room-header">
@@ -407,7 +478,7 @@ export default function ChatRoom({
                   setSelectedId(null);
                 }}
                 onDelete={remove}
-                layout={isThread ? "comment" : "bubble"}
+                layout={theme === "memo" ? "line" : isThread ? "comment" : "bubble"}
               />
             </div>
           );
@@ -419,27 +490,7 @@ export default function ChatRoom({
           새 메시지 {unseen}개 ↓
         </button>
       )}
-      {channel && (
-        <Composer
-          placeholder={isThread ? (isForumPost ? "댓글 입력" : "스레드에 메시지 입력") : "메시지 입력"}
-          readOnlyText={
-            isThread
-              ? channel.locked
-                ? "잠긴 글이라 댓글을 쓸 수 없어요."
-                : "이 글에는 댓글을 쓸 수 없어요."
-              : undefined
-          }
-          channelId={channel.id}
-          canSend={channel.can_send}
-          replyTo={replyTo}
-          editing={editing}
-          onCancel={() => {
-            setReplyTo(null);
-            setEditing(null);
-          }}
-          onSubmit={submit}
-        />
-      )}
+      {composer}
     </div>
   );
 }
