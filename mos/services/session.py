@@ -226,9 +226,7 @@ class SessionService:
 
         links = await self.repo.device_accounts(device.id)
         known = {int(link["discord_user_id"]): link["account_id"] for link in links}
-        if saved["purpose"] == "add" and user.id in known:
-            # 디스코드 승인 화면은 브라우저에 로그인된 계정으로 열린다. 같은 계정이면 알려 준다
-            raise SessionError("already_added", status=409)
+        already_added = saved["purpose"] == "add" and user.id in known
         if user.id not in known and len(links) >= MAX_ACCOUNTS_PER_DEVICE:
             raise SessionError("too_many_accounts", status=409)
 
@@ -247,6 +245,10 @@ class SessionService:
             guild_ids=shared,
             now=now,
         )
+        if already_added:
+            # 디스코드 승인 화면은 브라우저에 로그인된 계정으로 열린다. 같은 계정이면 서버 목록만
+            # 새로 받아 두고(나중에 들어간 서버 반영), 잠금·활성 계정은 그대로 둔 채 알려 준다
+            raise SessionError("already_added", status=409)
         await self.repo.add_device_account(device.id, account_id, now)
         await self.repo.set_active_account(device.id, account_id)
 

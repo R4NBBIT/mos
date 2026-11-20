@@ -366,6 +366,16 @@ def test_add_with_same_account_is_reported(env: Env) -> None:
     assert len(session(env)["accounts"]) == 2
 
 
+def test_reconnect_refreshes_server_list(env: Env) -> None:
+    env.oauth.add("late", 46, "늦게옴", {OTHER_GUILD})
+    account_id = signed_up(env, "late")
+    assert messages_status(env) == 404  # 아직 미리보기 서버에 없음
+    env.oauth.users["late"] = (env.oauth.users["late"][0], {OTHER_GUILD, GUILD})  # 서버 A 들어감
+    assert connect(env, "late", purpose="add") == "/?connect_error=already_added"
+    assert session(env)["active_account_id"] == account_id
+    assert messages_status(env) == 200  # 같은 계정으로 다시 연결만 해도 서버 목록이 새로 반영
+
+
 def test_account_limit_per_device(env: Env) -> None:
     for index in range(5):
         env.oauth.add(f"user{index}", 100 + index, f"u{index}", {GUILD})
