@@ -25,6 +25,9 @@ export default function LoginBox({ onDone }: Props) {
         setError("여러 번 틀려서 잠겼어요. 10분 뒤에 다시 해 주세요.");
       } else if (caught instanceof ApiError && caught.status === 401) {
         setError("열쇠가 맞지 않아요.");
+      } else if (caught instanceof ApiError && caught.status === 403) {
+        // 서버에 설정한 주소(PUBLIC_ORIGIN)와 다른 주소로 열었을 때
+        setError("이 주소로는 들어올 수 없어요. 정해진 주소로 다시 열어 주세요(개발: http://localhost:5173).");
       } else {
         setError("서버에 연결할 수 없어요.");
       }

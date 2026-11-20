@@ -5,7 +5,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: "127.0.0.1",
+    host: "localhost", // 서버 설정 PUBLIC_ORIGIN(http://localhost:5173)과 같은 주소로 열리게
     port: 5173,
     strictPort: true,
     proxy: {

@@ -57,15 +57,32 @@ export default function ChatRoom({ onLoggedOut }: Props) {
     [handleAuthError],
   );
 
+  // 서버를 막 켰을 때는 봇이 디스코드에 붙기 전이라 503이 온다. 붙을 때까지 다시 묻는다
   useEffect(() => {
-    fetchChannel()
-      .then((info) => {
+    let stopped = false;
+    let timer: number | undefined;
+    const attempt = async (delayMs: number) => {
+      try {
+        const info = await fetchChannel();
+        if (stopped) return;
+        setError("");
         setChannel(info);
-        return loadLatest(info);
-      })
-      .catch((caught) => {
-        if (!handleAuthError(caught)) setError("채널 정보를 불러오지 못했어요.");
-      });
+        await loadLatest(info);
+      } catch (caught) {
+        if (stopped || handleAuthError(caught)) return;
+        if (caught instanceof ApiError && caught.status === 503) {
+          setError("디스코드에 연결하는 중이에요…");
+        } else {
+          setError("채널 정보를 불러오지 못했어요. 다시 시도하는 중…");
+        }
+        timer = window.setTimeout(() => void attempt(Math.min(delayMs * 2, 15000)), delayMs);
+      }
+    };
+    void attempt(1000);
+    return () => {
+      stopped = true;
+      window.clearTimeout(timer);
+    };
   }, [handleAuthError, loadLatest]);
 
   const loadOlder = async () => {
