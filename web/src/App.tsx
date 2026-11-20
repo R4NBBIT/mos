@@ -5,7 +5,8 @@ import { ConnectScreen, PasswordSetup, ReconnectScreen, UnlockScreen } from "./A
 import { authText } from "./authText";
 import ChatRoom from "./ChatRoom";
 import { ChannelList, GroupList } from "./Lists";
-import type { SessionAccount, SessionState } from "./types";
+import Posts from "./Posts";
+import type { ChannelInfo, SessionAccount, SessionState } from "./types";
 
 // 서버의 자동 잠금(30분)과 같게. 조작이 없으면 화면도 잠금으로 간다
 const AUTO_LOCK_MS = 30 * 60 * 1000;
@@ -21,10 +22,24 @@ function takeConnectError(): string {
   return authText(code);
 }
 
-type Route = { view: "groups" } | { view: "channels"; groupId: string } | { view: "chat"; groupId: string; channelId: string };
+type Route =
+  | { view: "groups" }
+  | { view: "channels"; groupId: string }
+  | { view: "chat"; groupId: string; channelId: string }
+  | { view: "posts"; groupId: string; parentId: string }
+  | { view: "thread"; groupId: string; parentId: string; threadId: string };
 
-/** 주소 # 뒤: #/ 모임 목록, #/g/모임 채널 목록, #/g/모임/c/채널 채팅방. ID는 숫자만 받는다 */
+/**
+ * 주소 # 뒤: #/ 모임 목록, #/g/모임 채널 목록, #/g/모임/c/채널 채팅방,
+ * #/g/모임/p/채널 포럼 글·스레드 목록, #/g/모임/p/채널/t/글 글(스레드) 채팅. ID는 숫자만 받는다
+ */
 function parseRoute(hash: string): Route {
+  const thread = /^#\/g\/(\d{1,21})\/p\/(\d{1,21})\/t\/(\d{1,21})$/.exec(hash);
+  if (thread?.[1] && thread[2] && thread[3]) {
+    return { view: "thread", groupId: thread[1], parentId: thread[2], threadId: thread[3] };
+  }
+  const posts = /^#\/g\/(\d{1,21})\/p\/(\d{1,21})$/.exec(hash);
+  if (posts?.[1] && posts[2]) return { view: "posts", groupId: posts[1], parentId: posts[2] };
   const chat = /^#\/g\/(\d{1,21})\/c\/(\d{1,21})$/.exec(hash);
   if (chat?.[1] && chat[2]) return { view: "chat", groupId: chat[1], channelId: chat[2] };
   const channels = /^#\/g\/(\d{1,21})$/.exec(hash);
@@ -148,11 +163,13 @@ export default function App() {
     notice,
     onNoticeClose: () => setNotice(""),
   };
+  const openChannel = (groupId: string, channel: ChannelInfo) =>
+    go(channel.kind === "forum" ? `#/g/${groupId}/p/${channel.id}` : `#/g/${groupId}/c/${channel.id}`);
   const groupList = (
     <GroupList
       key={active.id}
       onOpen={(groupId) => go(`#/g/${groupId}`)}
-      onOpenChannel={(groupId, channelId) => go(`#/g/${groupId}/c/${channelId}`)}
+      onOpenChannel={openChannel}
       {...common}
     />
   );
@@ -162,21 +179,36 @@ export default function App() {
       groupId={groupId}
       activeChannelId={activeChannelId}
       onBack={() => go("#/")}
-      onOpen={(channelId) => go(`#/g/${groupId}/c/${channelId}`)}
+      onOpen={(channel) => openChannel(groupId, channel)}
       {...common}
     />
   );
-  const chatRoom = (groupId: string, channelId: string, inSplit: boolean) => (
+  const chatRoom = (groupId: string, channelId: string, inSplit: boolean, parentId?: string) => (
     <ChatRoom
       key={`${active.id}:${channelId}`}
       channelId={channelId}
       myUserId={active.user_id}
-      showBack={!inSplit}
-      onBack={() => go(`#/g/${groupId}`)}
+      showBack={!inSplit || Boolean(parentId)}
+      onBack={() => go(parentId ? `#/g/${groupId}/p/${parentId}` : `#/g/${groupId}`)}
+      onOpenThreads={parentId ? undefined : () => go(`#/g/${groupId}/p/${channelId}`)}
       menu={inSplit ? null : common.menu}
       onAuthLost={changed}
       notice={inSplit ? "" : notice}
       onNoticeClose={common.onNoticeClose}
+    />
+  );
+
+  const posts = (groupId: string, parentId: string, inSplit: boolean) => (
+    <Posts
+      key={`${active.id}:${parentId}`}
+      parentId={parentId}
+      showBack
+      menu={inSplit ? null : common.menu}
+      onBack={(parent) =>
+        go(parent && parent.kind !== "forum" ? `#/g/${groupId}/c/${parentId}` : `#/g/${groupId}`)
+      }
+      onOpen={(threadId) => go(`#/g/${groupId}/p/${parentId}/t/${threadId}`)}
+      onAuthLost={changed}
     />
   );
 
@@ -186,11 +218,18 @@ export default function App() {
         <aside className="split-list">
           {route.view === "groups"
             ? groupList
-            : channelList(route.groupId, route.view === "chat" ? route.channelId : undefined)}
+            : channelList(
+                route.groupId,
+                route.view === "chat" ? route.channelId : route.view === "channels" ? undefined : route.parentId,
+              )}
         </aside>
         <main className="split-main">
           {route.view === "chat" ? (
             chatRoom(route.groupId, route.channelId, true)
+          ) : route.view === "posts" ? (
+            posts(route.groupId, route.parentId, true)
+          ) : route.view === "thread" ? (
+            chatRoom(route.groupId, route.threadId, true, route.parentId)
           ) : (
             <div className="split-empty">왼쪽에서 {route.view === "groups" ? "모임" : "채널"}을 골라 주세요.</div>
           )}
@@ -199,6 +238,8 @@ export default function App() {
     );
   }
   if (route.view === "chat") return chatRoom(route.groupId, route.channelId, false);
+  if (route.view === "posts") return posts(route.groupId, route.parentId, false);
+  if (route.view === "thread") return chatRoom(route.groupId, route.threadId, false, route.parentId);
   if (route.view === "channels") return channelList(route.groupId);
   return groupList;
 }

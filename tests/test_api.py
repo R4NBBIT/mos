@@ -16,7 +16,14 @@ from mos.api.app import COOKIE_NAME, create_app
 from mos.config import load_settings
 from mos.db.database import Database
 from mos.db.repo import MessageRepo
-from mos.services.directory import ChannelInfo, EmojiInfo, GuildInfo, MemberInfo, Overwrite
+from mos.services.directory import (
+    ChannelInfo,
+    EmojiInfo,
+    ForumTagInfo,
+    GuildInfo,
+    MemberInfo,
+    Overwrite,
+)
 from mos.services.discord_oauth import DiscordUser, OAuthError, TokenSet
 from mos.services.permissions import (
     MENTION_EVERYONE,
@@ -63,7 +70,15 @@ class FakeDirectory:
             SECRET: ChannelInfo(
                 SECRET, GUILD, "비밀", "text", 1, overwrites=(deny_everyone, allow_role)
             ),
-            FORUM: ChannelInfo(FORUM, GUILD, "포럼", "forum", 2),
+            FORUM: ChannelInfo(
+                FORUM,
+                GUILD,
+                "포럼",
+                "forum",
+                2,
+                forum_tags=(ForumTagInfo(901, "질문", "❓"), ForumTagInfo(902, "공지", None, True)),
+                require_tag=True,
+            ),
             9001: ChannelInfo(9001, OTHER_GUILD, "옆일반", "text", 0),
         }
         self.members: dict[tuple[int, int], frozenset[int]] = {
@@ -81,6 +96,7 @@ class FakeDirectory:
             ],
             OTHER_GUILD: [EmojiInfo(1573320336554852804, "other", False, OTHER_GUILD)],
         }
+        self.archived_map: dict[int, ChannelInfo] = {}
         self.synced: list[int] = []
         self.older_calls: list[tuple[int, int]] = []
 
@@ -104,6 +120,25 @@ class FakeDirectory:
 
     def emojis(self, guild_id: int) -> list[EmojiInfo]:
         return self.emoji_map.get(guild_id, [])
+
+    async def fetch_channel(self, channel_id: int) -> ChannelInfo | None:
+        return self.archived_map.get(channel_id)  # 캐시에 없는 보관 스레드
+
+    async def list_threads(
+        self, parent_id: int, before: float | None, limit: int
+    ) -> tuple[list[ChannelInfo], bool]:
+        active = [
+            c for c in self.channel_map.values() if c.parent_id == parent_id and not c.archived
+        ]
+        archived = sorted(
+            (c for c in self.archived_map.values() if c.parent_id == parent_id),
+            key=lambda c: c.archive_ts or 0,
+            reverse=True,
+        )
+        if before is not None:
+            archived = [c for c in archived if (c.archive_ts or 0) < before]
+        page = archived[: limit + 1]
+        return ([] if before is not None else active) + page[:limit], len(page) > limit
 
     async def fetch_member(self, guild_id: int, user_id: int) -> MemberInfo | None:
         roles = self.members.get((guild_id, user_id))
@@ -138,7 +173,10 @@ class FakeMessenger:
         return hook
 
     def _row(self, hook: Webhook, message_id: int, message: OutgoingMessage) -> dict:
-        channel = message.thread_id or self.hook_channel[hook.id]
+        # 포럼 새 글이면 디스코드가 글(스레드)을 만들고, 글 ID = 첫 메시지 ID
+        channel = (
+            message_id if message.thread_name else message.thread_id or self.hook_channel[hook.id]
+        )
         row = make_row(message_id, channel_id=channel, content=message.content)
         row.update(author_id=hook.id, author_name=message.username or "x", webhook_id=hook.id)
         return row
@@ -1110,3 +1148,126 @@ def test_egress_limit_blocks_attachments_and_alerts_once(tmp_path: Path) -> None
         assert blocked.json()["detail"] == "egress_limit"
         env.tick(2)
         assert send(env, "글은 계속 돼").status_code == 200
+
+
+# ------------------------------------------------------------ 5-1 포럼·스레드
+
+POST_A = 1573319705849200001
+POST_B = 1573319705849200002
+
+
+def add_forum_posts(env: Env, archived: int = 0) -> None:
+    env.bot.channel_map[POST_A] = ChannelInfo(
+        POST_A,
+        GUILD,
+        "점심 뭐 먹지",
+        "thread",
+        0,
+        parent_id=FORUM,
+        applied_tag_ids=(901,),
+        message_count=3,
+    )
+    env.client.portal.call(
+        env.repo.upsert, make_row(POST_A, channel_id=POST_A, content="**오늘** 점심 추천 받아요")
+    )
+    for index in range(archived):
+        thread_id = POST_B + index
+        env.bot.archived_map[thread_id] = ChannelInfo(
+            thread_id,
+            GUILD,
+            f"지난 글 {index}",
+            "thread",
+            0,
+            parent_id=FORUM,
+            archived=True,
+            archive_ts=1_700_000_000.0 - index,
+        )
+
+
+def test_forum_post_list_with_preview_tags_and_pages(env: Env) -> None:
+    signed_up(env)
+    add_forum_posts(env, archived=30)
+    body = env.client.get(f"/api/channels/{FORUM}/threads").json()
+    parent = body["parent"]
+    assert parent["kind"] == "forum" and parent["can_post"] is True and parent["require_tag"]
+    assert [t["name"] for t in parent["tags"]] == ["질문", "공지"]
+    assert [t["usable"] for t in parent["tags"]] == [True, False]  # 공지는 관리자 전용
+    first = body["threads"][0]
+    assert first["name"] == "점심 뭐 먹지" and first["tag_ids"] == ["901"]
+    assert first["preview"] == "오늘 점심 추천 받아요"  # 서식 기호는 빼고
+    assert len(body["threads"]) == 1 + 25 and body["has_more"] is True
+    second = env.client.get(f"/api/channels/{FORUM}/threads?before={body['next_before']}").json()
+    assert len(second["threads"]) == 5 and second["has_more"] is False
+
+
+def test_archived_thread_opens_through_lookup(env: Env) -> None:
+    signed_up(env)
+    add_forum_posts(env, archived=1)
+    response = env.client.get(f"/api/channels/{POST_B}")
+    assert response.status_code == 200
+    assert response.json()["archived"] is True and response.json()["parent_id"] == str(FORUM)
+    assert env.client.get(f"/api/channels/{POST_B}/messages").status_code == 200
+
+
+def test_text_channel_threads_follow_parent_permissions(env: Env) -> None:
+    thread = 1573319705849300001
+    secret_thread = 1573319705849300002
+    signed_up(env, "latte")
+    env.bot.channel_map[thread] = ChannelInfo(
+        thread, GUILD, "잡담 스레드", "thread", 0, parent_id=CHANNEL
+    )
+    env.bot.channel_map[secret_thread] = ChannelInfo(
+        secret_thread,
+        GUILD,
+        "비밀 스레드",
+        "thread",
+        0,
+        parent_id=SECRET,
+        overwrites=env.bot.channel_map[SECRET].overwrites,
+    )
+    names = [
+        t["name"] for t in env.client.get(f"/api/channels/{CHANNEL}/threads").json()["threads"]
+    ]
+    assert names == ["잡담 스레드"]
+    assert env.client.get(f"/api/channels/{SECRET}/threads").status_code == 404
+    assert env.client.get(f"/api/channels/{secret_thread}/messages").status_code == 404
+    assert env.client.get(f"/api/channels/{thread}/threads").status_code == 404
+
+
+def post(env: Env, title: str = "새 글", content: str = "내용", tags: str = "901", **extra: Any):
+    _nonce_counter[0] += 1
+    data = {"nonce": f"post-{_nonce_counter[0]:06d}", "title": title, "content": content}
+    if tags is not None:
+        data["tag_ids"] = tags
+    return env.client.post(
+        f"/api/channels/{extra.get('channel', FORUM)}/posts",
+        data=data,
+        files=extra.get("files"),
+        headers=POST,
+    )
+
+
+def test_create_forum_post(env: Env) -> None:
+    signed_up(env, "latte")
+    assert post(env, tags="").json()["detail"] == "tag_required"
+    env.tick(2)
+    assert post(env, tags="902").status_code == 403  # 관리자 전용 태그
+    env.tick(2)
+    assert post(env, tags="999").json()["detail"] == "bad_tags"
+    env.tick(2)
+    assert post(env, title="   ").status_code in (400, 422)
+    env.tick(2)
+    response = post(env, title="  점심   뭐 먹지 ", content="추천 받아요", tags="901,901")
+    assert response.status_code == 200
+    thread_id = response.json()["thread_id"]
+    outgoing = env.messenger.sent[-1][1]
+    assert outgoing.thread_name == "점심 뭐 먹지" and outgoing.applied_tags == (901,)
+    assert outgoing.username == "user43"
+    assert env.messenger.hook_channel[env.messenger.sent[-1][0].id] == FORUM  # 포럼 웹훅
+    assert int(thread_id) == int(env.messenger.next_id)  # 글 ID = 첫 메시지 ID
+
+    env.tick(2)
+    with_file = post(env, content="", files=[("files", ("a.png", b"x", "image/png"))])
+    assert with_file.status_code == 200
+    env.tick(2)
+    assert post(env, channel=CHANNEL).status_code == 403  # 일반 채널에는 글을 만들 수 없음

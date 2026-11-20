@@ -9,7 +9,9 @@ import asyncio
 import io
 import logging
 import re
+import time
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import discord
@@ -22,6 +24,7 @@ from mos.services.directory import (
     ChannelInfo,
     DirectoryError,
     EmojiInfo,
+    ForumTagInfo,
     GuildInfo,
     MemberInfo,
     Overwrite,
@@ -39,6 +42,8 @@ MemberChanged = Callable[[int, int | None], None]  # (서버 ID, 사용자 ID �
 NitroSeen = Callable[[int], Awaitable[bool]]  # (디스코드 사용자 ID) → 확인 기간을 늘렸나
 _CUSTOM_EMOJI = re.compile(r"<(a?):[A-Za-z0-9_]{1,32}:(\d{15,21})>")
 WEBHOOK_NAME = "ㅁㅇㅅ"
+THREAD_CACHE_SEC = 300  # 디스코드에서 찾아 온 보관 스레드를 기억하는 시간
+THREAD_CACHE_MAX = 2000
 DELETE_COMMAND_NAME = "ㅁㅇㅅ 메시지 삭제"
 UNKNOWN_WEBHOOK = 10015
 UNKNOWN_MESSAGE = 10008
@@ -104,6 +109,12 @@ def channel_to_info(channel: Any) -> ChannelInfo | None:
             thread_locked=bool(channel.locked),
             overwrites=base.overwrites,
             bot_can_read=base.bot_can_read,
+            applied_tag_ids=tuple(int(tag_id) for tag_id in getattr(channel, "_applied_tags", [])),
+            archived=bool(channel.archived),
+            message_count=int(channel.message_count or 0),
+            owner_id=channel.owner_id,
+            last_message_id=channel.last_message_id,
+            archive_ts=channel.archive_timestamp.timestamp() if channel.archive_timestamp else None,
         )
     if isinstance(channel, discord.TextChannel):
         kind = "news" if channel.is_news() else "text"
@@ -112,6 +123,19 @@ def channel_to_info(channel: Any) -> ChannelInfo | None:
     else:
         return None
     category = channel.category
+    tags: tuple[ForumTagInfo, ...] = ()
+    require_tag = False
+    if isinstance(channel, discord.ForumChannel):
+        tags = tuple(
+            ForumTagInfo(
+                id=tag.id,
+                name=tag.name,
+                emoji=str(tag.emoji) if tag.emoji else None,
+                moderated=tag.moderated,
+            )
+            for tag in channel.available_tags
+        )
+        require_tag = channel.flags.require_tag
     return ChannelInfo(
         id=channel.id,
         guild_id=channel.guild.id,
@@ -123,6 +147,8 @@ def channel_to_info(channel: Any) -> ChannelInfo | None:
         category_position=category.position if category else -1,
         overwrites=_overwrites(channel),
         bot_can_read=_bot_can_read(channel),
+        forum_tags=tags,
+        require_tag=require_tag,
     )
 
 
@@ -145,6 +171,7 @@ class MosBot(discord.Client):
         self._synced: set[int] = set()
         self._history_done: set[int] = set()
         self._sync_locks: dict[int, asyncio.Lock] = {}
+        self._thread_cache: dict[int, tuple[float, ChannelInfo]] = {}
 
     async def setup_hook(self) -> None:
         self.tree.add_command(
@@ -222,6 +249,54 @@ class MosBot(discord.Client):
             )
             for emoji in guild.emojis
         ]
+
+    def _remember_thread(self, info: ChannelInfo) -> None:
+        if len(self._thread_cache) >= THREAD_CACHE_MAX:
+            self._thread_cache.clear()
+        self._thread_cache[info.id] = (time.monotonic(), info)
+
+    async def fetch_channel_info(self, channel_id: int) -> ChannelInfo | None:
+        cached = self._thread_cache.get(channel_id)
+        if cached and time.monotonic() - cached[0] < THREAD_CACHE_SEC:
+            return cached[1]
+        try:
+            channel = await self.fetch_channel(channel_id)
+        except (discord.NotFound, discord.Forbidden):
+            return None
+        except discord.HTTPException as error:
+            raise DirectoryError(f"channel lookup failed: HTTP {error.status}") from error
+        if not isinstance(channel, discord.Thread) or channel.guild.id not in self.guild_ids():
+            return None
+        info = channel_to_info(channel)
+        if info is not None:
+            self._remember_thread(info)
+        return info
+
+    async def list_threads(
+        self, parent_id: int, before: float | None, limit: int
+    ) -> tuple[list[ChannelInfo], bool]:
+        parent = self.get_channel(parent_id)
+        if not isinstance(parent, discord.TextChannel | discord.ForumChannel):
+            return [], False
+        result: list[ChannelInfo] = []
+        if before is None:
+            active = [thread for thread in parent.threads if not thread.archived]
+            active.sort(key=lambda thread: thread.last_message_id or thread.id, reverse=True)
+            result.extend(info for info in map(channel_to_info, active) if info is not None)
+        archived: list[ChannelInfo] = []
+        try:
+            cutoff = datetime.fromtimestamp(before, UTC) if before is not None else None
+            async for thread in parent.archived_threads(limit=limit + 1, before=cutoff):
+                info = channel_to_info(thread)
+                if info is not None:
+                    archived.append(info)
+                    self._remember_thread(info)
+        except discord.Forbidden:
+            return result, False  # 봇이 보관된 글을 못 읽으면 열린 것만
+        except discord.HTTPException as error:
+            raise DirectoryError(f"archived threads failed: HTTP {error.status}") from error
+        has_more = len(archived) > limit
+        return result + archived[:limit], has_more
 
     async def notify_operator(self, text: str) -> None:
         """운영자에게 디스코드 DM(송신량 경고 등). 운영자 ID가 없으면 로그만."""
@@ -480,6 +555,9 @@ class BotMessenger:
             sent = await self._hook(webhook).send(
                 content=message.content,
                 files=files or discord.utils.MISSING,
+                thread_name=message.thread_name or discord.utils.MISSING,
+                applied_tags=[discord.Object(id=tag) for tag in message.applied_tags]  # type: ignore[misc]
+                or discord.utils.MISSING,
                 username=message.username,
                 avatar_url=message.avatar_url or discord.utils.MISSING,
                 allowed_mentions=self._mentions(message),
@@ -545,6 +623,14 @@ class BotDirectory:
 
     def emojis(self, guild_id: int) -> list[EmojiInfo]:
         return self.bot.emojis_info(guild_id)
+
+    async def fetch_channel(self, channel_id: int) -> ChannelInfo | None:
+        return await self.bot.fetch_channel_info(channel_id)
+
+    async def list_threads(
+        self, parent_id: int, before: float | None, limit: int
+    ) -> tuple[list[ChannelInfo], bool]:
+        return await self.bot.list_threads(parent_id, before, limit)
 
     async def fetch_member(self, guild_id: int, user_id: int) -> MemberInfo | None:
         return await self.bot.fetch_member(guild_id, user_id)

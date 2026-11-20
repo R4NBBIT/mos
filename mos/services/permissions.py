@@ -97,6 +97,19 @@ class ChannelAccess:
         return bool(self.permissions & flag) and self.can_read
 
     @property
+    def can_create_post(self) -> bool:
+        """포럼에 새 글: 포럼 채널의 '메시지 보내기' 권한."""
+        return (
+            self.channel.kind == "forum"
+            and bool(self.permissions & SEND_MESSAGES)
+            and self.can_read
+        )
+
+    @property
+    def can_use_moderated_tags(self) -> bool:
+        return bool(self.permissions & MANAGE_THREADS)
+
+    @property
     def can_mention_everyone(self) -> bool:
         """웹훅은 @everyone 권한을 따지지 않아, 본인 권한이 있을 때만 허용한다."""
         return bool(self.permissions & MENTION_EVERYONE)
@@ -139,6 +152,8 @@ class PermissionService:
     async def channel_access(self, user_id: int, channel_id: int) -> ChannelAccess | None:
         """볼 수 없으면 None(없는 채널과 구분하지 않는다)."""
         channel = self.directory.channel(channel_id)
+        if channel is None:
+            channel = await self.directory.fetch_channel(channel_id)  # 보관된 스레드 등
         if channel is None or channel.private_thread:
             return None  # 비공개 스레드는 참여 여부를 알 수 없어 1차에서는 막는다
         guild = self.directory.guild(channel.guild_id)

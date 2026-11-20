@@ -1,4 +1,12 @@
-import type { ChannelInfo, GroupChannels, GroupList, Message, MessagePage, SessionState } from "./types";
+import type {
+  ChannelInfo,
+  GroupChannels,
+  GroupList,
+  Message,
+  MessagePage,
+  SessionState,
+  ThreadPage,
+} from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -163,4 +171,30 @@ export async function sendFiles(
     body: form,
   });
   return response.json() as Promise<Message>;
+}
+
+export async function fetchThreads(parentId: string, before: number | null): Promise<ThreadPage> {
+  const query = before ? `?before=${encodeURIComponent(String(before))}` : "";
+  return (await request(`/api/channels/${encodeURIComponent(parentId)}/threads${query}`)).json() as Promise<ThreadPage>;
+}
+
+export async function createPost(
+  forumId: string,
+  title: string,
+  content: string,
+  tagIds: string[],
+  nonce: string,
+  files: File[],
+): Promise<{ thread_id: string }> {
+  const form = new FormData();
+  form.append("nonce", nonce);
+  form.append("title", title);
+  form.append("content", content);
+  form.append("tag_ids", tagIds.join(","));
+  for (const file of files) form.append("files", file, file.name);
+  const response = await request(`/api/channels/${encodeURIComponent(forumId)}/posts`, {
+    method: "POST",
+    body: form,
+  });
+  return response.json() as Promise<{ thread_id: string }>;
 }

@@ -26,6 +26,8 @@ interface Props {
   onBack: () => void;
   /** 좁은 화면에서만 뒤로 버튼(넓은 화면은 왼쪽에 목록이 있다) */
   showBack?: boolean;
+  /** 일반 채널: 스레드 목록 열기 */
+  onOpenThreads?: () => void;
   /** 오른쪽 위 계정 메뉴 */
   menu: ReactNode | null;
   /** 잠겼거나 세션이 끝나 401을 받았을 때 */
@@ -48,6 +50,7 @@ export default function ChatRoom({
   myUserId,
   onBack,
   showBack = true,
+  onOpenThreads,
   menu,
   onAuthLost,
   notice,
@@ -253,9 +256,20 @@ export default function ChatRoom({
           </button>
         )}
         <div className="room-title">
-          <strong>{channel ? `# ${channel.name}` : "…"}</strong>
-          <span className="room-sub">{channel?.group_name ?? ""}</span>
+          <strong>
+            {channel ? `${channel.kind === "thread" ? "↳" : "#"} ${channel.name}` : "…"}
+            {channel?.locked && " 🔒"}
+          </strong>
+          <span className="room-sub">
+            {channel?.group_name ?? ""}
+            {channel?.archived ? " · 보관된 글(쓰면 다시 열려요)" : ""}
+          </span>
         </div>
+        {onOpenThreads && channel && channel.kind !== "thread" && (
+          <button type="button" className="text-button header-link" onClick={onOpenThreads}>
+            스레드
+          </button>
+        )}
         <span className={connected ? "dot dot-on" : "dot"} title={connected ? "실시간 연결됨" : "연결 중"} />
         {menu}
       </header>

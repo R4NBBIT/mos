@@ -455,6 +455,143 @@ button {
   color: var(--sub);
 }
 
+.header-action {
+  height: 32px;
+  padding: 0 14px;
+}
+
+.header-link {
+  padding: 4px 8px;
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.tag-filter {
+  margin: 4px 4px 10px;
+}
+
+.tag-row-label {
+  color: var(--sub);
+  font-size: 12px;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+
+button.tag-chip {
+  cursor: pointer;
+}
+
+button.tag-chip:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.tag-chip-on {
+  border-color: var(--ink);
+  background: var(--honey);
+}
+
+.post-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font: inherit;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.post-item:hover {
+  border-color: var(--sub);
+}
+
+.post-title {
+  font-weight: 700;
+}
+
+.post-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.post-preview {
+  color: var(--sub);
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.post-meta {
+  color: var(--sub);
+  font-size: 12px;
+}
+
+.new-post {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.new-post-title,
+.new-post-content {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font: inherit;
+  background: var(--bg);
+}
+
+.new-post-title {
+  font-weight: 700;
+}
+
+.new-post-content {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.new-post-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.file-pick {
+  cursor: pointer;
+}
+
 .room-notice {
   display: flex;
   align-items: flex-start;

@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import re
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -34,7 +35,7 @@ from mos.db.lists_repo import ListsRepo
 from mos.db.repo import MAX_PAGE_SIZE, MessageRepo
 from mos.db.sender_repo import SenderRepo
 from mos.services.crypto import TokenCipher
-from mos.services.directory import Directory, DirectoryError, GuildInfo
+from mos.services.directory import ChannelInfo, Directory, DirectoryError, GuildInfo
 from mos.services.discord_oauth import DiscordOAuth, OAuthClient
 from mos.services.egress import EgressMeter
 from mos.services.emojis import EmojiService
@@ -67,11 +68,33 @@ MAX_PINNED_CHANNELS = 10
 NONCE_PATTERN = r"^[A-Za-z0-9-]{8,64}$"
 SNOWFLAKE_PATTERN = r"^[0-9]{15,21}$"
 UPLOAD_CHUNK = 64 * 1024
+THREAD_PAGE = 25
+DISCORD_EPOCH_MS = 1420070400000
 
 
 def group_to_api(guild: GuildInfo) -> dict[str, Any]:
     # 화면·주소에는 '서버(guild)' 대신 평범한 '모임(group)'이라는 말을 쓴다
     return {"id": str(guild.id), "name": guild.name, "icon_url": guild.icon_url}
+
+
+def snowflake_time(snowflake: int) -> str:
+    """디스코드 ID에 들어 있는 만든 시각(ISO)."""
+    millis = (snowflake >> 22) + DISCORD_EPOCH_MS
+    return time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(millis / 1000))
+
+
+def thread_to_api(thread: ChannelInfo, preview: str | None) -> dict[str, Any]:
+    return {
+        "id": str(thread.id),
+        "name": thread.name,
+        "tag_ids": [str(tag) for tag in thread.applied_tag_ids],
+        "archived": thread.archived,
+        "locked": thread.thread_locked,
+        "message_count": thread.message_count,
+        "created_at": snowflake_time(thread.id),
+        "last_message_at": snowflake_time(thread.last_message_id or thread.id),
+        "preview": preview,
+    }
 
 
 def channel_to_api(access: ChannelAccess, group_name: str | None = None) -> dict[str, Any]:
@@ -85,6 +108,23 @@ def channel_to_api(access: ChannelAccess, group_name: str | None = None) -> dict
         "category_name": channel.category_name,
         "can_send": access.can_send,
     }
+    if channel.kind == "forum":
+        data["can_post"] = access.can_create_post
+        data["require_tag"] = channel.require_tag
+        data["tags"] = [
+            {
+                "id": str(tag.id),
+                "name": tag.name,
+                "emoji": tag.emoji,
+                # 관리자 전용 태그는 권한 없는 사람에게 고를 수 없게 표시
+                "usable": not tag.moderated or access.can_use_moderated_tags,
+            }
+            for tag in channel.forum_tags
+        ]
+    if channel.kind == "thread":
+        data["parent_id"] = str(channel.parent_id) if channel.parent_id else None
+        data["locked"] = channel.thread_locked
+        data["archived"] = channel.archived
     if group_name is not None:
         data["group_name"] = group_name
     return data
@@ -254,6 +294,23 @@ def create_app(
     @app.exception_handler(SendError)
     async def send_error(_request: Request, error: SendError) -> JSONResponse:
         return JSONResponse({"detail": error.code}, status_code=error.status)
+
+    async def read_uploads(files: list[UploadFile]) -> tuple[list[OutgoingFile], int]:
+        """올린 파일을 읽는다(합계 10MB를 넘으면 그 자리에서 멈춤)."""
+        outgoing: list[OutgoingFile] = []
+        total = 0
+        for upload in files:
+            chunks = []
+            while chunk := await upload.read(UPLOAD_CHUNK):
+                total += len(chunk)
+                if total > MAX_FILES_BYTES:
+                    raise HTTPException(status_code=413, detail="files_too_large")
+                chunks.append(chunk)
+            name = safe_filename(upload.filename or "file")
+            outgoing.append(
+                OutgoingFile(name, b"".join(chunks), spoiler=name.startswith("SPOILER_"))
+            )
+        return outgoing, total
 
     def require_sender(account: ActiveAccount) -> SenderService:
         if sender is None:
@@ -449,6 +506,39 @@ def create_app(
         await require_channel(account, channel_id)
         await lists.mark_read(account.account_id, channel_id, int(body.last_id))
 
+    @app.get("/api/channels/{channel_id}/threads")
+    async def list_threads(
+        channel_id: int,
+        request: Request,
+        before: float | None = Query(default=None, gt=0),
+    ) -> dict[str, Any]:
+        """포럼의 글 목록, 일반 채널의 스레드 목록. 열린 것 먼저, 보관된 것은 25개씩."""
+        account = await require_account(request)
+        require_ready()
+        access = await require_channel(account, channel_id)
+        if access.channel.kind == "thread":
+            raise HTTPException(status_code=404, detail="not found")
+        threads, has_more = await directory.list_threads(channel_id, before, THREAD_PAGE)
+        items = []
+        for thread in threads:
+            if thread.private_thread:
+                continue  # 1차에서는 비공개 스레드를 보여 주지 않는다
+            preview = None
+            if access.channel.kind == "forum":
+                starter = await repo.get(thread.id)  # 포럼 글 ID = 첫 메시지 ID
+                if starter is not None:
+                    text = re.sub(r"[*_~`|>]", "", row_to_api(starter)["content"])
+                    preview = " ".join(text.split())[:120] or None
+            items.append(thread_to_api(thread, preview))
+        archived = [t.archive_ts for t in threads if t.archived and t.archive_ts]
+        guild = directory.guild(access.channel.guild_id)
+        return {
+            "parent": channel_to_api(access, group_name=guild.name if guild else ""),
+            "threads": items,
+            "has_more": has_more,
+            "next_before": min(archived) if has_more and archived else None,
+        }
+
     @app.get("/api/channels/{channel_id}/emojis")
     async def channel_emojis(channel_id: int, request: Request) -> dict[str, Any]:
         account = await require_account(request)
@@ -542,19 +632,7 @@ def create_app(
             raise HTTPException(status_code=400, detail="too_many_files")
         if not await egress.attachments_allowed():
             raise HTTPException(status_code=403, detail="egress_limit")
-        outgoing: list[OutgoingFile] = []
-        total = 0
-        for upload in files:
-            chunks = []
-            while chunk := await upload.read(UPLOAD_CHUNK):
-                total += len(chunk)
-                if total > MAX_FILES_BYTES:
-                    raise HTTPException(status_code=413, detail="files_too_large")
-                chunks.append(chunk)
-            name = safe_filename(upload.filename or "file")
-            outgoing.append(
-                OutgoingFile(name, b"".join(chunks), spoiler=name.startswith("SPOILER_"))
-            )
+        outgoing, total = await read_uploads(files)
         service = require_sender(account)
         message = await service.send(
             account.account_id,
@@ -568,6 +646,42 @@ def create_app(
         )
         await egress.record(total, force=True)
         return message
+
+    @app.post("/api/channels/{channel_id}/posts")
+    async def create_post(
+        channel_id: int,
+        request: Request,
+        nonce: Annotated[str, Form(pattern=NONCE_PATTERN)],
+        title: Annotated[str, Form(min_length=1, max_length=100)],
+        content: Annotated[str, Form(max_length=2000)] = "",
+        tag_ids: Annotated[str, Form(max_length=120, pattern=r"^[0-9,]*$")] = "",
+        files: Annotated[list[UploadFile] | None, File()] = None,
+    ) -> dict[str, Any]:
+        """포럼 새 글(글자·태그·첨부). 글 ID를 돌려준다."""
+        account = await require_account(request)
+        require_ready()
+        uploads = files or []
+        if len(uploads) > MAX_FILES:
+            raise HTTPException(status_code=400, detail="too_many_files")
+        if uploads and not await egress.attachments_allowed():
+            raise HTTPException(status_code=403, detail="egress_limit")
+        outgoing, total = await read_uploads(uploads)
+        tags = [int(part) for part in tag_ids.split(",") if part.isdigit() and len(part) <= 21]
+        service = require_sender(account)
+        result = await service.create_post(
+            account.account_id,
+            account.discord_user_id,
+            channel_id,
+            title,
+            content,
+            tags,
+            nonce,
+            premium=account.premium,
+            files=outgoing,
+        )
+        if total:
+            await egress.record(total, force=True)
+        return result
 
     @app.patch("/api/messages/{message_id}")
     async def edit_message(message_id: int, body: EditBody, request: Request) -> dict[str, Any]:

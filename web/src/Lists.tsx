@@ -196,15 +196,6 @@ function ChannelRow({
   onOpen: (channel: ChannelInfo) => void;
   onPin: (channel: ChannelInfo) => void;
 }) {
-  if (channel.kind === "forum") {
-    return (
-      <div className="list-item list-item-disabled" title="포럼은 다음 단계에서 열려요">
-        <span className="channel-mark">▤</span>
-        <span className="list-name">{channel.name}</span>
-        <span className="list-badge">준비 중</span>
-      </div>
-    );
-  }
   const classes = ["list-item"];
   if (active) classes.push("list-item-active");
   if (channel.unread) classes.push("list-item-unread");
@@ -218,12 +209,12 @@ function ChannelRow({
         if (event.key === "Enter") onOpen(channel);
       }}
     >
-      <span className="channel-mark">{channel.kind === "news" ? "📢" : "#"}</span>
+      <span className="channel-mark">{channel.kind === "forum" ? "▤" : channel.kind === "news" ? "📢" : "#"}</span>
       <span className="list-name">
         {channel.name}
         {sub && <span className="list-sub">{sub}</span>}
       </span>
-      {!channel.can_send && <span className="list-badge">읽기만</span>}
+      {!channel.can_send && channel.kind !== "forum" && <span className="list-badge">읽기만</span>}
       <Badge unread={channel.unread} mentions={channel.mentions} />
       <PinButton pinned={Boolean(channel.pinned)} onToggle={() => onPin(channel)} />
     </div>
@@ -236,7 +227,7 @@ export function GroupList({
   ...common
 }: CommonProps & {
   onOpen: (groupId: string) => void;
-  onOpenChannel: (groupId: string, channelId: string) => void;
+  onOpenChannel: (groupId: string, channel: ChannelInfo) => void;
 }) {
   const [load, reload] = useLoad<GroupListData>(fetchGroups, [], common.onAuthLost);
   const [pinError, togglePin] = usePinToggle(reload);
@@ -253,7 +244,7 @@ export function GroupList({
               key={channel.id}
               channel={{ ...channel, pinned: true }}
               sub={channel.group_name}
-              onOpen={(item) => onOpenChannel(item.group_id, item.id)}
+              onOpen={(item) => onOpenChannel(item.group_id, item)}
               onPin={(item) => togglePin("channel", item.id, false)}
             />
           ))}
@@ -316,7 +307,7 @@ export function ChannelList({
 }: CommonProps & {
   groupId: string;
   activeChannelId?: string;
-  onOpen: (channelId: string) => void;
+  onOpen: (channel: ChannelInfo) => void;
   onBack: () => void;
 }) {
   const [load, reload] = useLoad<GroupChannels>(
@@ -354,7 +345,7 @@ export function ChannelList({
                 key={channel.id}
                 channel={channel}
                 active={channel.id === activeChannelId}
-                onOpen={(item) => onOpen(item.id)}
+                onOpen={onOpen}
                 onPin={(item) => togglePin("channel", item.id, !item.pinned)}
               />
             ))}

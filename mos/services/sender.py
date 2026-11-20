@@ -29,6 +29,8 @@ log = logging.getLogger(__name__)
 
 MAX_CONTENT = 2000
 MAX_FILES = 10
+MAX_POST_TITLE = 100
+MAX_POST_TAGS = 5
 MAX_FILES_BYTES = 10 * 1024 * 1024  # 디스코드 기본 한도(검증상 20MB까지 되지만 늘리지 않음)
 _FILENAME_SAFE = re.compile(r"[^\w.\-가-힣 ]")
 QUOTE_SNIPPET = 50
@@ -72,6 +74,9 @@ class OutgoingMessage:
     thread_id: int | None
     allow_everyone: bool
     files: tuple[OutgoingFile, ...] = ()
+    # 포럼 새 글: 글 제목과 태그(웹훅이 글을 만든다)
+    thread_name: str | None = None
+    applied_tags: tuple[int, ...] = ()
 
 
 def safe_filename(name: str) -> str:
@@ -330,6 +335,78 @@ class SenderService:
         await self.hub.publish(
             channel_id, "message_delete", {"channel_id": str(channel_id), "ids": [str(message_id)]}
         )
+
+    async def create_post(
+        self,
+        account_id: int,
+        user_id: int,
+        forum_id: int,
+        title: str,
+        content: str,
+        tag_ids: Sequence[int],
+        nonce: str,
+        premium: bool = False,
+        files: Sequence[OutgoingFile] = (),
+    ) -> dict[str, Any]:
+        """포럼 새 글. 글(스레드) ID = 첫 메시지 ID(검증 결과)."""
+        if not _NONCE.match(nonce):
+            raise SendError("bad_nonce")
+        access = await self.permissions.channel_access(user_id, forum_id)
+        if access is None:
+            raise SendError("not_found", 404)
+        if not access.can_create_post:
+            raise SendError("cannot_send", 403)
+        forum = access.channel
+        name = " ".join(title.split())
+        if not 1 <= len(name) <= MAX_POST_TITLE:
+            raise SendError("bad_title")
+        tags = list(dict.fromkeys(tag_ids))
+        known = {tag.id: tag for tag in forum.forum_tags}
+        if len(tags) > MAX_POST_TAGS or any(tag not in known for tag in tags):
+            raise SendError("bad_tags")
+        if forum.require_tag and not tags:
+            raise SendError("tag_required")
+        if any(known[tag].moderated for tag in tags) and not access.can_use_moderated_tags:
+            raise SendError("tag_not_allowed", 403)
+        attached = self._check_files(files)
+        text = self._check_content(content, has_files=bool(attached))
+        await self._check_emojis(user_id, premium, access, content)
+
+        key = (account_id, nonce)
+        done = await self.repo.sent_by_key(account_id, nonce)
+        if done is not None:
+            return {"thread_id": str(done["channel_id"])}
+        if key in self._in_flight:
+            raise SendError("duplicate", 409)
+        self._in_flight.add(key)
+        try:
+            member = await self.permissions.member(forum.guild_id, user_id)
+            if member is None:
+                raise SendError("not_found", 404)
+            outgoing = OutgoingMessage(
+                content=text,
+                username=safe_username(member.display_name),
+                avatar_url=member.avatar_url,
+                thread_id=None,
+                allow_everyone=access.can_mention_everyone,
+                files=attached,
+                thread_name=name,
+                applied_tags=tuple(tags),
+            )
+
+            async def action(hook: Webhook) -> dict[str, Any]:
+                return await self.messenger.send(hook, outgoing)
+
+            row = await self._with_webhook(forum.id, action)
+            row["guild_id"] = forum.guild_id
+            thread_id = int(row["channel_id"])
+            await self.messages.upsert(row)
+            await self.repo.record_sent(
+                int(row["id"]), account_id, thread_id, None, nonce, int(self.clock())
+            )
+        finally:
+            self._in_flight.discard(key)
+        return {"thread_id": str(thread_id)}
 
     async def sender_of(self, message_id: int) -> int | None:
         """디스코드 앱 메시지 명령용: 웹에서 보낸 사람의 디스코드 ID."""

@@ -1,0 +1,277 @@
+import { type FormEvent, type ReactNode, useEffect, useState } from "react";
+import { ApiError, createPost, fetchThreads } from "./api";
+import { sendErrorText } from "./Composer";
+import { formatDay, formatTime } from "./format";
+import { formatBytes, prepareImage } from "./imageResize";
+import type { ChannelInfo, ForumTag, ThreadPage, ThreadSummary } from "./types";
+
+const MAX_TAGS = 5;
+
+const postErrors: Record<string, string> = {
+  tag_required: "이 포럼은 태그를 하나 이상 골라야 해요.",
+  bad_tags: "고를 수 없는 태그가 있어요.",
+  tag_not_allowed: "관리자만 붙일 수 있는 태그예요.",
+  bad_title: "제목을 입력해 주세요(100자까지).",
+};
+
+function errorText(caught: unknown): string {
+  if (caught instanceof ApiError && postErrors[caught.code]) return postErrors[caught.code] ?? "";
+  return sendErrorText(caught);
+}
+
+function when(iso: string): string {
+  const date = new Date(iso);
+  const today = new Date();
+  return date.toDateString() === today.toDateString() ? formatTime(iso) : formatDay(iso).replace(/ \S+요일$/, "");
+}
+
+function TagChip({ tag, active, onClick }: { tag: ForumTag; active?: boolean; onClick?: () => void }) {
+  const label = `${tag.emoji ? `${tag.emoji} ` : ""}${tag.name}`;
+  if (!onClick) return <span className="tag-chip">{label}</span>;
+  return (
+    <button
+      type="button"
+      className={active ? "tag-chip tag-chip-on" : "tag-chip"}
+      onClick={onClick}
+      disabled={!tag.usable && !active}
+      title={tag.usable ? undefined : "관리자만 붙일 수 있는 태그예요"}
+    >
+      {label}
+    </button>
+  );
+}
+
+function NewPost({
+  forum,
+  onCreated,
+  onCancel,
+}: {
+  forum: ChannelInfo;
+  onCreated: (threadId: string) => void;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [nonce] = useState(() => crypto.randomUUID());
+
+  const toggle = (id: string) => {
+    setError("");
+    setTags((current) =>
+      current.includes(id) ? current.filter((tag) => tag !== id) : current.length < MAX_TAGS ? [...current, id] : current,
+    );
+  };
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (busy || !title.trim()) return;
+    if (forum.require_tag && tags.length === 0) {
+      setError(postErrors.tag_required ?? "");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const created = await createPost(forum.id, title, content, tags, nonce, files);
+      onCreated(created.thread_id);
+    } catch (caught) {
+      setError(errorText(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form className="new-post" onSubmit={submit}>
+      <input
+        className="new-post-title"
+        value={title}
+        maxLength={100}
+        placeholder="제목"
+        aria-label="제목"
+        onChange={(event) => setTitle(event.target.value)}
+        autoFocus
+      />
+      {(forum.tags?.length ?? 0) > 0 && (
+        <div className="tag-row">
+          <span className="tag-row-label">태그{forum.require_tag ? "(필수)" : ""}</span>
+          {forum.tags?.map((tag) => (
+            <TagChip key={tag.id} tag={tag} active={tags.includes(tag.id)} onClick={() => toggle(tag.id)} />
+          ))}
+        </div>
+      )}
+      <textarea
+        className="new-post-content"
+        value={content}
+        maxLength={2000}
+        placeholder="내용"
+        aria-label="내용"
+        onChange={(event) => setContent(event.target.value)}
+      />
+      <div className="new-post-actions">
+        <label className="text-button file-pick">
+          사진·파일 붙이기
+          <input
+            type="file"
+            multiple
+            hidden
+            onChange={(event) => {
+              const picked = [...(event.target.files ?? [])];
+              event.target.value = "";
+              void Promise.all(picked.map((file) => prepareImage(file))).then((prepared) =>
+                setFiles((current) => [...current, ...prepared].slice(0, 10)),
+              );
+            }}
+          />
+        </label>
+        {files.length > 0 && (
+          <span className="file-total">
+            파일 {files.length}개 · {formatBytes(files.reduce((sum, file) => sum + file.size, 0))}
+          </span>
+        )}
+        <span className="spacer" />
+        <button type="button" className="text-button" onClick={onCancel}>
+          취소
+        </button>
+        <button type="submit" className="composer-send" disabled={busy || !title.trim()}>
+          {busy ? "올리는 중…" : "올리기"}
+        </button>
+      </div>
+      {error && <p className="composer-error">{error}</p>}
+    </form>
+  );
+}
+
+interface Props {
+  parentId: string;
+  /** 넓은 화면이면 목록이 왼쪽에 있어 뒤로 버튼을 숨긴다 */
+  showBack: boolean;
+  menu: ReactNode | null;
+  onBack: (parent: ChannelInfo | null) => void;
+  onOpen: (threadId: string) => void;
+  onAuthLost: () => void;
+}
+
+/** 포럼 글 목록, 또는 일반 채널의 스레드 목록 */
+export default function Posts({ parentId, showBack, menu, onBack, onOpen, onAuthLost }: Props) {
+  const [page, setPage] = useState<ThreadPage | null>(null);
+  const [threads, setThreads] = useState<ThreadSummary[]>([]);
+  const [error, setError] = useState("");
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [filter, setFilter] = useState<string | null>(null);
+  const [writing, setWriting] = useState(false);
+
+  useEffect(() => {
+    let stopped = false;
+    setPage(null);
+    setThreads([]);
+    setError("");
+    fetchThreads(parentId, null)
+      .then((body) => {
+        if (stopped) return;
+        setPage(body);
+        setThreads(body.threads);
+      })
+      .catch((caught: unknown) => {
+        if (stopped) return;
+        if (caught instanceof ApiError && caught.status === 401) onAuthLost();
+        else if (caught instanceof ApiError && caught.status === 404) setError("볼 수 없는 채널이에요.");
+        else setError("목록을 불러오지 못했어요. 잠시 후 다시 열어 주세요.");
+      });
+    return () => {
+      stopped = true;
+    };
+  }, [parentId, onAuthLost]);
+
+  const loadMore = async () => {
+    if (!page?.next_before || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const next = await fetchThreads(parentId, page.next_before);
+      setPage(next);
+      setThreads((current) => [...current, ...next.threads.filter((t) => !current.some((c) => c.id === t.id))]);
+    } catch {
+      setError("더 불러오지 못했어요.");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const parent = page?.parent ?? null;
+  const isForum = parent?.kind === "forum";
+  const tagsById = new Map((parent?.tags ?? []).map((tag) => [tag.id, tag]));
+  const shown = filter ? threads.filter((thread) => thread.tag_ids.includes(filter)) : threads;
+
+  return (
+    <div className="room">
+      <header className="room-header">
+        {showBack && (
+          <button type="button" className="back-button" onClick={() => onBack(parent)} aria-label="뒤로">
+            ‹
+          </button>
+        )}
+        <div className="room-title">
+          <strong>{parent ? `${isForum ? "▤" : "#"} ${parent.name}` : "…"}</strong>
+          <span className="room-sub">{parent ? (isForum ? "글 목록" : "스레드") : ""}</span>
+        </div>
+        {isForum && parent?.can_post && !writing && (
+          <button type="button" className="composer-send header-action" onClick={() => setWriting(true)}>
+            새 글
+          </button>
+        )}
+        {menu}
+      </header>
+      <div className="list-body">
+        {writing && parent && (
+          <NewPost forum={parent} onCreated={onOpen} onCancel={() => setWriting(false)} />
+        )}
+        {isForum && (parent?.tags?.length ?? 0) > 0 && (
+          <div className="tag-row tag-filter">
+            {parent?.tags?.map((tag) => (
+              <TagChip
+                key={tag.id}
+                tag={{ ...tag, usable: true }}
+                active={filter === tag.id}
+                onClick={() => setFilter(filter === tag.id ? null : tag.id)}
+              />
+            ))}
+          </div>
+        )}
+        {error && <p className="list-note">{error}</p>}
+        {!error && page === null && <p className="list-note">불러오는 중…</p>}
+        {page && shown.length === 0 && (
+          <p className="list-note">{isForum ? "글이 없어요." : "스레드가 없어요."}</p>
+        )}
+        {shown.map((thread) => (
+          <button key={thread.id} type="button" className="post-item" onClick={() => onOpen(thread.id)}>
+            <span className="post-title">
+              {thread.locked && <span title="잠긴 글">🔒 </span>}
+              {thread.name}
+            </span>
+            {thread.tag_ids.length > 0 && (
+              <span className="post-tags">
+                {thread.tag_ids.map((id) => {
+                  const tag = tagsById.get(id);
+                  return tag ? <TagChip key={id} tag={tag} /> : null;
+                })}
+              </span>
+            )}
+            {thread.preview && <span className="post-preview">{thread.preview}</span>}
+            <span className="post-meta">
+              💬 {thread.message_count} · {when(thread.last_message_at)}
+              {thread.archived && " · 보관됨"}
+            </span>
+          </button>
+        ))}
+        {page?.has_more && (
+          <button type="button" className="older-button" onClick={() => void loadMore()} disabled={loadingMore}>
+            {loadingMore ? "불러오는 중…" : "지난 글 더 보기"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}

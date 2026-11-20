@@ -80,6 +80,43 @@ export interface ChannelInfo {
   pinned?: boolean;
   unread?: number;
   mentions?: number;
+  /** 포럼: 새 글 쓰기 권한, 태그가 꼭 필요한지, 고를 수 있는 태그 */
+  can_post?: boolean;
+  require_tag?: boolean;
+  tags?: ForumTag[];
+  /** 스레드(포럼 글): 부모 채널, 잠김·보관 여부 */
+  parent_id?: string | null;
+  locked?: boolean;
+  archived?: boolean;
+}
+
+export interface ForumTag {
+  id: string;
+  name: string;
+  emoji: string | null;
+  /** 관리자 전용 태그는 false(고를 수 없음) */
+  usable: boolean;
+}
+
+/** 포럼 글 또는 채널의 스레드 하나 */
+export interface ThreadSummary {
+  id: string;
+  name: string;
+  tag_ids: string[];
+  archived: boolean;
+  locked: boolean;
+  message_count: number;
+  created_at: string;
+  last_message_at: string;
+  /** 포럼 글의 첫 메시지 미리보기(받아 둔 경우만) */
+  preview: string | null;
+}
+
+export interface ThreadPage {
+  parent: ChannelInfo;
+  threads: ThreadSummary[];
+  has_more: boolean;
+  next_before: number | null;
 }
 
 export interface GroupList {

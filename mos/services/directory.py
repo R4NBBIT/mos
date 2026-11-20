@@ -25,6 +25,15 @@ class Overwrite:
 
 
 @dataclass(frozen=True)
+class ForumTagInfo:
+    id: int
+    name: str
+    emoji: str | None = None
+    # 관리자(스레드 관리 권한)만 붙일 수 있는 태그
+    moderated: bool = False
+
+
+@dataclass(frozen=True)
 class GuildInfo:
     id: int
     name: str
@@ -52,6 +61,16 @@ class ChannelInfo:
     overwrites: tuple[Overwrite, ...] = ()
     # 봇이 이 채널의 메시지를 읽을 수 있는지(못 읽으면 목록에서 뺀다)
     bot_can_read: bool = True
+    # 포럼: 고를 수 있는 태그, 태그가 꼭 있어야 하는지
+    forum_tags: tuple[ForumTagInfo, ...] = ()
+    require_tag: bool = False
+    # 스레드(포럼 글): 붙은 태그, 보관 여부, 메시지 수, 만든 사람, 마지막 메시지, 보관된 때
+    applied_tag_ids: tuple[int, ...] = ()
+    archived: bool = False
+    message_count: int = 0
+    owner_id: int | None = None
+    last_message_id: int | None = None
+    archive_ts: float | None = None
 
 
 @dataclass(frozen=True)
@@ -96,6 +115,17 @@ class Directory(Protocol):
 
     async def fetch_member(self, guild_id: int, user_id: int) -> MemberInfo | None:
         """서버에 없으면 None. 캐시하지 않는다(PermissionService가 캐시)."""
+        ...
+
+    async def fetch_channel(self, channel_id: int) -> ChannelInfo | None:
+        """캐시에 없는 채널(주로 보관된 스레드)을 디스코드에서 찾아 본다."""
+        ...
+
+    async def list_threads(
+        self, parent_id: int, before: float | None, limit: int
+    ) -> tuple[list[ChannelInfo], bool]:
+        """(스레드 목록, 더 있음). before가 없으면 열린 스레드 + 보관된 첫 쪽,
+        있으면 그 시각보다 먼저 보관된 것만."""
         ...
 
     async def ensure_synced(self, channel_id: int) -> None:
