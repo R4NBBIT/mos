@@ -76,6 +76,11 @@ export default function ChatRoom({ menu, onAuthLost, notice, onNoticeClose }: Pr
         await loadLatest(info);
       } catch (caught) {
         if (stopped || handleAuthError(caught)) return;
+        if (caught instanceof ApiError && caught.status === 404) {
+          // 이 계정이 들어가 있지 않은 서버의 채널. 다시 물어도 같으니 멈춘다
+          setError("이 계정으로 볼 수 있는 채널이 아직 없어요. 다른 계정으로 바꿔 보세요.");
+          return;
+        }
         if (caught instanceof ApiError && caught.status === 503) {
           setError("디스코드에 연결하는 중이에요…");
         } else {
