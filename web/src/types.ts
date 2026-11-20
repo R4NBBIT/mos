@@ -62,3 +62,23 @@ export interface ChannelInfo {
 export type RealtimeEvent =
   | { type: "message_create" | "message_update"; data: Message }
   | { type: "message_delete"; data: { channel_id: string; ids: string[] } };
+
+/** 이 브라우저에 저장된 계정 하나 */
+export interface SessionAccount {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+  password_set: boolean;
+  /** 디스코드 연결 직후 5분 동안만 true(비밀번호 정하기·재설정) */
+  can_set_password: boolean;
+  locked: boolean;
+  /** '로그인 유지' 중 */
+  kept: boolean;
+  disconnected: boolean;
+}
+
+export interface SessionState {
+  accounts: SessionAccount[];
+  active_account_id: string | null;
+  max_accounts: number;
+}

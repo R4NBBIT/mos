@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import base64
+
 import pytest
 
 from mos.config import ConfigError, load_settings
 
+SECRET_KEY = base64.urlsafe_b64encode(b"k" * 32).decode()
+
 base_env = {
     "DISCORD_BOT_TOKEN": "token-value",
+    "DISCORD_CLIENT_ID": "1573318317446529064",
+    "DISCORD_CLIENT_SECRET": "client-secret-value",
+    "MOS_SECRET_KEY": SECRET_KEY,
     "PUBLIC_ORIGIN": "https://chat.example.com",
 }
 
@@ -16,13 +23,15 @@ def test_minimal_settings() -> None:
     assert settings.api_port == 8000
     assert settings.cookie_secure is True
     assert settings.preview_channel_id is None
+    assert settings.connect_redirect_uri == "https://chat.example.com/api/auth/connect/callback"
+    assert settings.secret_key == b"k" * 32
 
 
 def test_secrets_are_hidden_in_repr() -> None:
-    env = {**base_env, "PREVIEW_CHANNEL_ID": "1573319705849102408", "PREVIEW_ACCESS_KEY": "k" * 30}
-    text = repr(load_settings(env))
+    text = repr(load_settings(base_env))
     assert "token-value" not in text
-    assert "k" * 30 not in text
+    assert "client-secret-value" not in text
+    assert "kkkk" not in text
 
 
 @pytest.mark.parametrize(
@@ -34,7 +43,11 @@ def test_secrets_are_hidden_in_repr() -> None:
         ({"PUBLIC_ORIGIN": "http://chat.example.com"}, "https"),
         ({"API_PORT": "99999"}, "API_PORT"),
         ({"PREVIEW_CHANNEL_ID": "abc"}, "PREVIEW_CHANNEL_ID"),
-        ({"PREVIEW_CHANNEL_ID": "1573319705849102408", "PREVIEW_ACCESS_KEY": "short"}, "24"),
+        ({"DISCORD_CLIENT_ID": ""}, "DISCORD_CLIENT_ID"),
+        ({"DISCORD_CLIENT_SECRET": ""}, "DISCORD_CLIENT_SECRET"),
+        ({"MOS_SECRET_KEY": ""}, "MOS_SECRET_KEY"),
+        ({"MOS_SECRET_KEY": "c2hvcnQ"}, "32"),
+        ({"MOS_SECRET_KEY": "!!!"}, "MOS_SECRET_KEY"),
     ],
 )
 def test_invalid_settings(override: dict[str, str], message: str) -> None:

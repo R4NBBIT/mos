@@ -46,6 +46,9 @@ class MosBot(discord.Client):
     def is_gateway_ready(self) -> bool:
         return self.is_ready() and not self.is_closed()
 
+    def guild_ids(self) -> set[int]:
+        return {guild.id for guild in self.guilds}
+
     def watched_channel_ids(self) -> set[int]:
         # 2단계: 미리보기 채널 하나만. 3단계부터 권한 계산으로 넓힌다
         channel_id = self.settings.preview_channel_id

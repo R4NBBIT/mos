@@ -73,18 +73,134 @@ button {
   font: inherit;
 }
 
-.login-box button {
+.primary-button {
   border: 0;
   border-radius: 999px;
   padding: 10px;
   background: var(--ink);
   color: var(--honey);
+  font: inherit;
   font-weight: 600;
+  cursor: pointer;
 }
 
-.login-box button:disabled {
+.primary-button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.account-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--sub);
+  font-size: 13px;
+}
+
+.login-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 12px;
+}
+
+.other-accounts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.account-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 6px 10px;
+  background: var(--surface);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.account-state {
+  margin-left: auto;
+  color: var(--sub);
+  font-size: 12px;
+}
+
+/* 채팅방 오른쪽 위 계정 메뉴 */
+.account-menu {
+  position: relative;
+}
+
+.account-menu-button {
+  display: grid;
+  border: 0;
+  padding: 0;
+  background: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.account-menu-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 10;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.account-menu-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line-soft);
+  margin-bottom: 4px;
+}
+
+.account-menu-list button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.account-menu-list button:hover {
+  background: var(--bg);
+}
+
+.account-menu-list .danger {
+  color: #c0392b;
 }
 
 .login-error {
@@ -140,7 +256,9 @@ button {
   border: 0;
   background: none;
   color: var(--sub);
+  font: inherit;
   font-size: 13px;
+  cursor: pointer;
 }
 
 .room-list {

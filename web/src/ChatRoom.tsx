@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ApiError, fetchChannel, fetchMessages, logout } from "./api";
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ApiError, fetchChannel, fetchMessages } from "./api";
 import { compareIds, dayKey, formatDay } from "./format";
 import MessageItem from "./MessageItem";
 import type { ChannelInfo, Message, RealtimeEvent } from "./types";
@@ -9,7 +9,10 @@ const GROUP_GAP_MS = 5 * 60 * 1000;
 const NEAR_BOTTOM_PX = 120;
 
 interface Props {
-  onLoggedOut: () => void;
+  /** 오른쪽 위 계정 메뉴 */
+  menu: ReactNode;
+  /** 잠겼거나 세션이 끝나 401을 받았을 때 */
+  onAuthLost: () => void;
 }
 
 function mergeMessages(current: Message[], incoming: Message[]): Message[] {
@@ -20,7 +23,7 @@ function mergeMessages(current: Message[], incoming: Message[]): Message[] {
   return [...byId.values()].sort((a, b) => compareIds(a.id, b.id));
 }
 
-export default function ChatRoom({ onLoggedOut }: Props) {
+export default function ChatRoom({ menu, onAuthLost }: Props) {
   const [channel, setChannel] = useState<ChannelInfo | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -36,12 +39,12 @@ export default function ChatRoom({ onLoggedOut }: Props) {
   const handleAuthError = useCallback(
     (caught: unknown) => {
       if (caught instanceof ApiError && caught.status === 401) {
-        onLoggedOut();
+        onAuthLost();
         return true;
       }
       return false;
     },
-    [onLoggedOut],
+    [onAuthLost],
   );
 
   const loadLatest = useCallback(
@@ -153,14 +156,6 @@ export default function ChatRoom({ onLoggedOut }: Props) {
     setUnseen(0);
   };
 
-  const doLogout = async () => {
-    try {
-      await logout();
-    } finally {
-      onLoggedOut();
-    }
-  };
-
   return (
     <div className="room">
       <header className="room-header">
@@ -169,9 +164,7 @@ export default function ChatRoom({ onLoggedOut }: Props) {
           <span className="room-sub">{channel?.guild_name ?? ""}</span>
         </div>
         <span className={connected ? "dot dot-on" : "dot"} title={connected ? "실시간 연결됨" : "연결 중"} />
-        <button type="button" className="text-button" onClick={doLogout}>
-          나가기
-        </button>
+        {menu}
       </header>
 
       <div className="room-list" ref={listRef} onScroll={onScroll}>
