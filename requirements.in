@@ -1,0 +1,7 @@
+# 서버 실행 의존성. 고친 뒤 아래 명령으로 requirements.txt(해시 고정)를 다시 만든다.
+#   uv pip compile requirements.in --universal --python-version 3.12 --generate-hashes -o requirements.txt
+discord.py==2.7.1
+fastapi==0.165.0
+uvicorn==0.54.0
+websockets==17.4
+aiosqlite==0.22.1

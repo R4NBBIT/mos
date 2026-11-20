@@ -3,3 +3,4 @@ ruff==0.17.6
 pytest==9.2.0
 pip-tools==7.7.0
 pre-commit==4.7.0
+httpx==0.28.1

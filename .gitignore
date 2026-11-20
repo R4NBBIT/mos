@@ -39,3 +39,6 @@ Thumbs.db
 # 초기 검증 결과·상태
 tools/verify/results.md
 tools/verify/state.json
+
+# 내 PC 실행 데이터
+data/

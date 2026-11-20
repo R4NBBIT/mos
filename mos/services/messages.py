@@ -1,0 +1,87 @@
+"""디스코드 메시지 ↔ DB 행 ↔ API 응답 변환. 디스코드 ID는 API에서 문자열로 준다."""
+
+from __future__ import annotations
+
+import json
+from typing import Any
+
+# 웹에 넘기는 첨부 정보(필요한 것만)
+_ATTACHMENT_FIELDS = (
+    "id",
+    "filename",
+    "size",
+    "content_type",
+    "url",
+    "proxy_url",
+    "width",
+    "height",
+)
+
+
+def _iso(value: Any) -> str | None:
+    return value.isoformat() if value is not None else None
+
+
+def attachment_to_dict(attachment: Any) -> dict[str, Any]:
+    data = {name: getattr(attachment, name, None) for name in _ATTACHMENT_FIELDS}
+    data["id"] = str(data["id"])
+    data["spoiler"] = bool(getattr(attachment, "is_spoiler", lambda: False)())
+    return data
+
+
+def message_to_row(message: Any) -> dict[str, Any]:
+    """discord.Message(또는 같은 모양의 객체)를 DB 행으로."""
+    author = message.author
+    avatar = getattr(author, "display_avatar", None)
+    reference = getattr(message, "reference", None)
+    guild = getattr(message, "guild", None)
+    return {
+        "id": int(message.id),
+        "guild_id": int(guild.id) if guild is not None else None,
+        "channel_id": int(message.channel.id),
+        "author_id": int(author.id),
+        "author_name": str(getattr(author, "display_name", None) or author.name),
+        "author_avatar": str(avatar.url) if avatar is not None else None,
+        "author_is_bot": 1 if getattr(author, "bot", False) else 0,
+        "webhook_id": int(message.webhook_id) if message.webhook_id else None,
+        "content": message.content or "",
+        "embeds_json": json.dumps(
+            [embed.to_dict() for embed in message.embeds], ensure_ascii=False
+        ),
+        "attachments_json": json.dumps(
+            [attachment_to_dict(item) for item in message.attachments], ensure_ascii=False
+        ),
+        "components_json": "[]",
+        "reference_id": int(reference.message_id)
+        if reference is not None and reference.message_id
+        else None,
+        "flags": int(getattr(message.flags, "value", 0) or 0),
+        "created_at": _iso(message.created_at),
+        "edited_at": _iso(message.edited_at),
+    }
+
+
+def row_to_api(row: dict[str, Any]) -> dict[str, Any]:
+    """DB 행을 웹 응답으로. ID는 문자열(자바스크립트 숫자 정밀도 문제)."""
+
+    def snowflake(value: int | None) -> str | None:
+        return str(value) if value is not None else None
+
+    return {
+        "id": str(row["id"]),
+        "channel_id": str(row["channel_id"]),
+        "guild_id": snowflake(row["guild_id"]),
+        "author": {
+            "id": str(row["author_id"]),
+            "name": row["author_name"],
+            "avatar_url": row["author_avatar"],
+            "bot": bool(row["author_is_bot"]),
+            "webhook": row["webhook_id"] is not None,
+        },
+        "content": row["content"],
+        "embeds": json.loads(row["embeds_json"]),
+        "attachments": json.loads(row["attachments_json"]),
+        "reference_id": snowflake(row["reference_id"]),
+        "created_at": row["created_at"],
+        "edited_at": row["edited_at"],
+    }
