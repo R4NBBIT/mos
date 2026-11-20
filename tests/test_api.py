@@ -1209,6 +1209,22 @@ def test_archived_thread_opens_through_lookup(env: Env) -> None:
     assert env.client.get(f"/api/channels/{POST_B}/messages").status_code == 200
 
 
+def test_thread_detail_has_parent_tags_and_starter(env: Env) -> None:
+    signed_up(env)
+    add_forum_posts(env)
+    body = env.client.get(f"/api/channels/{POST_A}").json()
+    assert (body["parent_name"], body["parent_kind"]) == ("포럼", "forum")
+    assert [t["name"] for t in body["applied_tags"]] == ["질문"]
+    assert body["starter"]["content"] == "**오늘** 점심 추천 받아요"
+
+    # 일반 채널 스레드: 시작 메시지는 부모 채널에 있다. 다른 채널 메시지는 쓰지 않는다
+    thread = 1573319705849300005
+    env.bot.channel_map[thread] = ChannelInfo(thread, GUILD, "잡담", "thread", 0, parent_id=CHANNEL)
+    env.client.portal.call(env.repo.upsert, make_row(thread, channel_id=CHANNEL, content="시작"))
+    body = env.client.get(f"/api/channels/{thread}").json()
+    assert body["starter"]["content"] == "시작" and body["parent_kind"] == "text"
+
+
 def test_text_channel_threads_follow_parent_permissions(env: Env) -> None:
     thread = 1573319705849300001
     secret_thread = 1573319705849300002

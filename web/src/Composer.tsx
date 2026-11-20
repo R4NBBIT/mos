@@ -41,6 +41,9 @@ function newNonce(): string {
 
 interface Props {
   channelId: string;
+  placeholder?: string;
+  /** 보낼 수 없을 때 입력창 대신 보이는 안내 */
+  readOnlyText?: string;
   canSend: boolean;
   replyTo: Message | null;
   editing: Message | null;
@@ -49,7 +52,16 @@ interface Props {
   onSubmit: (text: string, nonce: string, files: File[]) => Promise<void>;
 }
 
-export default function Composer({ channelId, canSend, replyTo, editing, onCancel, onSubmit }: Props) {
+export default function Composer({
+  channelId,
+  placeholder = "메시지 입력",
+  readOnlyText = "이 채널은 읽기만 할 수 있어요.",
+  canSend,
+  replyTo,
+  editing,
+  onCancel,
+  onSubmit,
+}: Props) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -82,7 +94,7 @@ export default function Composer({ channelId, canSend, replyTo, editing, onCance
   }, [text]);
 
   if (!canSend) {
-    return <footer className="room-footer">이 채널은 읽기만 할 수 있어요.</footer>;
+    return <footer className="room-footer">{readOnlyText}</footer>;
   }
 
   const looksLikeCommand = !editing && SLASH_COMMAND.test(text);
@@ -268,7 +280,7 @@ export default function Composer({ channelId, canSend, replyTo, editing, onCance
           rows={1}
           value={text}
           maxLength={MAX_LENGTH}
-          placeholder="메시지 입력"
+          placeholder={placeholder}
           aria-label="메시지 입력"
           onChange={(event) => {
             setText(event.target.value);

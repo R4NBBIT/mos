@@ -592,6 +592,130 @@ button.tag-chip:disabled {
   cursor: pointer;
 }
 
+/* 포럼 글·스레드: 본문 카드 + 게시판식 댓글 */
+.post-card {
+  margin: 4px 0 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.post-card-title {
+  margin: 0 0 8px;
+  font-size: 20px;
+  line-height: 1.35;
+}
+
+.post-card .post-tags {
+  margin-bottom: 10px;
+}
+
+.post-card-author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--sub);
+}
+
+.post-card-author .avatar {
+  width: 28px;
+  height: 28px;
+}
+
+.post-card-author strong {
+  color: var(--ink);
+}
+
+.post-card-body {
+  line-height: 1.6;
+}
+
+.post-card-missing {
+  margin: 0;
+  color: var(--sub);
+  font-size: 14px;
+}
+
+.post-sticky {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.post-sticky-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comment-divider {
+  margin: 4px 2px 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+  color: var(--sub);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.room-comments .day-divider {
+  display: none;
+}
+
+.comment {
+  display: flex;
+  gap: 10px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.comment .avatar {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.comment-selected {
+  background: var(--surface);
+}
+
+.comment-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.comment-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+  font-size: 14px;
+}
+
+.comment-time {
+  color: var(--sub);
+  font-size: 12px;
+}
+
+.tag-mine {
+  background: var(--honey);
+  color: var(--ink);
+}
+
+.comment-body {
+  overflow-wrap: anywhere;
+  cursor: default;
+}
+
 .room-notice {
   display: flex;
   align-items: flex-start;

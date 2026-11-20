@@ -10,8 +10,8 @@ import {
   sendMessage,
 } from "./api";
 import Composer from "./Composer";
-import { compareIds, dayKey, formatDay } from "./format";
-import MessageItem, { type ReplyPreview } from "./MessageItem";
+import { compareIds, dayKey, formatDay, formatTime } from "./format";
+import MessageItem, { Avatar, MessageBody, type ReplyPreview } from "./MessageItem";
 import type { ChannelInfo, Message, RealtimeEvent } from "./types";
 import { useRealtime } from "./useRealtime";
 
@@ -105,6 +105,8 @@ export default function ChatRoom({
         if (stopped) return;
         setError("");
         setChannel(info);
+        // 글·스레드는 본문(맨 위)부터 읽고, 채팅방은 최신(맨 아래)부터
+        if (info.kind === "thread") stickToBottom.current = false;
         await loadLatest(info);
       } catch (caught) {
         if (stopped || handleAuthError(caught)) return;
@@ -188,7 +190,8 @@ export default function ChatRoom({
     const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < NEAR_BOTTOM_PX;
     stickToBottom.current = nearBottom;
     if (nearBottom) setUnseen(0);
-    if (list.scrollTop < 40 && hasMore && !loadingOlder) void loadOlder();
+    // 글·스레드는 맨 위에 본문 카드가 있어, 지난 댓글은 버튼으로만 불러온다
+    if (!isThread && list.scrollTop < 40 && hasMore && !loadingOlder) void loadOlder();
   };
 
   const submit = async (text: string, nonce: string, files: File[]) => {
@@ -215,6 +218,11 @@ export default function ChatRoom({
   };
 
   const byId = new Map(messages.map((message) => [message.id, message]));
+  const isThread = channel?.kind === "thread";
+  const isForumPost = isThread && channel?.parent_kind === "forum";
+  // 글 ID = 첫 메시지 ID. 일반 채널 스레드는 시작 메시지가 부모 채널에 있다
+  const starter = isThread ? (channel?.starter ?? byId.get(channel?.id ?? "") ?? null) : null;
+  const shownMessages = isThread ? messages.filter((message) => message.id !== channel?.id) : messages;
   const replyPreview = (message: Message): ReplyPreview | null => {
     const original = message.reference_id ? byId.get(message.reference_id) : undefined;
     if (!original) return null;
@@ -239,6 +247,24 @@ export default function ChatRoom({
     return () => window.clearTimeout(timer);
   }, [channel, messages, unseen]);
 
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [cardVisible, setCardVisible] = useState(true);
+  useEffect(() => {
+    const card = cardRef.current;
+    const list = listRef.current;
+    if (!card || !list) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setCardVisible(Boolean(entry?.isIntersecting)),
+      { root: list, threshold: 0 },
+    );
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [isThread, channel?.id]);
+
+  const scrollToCard = () => {
+    listRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const scrollToBottom = () => {
     const list = listRef.current;
     if (!list) return;
@@ -261,7 +287,9 @@ export default function ChatRoom({
             {channel?.locked && " 🔒"}
           </strong>
           <span className="room-sub">
-            {channel?.group_name ?? ""}
+            {isThread
+              ? `${isForumPost ? "▤" : "#"} ${channel?.parent_name ?? ""} › ${isForumPost ? "글" : "스레드"}`
+              : (channel?.group_name ?? "")}
             {channel?.archived ? " · 보관된 글(쓰면 다시 열려요)" : ""}
           </span>
         </div>
@@ -282,15 +310,72 @@ export default function ChatRoom({
         </div>
       )}
 
-      <div className="room-list" ref={listRef} onScroll={onScroll}>
+      {isThread && channel && !cardVisible && (
+        <div className="post-sticky">
+          <span className="post-sticky-title">
+            {isForumPost ? "▤" : "↳"} {channel.name}
+          </span>
+          {channel.applied_tags?.map((tag) => (
+            <span key={tag.id} className="tag-chip">
+              {tag.emoji ? `${tag.emoji} ` : ""}
+              {tag.name}
+            </span>
+          ))}
+          <button type="button" className="text-button" onClick={scrollToCard}>
+            본문 보기
+          </button>
+        </div>
+      )}
+
+      <div className={isThread ? "room-list room-comments" : "room-list"} ref={listRef} onScroll={onScroll}>
+        {isThread && channel && (
+          <div className="post-card" ref={cardRef}>
+            <h1 className="post-card-title">
+              {channel.locked && "🔒 "}
+              {channel.name}
+            </h1>
+            {(channel.applied_tags?.length ?? 0) > 0 && (
+              <div className="post-tags">
+                {channel.applied_tags?.map((tag) => (
+                  <span key={tag.id} className="tag-chip">
+                    {tag.emoji ? `${tag.emoji} ` : ""}
+                    {tag.name}
+                  </span>
+                ))}
+              </div>
+            )}
+            {starter ? (
+              <>
+                <div className="post-card-author">
+                  <Avatar url={starter.author.avatar_url} name={starter.author.name} />
+                  <strong>{starter.author.name}</strong>
+                  <span>{formatDay(starter.created_at)} {formatTime(starter.created_at)}</span>
+                </div>
+                <div className="post-card-body">
+                  <MessageBody message={starter} />
+                </div>
+              </>
+            ) : (
+              <p className="post-card-missing">
+                {isForumPost ? "본문을 불러오는 중이에요…" : "시작 메시지를 찾을 수 없어요."}
+              </p>
+            )}
+          </div>
+        )}
+        {isThread && (
+          <div className="comment-divider">
+            {isForumPost ? "댓글" : "스레드 메시지"} {shownMessages.length}
+            {hasMore ? "+" : ""}개
+          </div>
+        )}
         {hasMore && (
           <button type="button" className="older-button" onClick={loadOlder} disabled={loadingOlder}>
-            {loadingOlder ? "불러오는 중…" : "이전 메시지 더 보기"}
+            {loadingOlder ? "불러오는 중…" : isThread ? "지난 댓글 더 보기" : "이전 메시지 더 보기"}
           </button>
         )}
         {error && <p className="room-error">{error}</p>}
-        {messages.map((message, index) => {
-          const previous = index > 0 ? messages[index - 1] : undefined;
+        {shownMessages.map((message, index) => {
+          const previous = index > 0 ? shownMessages[index - 1] : undefined;
           const newDay = !previous || dayKey(previous.created_at) !== dayKey(message.created_at);
           const grouped =
             !newDay &&
@@ -322,6 +407,7 @@ export default function ChatRoom({
                   setSelectedId(null);
                 }}
                 onDelete={remove}
+                layout={isThread ? "comment" : "bubble"}
               />
             </div>
           );
@@ -335,6 +421,14 @@ export default function ChatRoom({
       )}
       {channel && (
         <Composer
+          placeholder={isThread ? (isForumPost ? "댓글 입력" : "스레드에 메시지 입력") : "메시지 입력"}
+          readOnlyText={
+            isThread
+              ? channel.locked
+                ? "잠긴 글이라 댓글을 쓸 수 없어요."
+                : "이 글에는 댓글을 쓸 수 없어요."
+              : undefined
+          }
           channelId={channel.id}
           canSend={channel.can_send}
           replyTo={replyTo}

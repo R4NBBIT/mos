@@ -3,6 +3,13 @@ import MessageContent from "./MessageContent";
 import { formatSize, formatTime, isDiscordMediaUrl, thumbnailUrl } from "./format";
 import type { Attachment, Message } from "./types";
 
+/** 댓글 시간: 오늘이면 시각만, 아니면 월/일도 */
+function commentTime(iso: string): string {
+  const date = new Date(iso);
+  const today = new Date().toDateString() === date.toDateString();
+  return today ? formatTime(iso) : `${date.getMonth() + 1}/${date.getDate()} ${formatTime(iso)}`;
+}
+
 export interface ReplyPreview {
   author: string;
   text: string;
@@ -24,9 +31,29 @@ interface Props {
   onReply: (message: Message) => void;
   onEdit: (message: Message) => void;
   onDelete: (message: Message) => Promise<void>;
+  /** bubble: 채팅 말풍선(기본), comment: 포럼 글·스레드의 게시판식 댓글 */
+  layout?: "bubble" | "comment";
 }
 
-function AttachmentView({ attachment }: { attachment: Attachment }) {
+/** 본문·임베드·첨부(말풍선과 댓글이 같이 쓴다) */
+export function MessageBody({ message }: { message: Message }) {
+  return (
+    <>
+      {message.content && <MessageContent content={message.content} mentions={message.mentions} />}
+      {message.embeds.map((embed, index) => (
+        <div className="embed" key={index}>
+          {embed.title && <strong>{embed.title}</strong>}
+          {embed.description && <p>{embed.description}</p>}
+        </div>
+      ))}
+      {message.attachments.map((attachment) => (
+        <AttachmentView key={attachment.id} attachment={attachment} />
+      ))}
+    </>
+  );
+}
+
+export function AttachmentView({ attachment }: { attachment: Attachment }) {
   const isImage = attachment.content_type?.startsWith("image/") ?? false;
   if (isImage && isDiscordMediaUrl(attachment.proxy_url) && isDiscordMediaUrl(attachment.url)) {
     return (
@@ -50,7 +77,7 @@ function AttachmentView({ attachment }: { attachment: Attachment }) {
   );
 }
 
-function Avatar({ url, name }: { url: string | null; name: string }) {
+export function Avatar({ url, name }: { url: string | null; name: string }) {
   if (isDiscordMediaUrl(url)) {
     return <img className="avatar" src={url} alt="" loading="lazy" referrerPolicy="no-referrer" />;
   }
@@ -69,6 +96,7 @@ function MessageItem({
   onReply,
   onEdit,
   onDelete,
+  layout = "bubble",
 }: Props) {
   const { author } = message;
   const [confirming, setConfirming] = useState(false);
@@ -88,6 +116,77 @@ function MessageItem({
       setDeleteError("지우지 못했어요.");
     }
   };
+
+  const actions = (
+    <>
+        {selected && (
+        <div className="msg-actions">
+          {confirming ? (
+            <>
+              <span>지울까요?</span>
+              <button type="button" className="danger" onClick={() => void remove()}>
+                지우기
+              </button>
+              <button type="button" onClick={() => setConfirming(false)}>
+                취소
+              </button>
+            </>
+          ) : (
+            <>
+              {canReply && (
+                <button type="button" onClick={() => onReply(message)}>
+                  답장
+                </button>
+              )}
+              {manageable && (
+                <button type="button" onClick={() => onEdit(message)}>
+                  고치기
+                </button>
+              )}
+              {manageable && (
+                <button type="button" className="danger" onClick={() => setConfirming(true)}>
+                  지우기
+                </button>
+              )}
+            </>
+          )}
+          {deleteError && <span className="danger">{deleteError}</span>}
+        </div>
+      )}
+    </>
+  );
+
+  if (layout === "comment") {
+    // 게시판식 댓글: 말풍선 없이 왼쪽 정렬, 이름·시간 줄 + 내용
+    return (
+      <div className={selected ? "comment comment-selected" : "comment"}>
+        <Avatar url={author.avatar_url} name={author.name} />
+        <div className="comment-main">
+          <div className="comment-head">
+            <strong>{author.name}</strong>
+            {mine && <span className="tag tag-mine">나</span>}
+            {isApp && <span className="tag">앱</span>}
+            <span className="comment-time">
+              {commentTime(message.created_at)}
+              {message.edited_at && " (수정됨)"}
+            </span>
+          </div>
+          {message.reference_id && (
+            <div className="msg-reply">
+              ↪ {reply ? <><strong>{reply.author}</strong> {reply.text}</> : "이전 댓글에 답장"}
+            </div>
+          )}
+          <div
+            className="comment-body"
+            onClick={hasActions ? () => onSelect(selected ? null : message.id) : undefined}
+          >
+            <MessageBody message={message} />
+          </div>
+          {actions}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={classes.join(" ")}>
@@ -111,56 +210,14 @@ function MessageItem({
             className={selected ? "bubble bubble-selected" : "bubble"}
             onClick={hasActions ? () => onSelect(selected ? null : message.id) : undefined}
           >
-            {message.content && <MessageContent content={message.content} mentions={message.mentions} />}
-            {message.embeds.map((embed, index) => (
-              <div className="embed" key={index}>
-                {embed.title && <strong>{embed.title}</strong>}
-                {embed.description && <p>{embed.description}</p>}
-              </div>
-            ))}
-            {message.attachments.map((attachment) => (
-              <AttachmentView key={attachment.id} attachment={attachment} />
-            ))}
+            <MessageBody message={message} />
           </div>
           <span className="msg-time">
             {formatTime(message.created_at)}
             {message.edited_at && " (수정됨)"}
           </span>
         </div>
-        {selected && (
-          <div className="msg-actions">
-            {confirming ? (
-              <>
-                <span>지울까요?</span>
-                <button type="button" className="danger" onClick={() => void remove()}>
-                  지우기
-                </button>
-                <button type="button" onClick={() => setConfirming(false)}>
-                  취소
-                </button>
-              </>
-            ) : (
-              <>
-                {canReply && (
-                  <button type="button" onClick={() => onReply(message)}>
-                    답장
-                  </button>
-                )}
-                {manageable && (
-                  <button type="button" onClick={() => onEdit(message)}>
-                    고치기
-                  </button>
-                )}
-                {manageable && (
-                  <button type="button" className="danger" onClick={() => setConfirming(true)}>
-                    지우기
-                  </button>
-                )}
-              </>
-            )}
-            {deleteError && <span className="danger">{deleteError}</span>}
-          </div>
-        )}
+        {actions}
       </div>
     </div>
   );

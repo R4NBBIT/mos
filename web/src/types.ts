@@ -88,6 +88,11 @@ export interface ChannelInfo {
   parent_id?: string | null;
   locked?: boolean;
   archived?: boolean;
+  /** 채널 하나를 따로 물을 때만(스레드): 부모 이름·종류, 붙은 태그, 첫 메시지 */
+  parent_name?: string;
+  parent_kind?: ChannelKind;
+  applied_tags?: ForumTag[];
+  starter?: Message | null;
 }
 
 export interface ForumTag {

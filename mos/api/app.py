@@ -574,7 +574,27 @@ def create_app(
         require_ready()
         access = await require_channel(account, channel_id)
         guild = directory.guild(access.channel.guild_id)
-        return channel_to_api(access, group_name=guild.name if guild else "")
+        data = channel_to_api(access, group_name=guild.name if guild else "")
+        channel = access.channel
+        if channel.kind == "thread" and channel.parent_id:
+            # 글·스레드 화면: 부모 이름, 붙은 태그, 첫 메시지(글 ID = 첫 메시지 ID)
+            parent = directory.channel(channel.parent_id)
+            data["parent_name"] = parent.name if parent else ""
+            data["parent_kind"] = parent.kind if parent else "text"
+            tags = {tag.id: tag for tag in (parent.forum_tags if parent else ())}
+            data["applied_tags"] = [
+                {"id": str(tag.id), "name": tag.name, "emoji": tag.emoji, "usable": True}
+                for tag_id in channel.applied_tag_ids
+                if (tag := tags.get(tag_id)) is not None
+            ]
+            starter = await repo.get(channel.id)
+            allowed_homes = {channel.id, channel.parent_id}
+            data["starter"] = (
+                row_to_api(starter)
+                if starter is not None and int(starter["channel_id"]) in allowed_homes
+                else None
+            )
+        return data
 
     # ------------------------------------------------------------ 메시지
 
