@@ -47,7 +47,8 @@ STATE_PATH = HERE / "state.json"
 WEBHOOK_NAME = "mos-verify"
 DISPLAY_NAME = "mos 검증"
 COMMAND_NAME = "ㅁㅇㅅ 메시지 삭제"
-FILE_SIZES_MB = (8, 10, 10.5, 25)
+FILE_SIZES_MB = (10.5, 15, 20, 23.5, 24.5, 25)  # 23.5·24.5로 25MB와 25MiB를 가른다
+CHECK_PARTS = ("emoji", "files", "forum", "media")
 USER_AGENT = "mos-verify/0.1"
 
 
@@ -70,9 +71,10 @@ def require(config: dict[str, str], *keys: str) -> None:
 # ================================================================ 봇이 필요한 점검
 
 
-def run_bot(config: dict[str, str], mode: str) -> None:
+def run_bot(config: dict[str, str], mode: str, parts: set[str]) -> None:
     require(config, "VERIFY_BOT_TOKEN", "VERIFY_TEXT_CHANNEL")
     intents = discord.Intents.default()
+    intents.message_content = True  # 남이 보낸(웹훅 포함) 메시지의 본문·첨부를 읽는 데 필요
     client = discord.Client(intents=intents)
     tree = app_commands.CommandTree(client)
     book = ResultBook(RESULTS_PATH, mode)
@@ -91,14 +93,24 @@ def run_bot(config: dict[str, str], mode: str) -> None:
     async def check_emoji(text_channel: discord.TextChannel, hook: discord.Webhook) -> None:
         guild_a = text_channel.guild
         other_id = int(config.get("VERIFY_GUILD_B") or 0)
-        guild_b = (
-            client.get_guild(other_id)
-            if other_id
-            else next((g for g in client.guilds if g.id != guild_a.id and g.emojis), None)
-        )
+        guild_names = ", ".join(g.name for g in client.guilds)
+        if other_id:
+            guild_b = client.get_guild(other_id)
+            if guild_b is None:
+                book.add(
+                    "이모지",
+                    "건너뜀",
+                    f"봇이 서버 B({other_id})에 없음. 봇이 들어간 서버: {guild_names}",
+                )
+                return
+        else:
+            guild_b = next((g for g in client.guilds if g.id != guild_a.id), None)
+            if guild_b is None:
+                book.add("이모지", "건너뜀", f"봇이 서버 A 말고 다른 서버에 없음: {guild_names}")
+                return
         local = next((e for e in guild_a.emojis if e.available and not e.animated), None)
-        if guild_b is None or not guild_b.emojis:
-            book.add("이모지", "건너뜀", "봇이 들어간 다른 서버에 커스텀 이모지가 없음")
+        if not guild_b.emojis:
+            book.add("이모지", "건너뜀", f"서버 B({guild_b.name})에 커스텀 이모지가 없음")
             return
         external = next((e for e in guild_b.emojis if e.available and not e.animated), None)
         animated = next((e for e in guild_b.emojis if e.available and e.animated), None)
@@ -280,6 +292,13 @@ def run_bot(config: dict[str, str], mode: str) -> None:
             book.add("첨부 주소 갱신 API(봇 토큰)", "실패", describe_error(error))
 
         fetched = await text_channel.fetch_message(message.id)
+        if not fetched.attachments:
+            book.add(
+                "첨부 주소(메시지 다시 읽기)",
+                "실패",
+                "다시 읽은 메시지에 첨부가 비어 있음(Message Content 인텐트 확인)",
+            )
+            return
         refetched = parse_signed_url(fetched.attachments[0].url)
         book.add(
             "첨부 주소(메시지 다시 읽기)", "정보", f"다시 읽은 주소 만료 {refetched.expires_at}"
@@ -424,14 +443,18 @@ def run_bot(config: dict[str, str], mode: str) -> None:
         try:
             if mode == "check":
                 hook = await get_hook(text_channel)
-                await check_emoji(text_channel, hook)
-                await check_files(text_channel, hook)
-                forum = client.get_channel(int(config.get("VERIFY_FORUM_CHANNEL") or 0))
-                if isinstance(forum, discord.ForumChannel):
-                    await check_forum(forum)
-                else:
-                    book.add("포럼", "건너뜀", "VERIFY_FORUM_CHANNEL 이 포럼 채널이 아님")
-                await check_media(text_channel, hook)
+                if "emoji" in parts:
+                    await check_emoji(text_channel, hook)
+                if "files" in parts:
+                    await check_files(text_channel, hook)
+                if "forum" in parts:
+                    forum = client.get_channel(int(config.get("VERIFY_FORUM_CHANNEL") or 0))
+                    if isinstance(forum, discord.ForumChannel):
+                        await check_forum(forum)
+                    else:
+                        book.add("포럼", "건너뜀", "VERIFY_FORUM_CHANNEL 이 포럼 채널이 아님")
+                if "media" in parts:
+                    await check_media(text_channel, hook)
             elif mode == "command":
                 await prepare_command(text_channel)
                 return  # Ctrl+C까지 계속 실행
@@ -445,6 +468,10 @@ def run_bot(config: dict[str, str], mode: str) -> None:
 
     try:
         client.run(config["VERIFY_BOT_TOKEN"], log_handler=None)
+    except discord.PrivilegedIntentsRequired:
+        print("개발자 포털 › Bot › Message Content Intent를 켜고 저장한 뒤 다시 실행해 주세요.")
+    except discord.LoginFailure:
+        print("봇 토큰이 맞지 않아요. 포털에서 Reset Token 후 .env를 고쳐 주세요.")
     except KeyboardInterrupt:
         pass
     finally:
@@ -584,12 +611,21 @@ def run_pkce(config: dict[str, str]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="ㅁㅇㅅ 초기 검증(테스트 서버 전용)")
     parser.add_argument("mode", choices=["check", "command", "pkce", "cleanup"])
+    parser.add_argument(
+        "--only",
+        default=",".join(CHECK_PARTS),
+        help="check에서 실행할 점검만 고르기(쉼표로): " + ",".join(CHECK_PARTS),
+    )
     args = parser.parse_args()
     config = load_config()
     if args.mode == "pkce":
         run_pkce(config)
     else:
-        run_bot(config, args.mode)
+        parts = {part.strip() for part in args.only.split(",") if part.strip()}
+        unknown = parts - set(CHECK_PARTS)
+        if unknown:
+            sys.exit(f"알 수 없는 점검: {', '.join(sorted(unknown))}")
+        run_bot(config, args.mode, parts)
 
 
 if __name__ == "__main__":

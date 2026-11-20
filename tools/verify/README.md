@@ -5,7 +5,7 @@
 | 점검 | 명령 | 확인하는 것 |
 | --- | --- | --- |
 | 이모지 | `check` | 웹훅으로 다른 서버 이모지·움직이는 이모지가 보이는지(눈으로 확인) |
-| 첨부 용량 | `check` | 웹훅 첨부 8·10·10.5·25MB 중 어디까지 되는지 |
+| 첨부 용량 | `check` | 웹훅 첨부 10.5·15·20·23.5·24.5·25MB 중 어디까지 되는지(25MB와 25MiB 구분) |
 | 포럼 | `check` | 웹훅으로 글 만들기(태그 포함), 댓글 달기, 태그 필수 포럼 |
 | 보관·잠긴 글 | `check` | 보관된 글에 웹훅으로 쓰면 다시 열리는지, 잠긴 글은 막히는지 |
 | 썸네일 | `check` | media 프록시에 크기를 지정하면 작게 받아지는지 |
@@ -50,6 +50,6 @@ python tools/verify/verify_discord.py pkce      # 브라우저에서 '승인'을
 python tools/verify/verify_discord.py cleanup   # 테스트 명령·웹훅 정리
 ```
 
-- `check`의 25MB 점검은 업로드에 시간이 조금 걸린다.
+- `check`의 첨부 점검은 업로드가 많아 몇 분 걸린다. 일부만 다시 돌릴 때는 `check --only emoji,forum`처럼 고른다(emoji, files, forum, media).
 - `command`에서 메뉴가 안 보이면 디스코드를 새로고침(Ctrl+R)한다. 다른 계정이 있으면 그 계정으로도 눌러 거부되는지 본다.
 - 결과는 `tools/verify/results.md`(git에 올라가지 않음). 토큰·시크릿·서명 값은 기록하지 않는다.
