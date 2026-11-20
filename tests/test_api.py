@@ -16,30 +16,86 @@ from mos.api.app import COOKIE_NAME, create_app
 from mos.config import load_settings
 from mos.db.database import Database
 from mos.db.repo import MessageRepo
+from mos.services.directory import ChannelInfo, GuildInfo, MemberInfo, Overwrite
 from mos.services.discord_oauth import DiscordUser, OAuthError, TokenSet
+from mos.services.permissions import (
+    READ_MESSAGE_HISTORY,
+    SEND_MESSAGES,
+    VIEW_CHANNEL,
+    PermissionService,
+)
 from mos.services.realtime import RealtimeHub
 from tests.test_db import make_row
 
 ORIGIN = "https://chat.example.com"
 CHANNEL = 1573319705849102408
+SECRET = 1573319705849102500
+FORUM = 1573319705849102600
 GUILD = 1573319960745353352
 OTHER_GUILD = 1573319960745353999
+SECRET_ROLE = 1573319960745354000
+BASIC = VIEW_CHANNEL | READ_MESSAGE_HISTORY | SEND_MESSAGES
 PASSWORD = "달빛 아래 수다 2026"
 POST = {"origin": ORIGIN}
 
 
-class FakeBot:
+class FakeDirectory:
+    """서버 A: 일반(모두), 비밀(SECRET_ROLE만), 포럼. 옆 서버: 일반 하나."""
+
     def __init__(self) -> None:
         self.ready = True
+        self.guild_map = {
+            GUILD: GuildInfo(GUILD, "서버 A", None, owner_id=1, role_permissions={GUILD: BASIC}),
+            OTHER_GUILD: GuildInfo(OTHER_GUILD, "옆 서버", None, 1, {OTHER_GUILD: BASIC}),
+        }
+        deny_everyone = Overwrite(GUILD, True, 0, VIEW_CHANNEL)
+        allow_role = Overwrite(SECRET_ROLE, True, VIEW_CHANNEL, 0)
+        self.channel_map = {
+            CHANNEL: ChannelInfo(CHANNEL, GUILD, "일반", "text", 0),
+            SECRET: ChannelInfo(
+                SECRET, GUILD, "비밀", "text", 1, overwrites=(deny_everyone, allow_role)
+            ),
+            FORUM: ChannelInfo(FORUM, GUILD, "포럼", "forum", 2),
+            9001: ChannelInfo(9001, OTHER_GUILD, "옆일반", "text", 0),
+        }
+        self.members: dict[tuple[int, int], frozenset[int]] = {
+            (GUILD, 42): frozenset({GUILD, SECRET_ROLE}),
+            (GUILD, 43): frozenset({GUILD}),
+            (OTHER_GUILD, 45): frozenset({OTHER_GUILD}),
+        }
+        self.synced: list[int] = []
+        self.older_calls: list[tuple[int, int]] = []
 
     def is_gateway_ready(self) -> bool:
         return self.ready
 
     def guild_ids(self) -> set[int]:
-        return {GUILD, OTHER_GUILD}
+        return set(self.guild_map)
 
-    def channel_info(self, channel_id: int) -> dict[str, Any] | None:
-        return {"id": str(channel_id), "name": "일반", "guild_id": str(GUILD), "guild_name": "A"}
+    def guilds(self) -> list[GuildInfo]:
+        return list(self.guild_map.values())
+
+    def guild(self, guild_id: int) -> GuildInfo | None:
+        return self.guild_map.get(guild_id)
+
+    def channels(self, guild_id: int) -> list[ChannelInfo]:
+        return [c for c in self.channel_map.values() if c.guild_id == guild_id]
+
+    def channel(self, channel_id: int) -> ChannelInfo | None:
+        return self.channel_map.get(channel_id)
+
+    async def fetch_member(self, guild_id: int, user_id: int) -> MemberInfo | None:
+        roles = self.members.get((guild_id, user_id))
+        if roles is None:
+            return None
+        return MemberInfo(guild_id, user_id, roles, f"user{user_id}", None)
+
+    async def ensure_synced(self, channel_id: int) -> None:
+        self.synced.append(channel_id)
+
+    async def fetch_older(self, channel_id: int, before_id: int, limit: int) -> int:
+        self.older_calls.append((channel_id, before_id))
+        return 0
 
 
 class FakeOAuth:
@@ -71,11 +127,12 @@ class FakeOAuth:
 @dataclass
 class Env:
     client: TestClient
-    bot: FakeBot
+    bot: FakeDirectory
     hub: RealtimeHub
     repo: MessageRepo
     oauth: FakeOAuth
     clock: list[float]
+    permissions: PermissionService
 
     def tick(self, seconds: float) -> None:
         self.clock[0] += seconds
@@ -90,22 +147,24 @@ def build_client(tmp_path: Path) -> Iterator[Env]:
             "MOS_SECRET_KEY": base64.urlsafe_b64encode(b"k" * 32).decode(),
             "PUBLIC_ORIGIN": ORIGIN,
             "DB_PATH": str(tmp_path / "api.db"),
-            "PREVIEW_CHANNEL_ID": str(CHANNEL),
         }
     )
     db = Database(settings.db_path)
     repo = MessageRepo(db)
     hub = RealtimeHub()
-    bot = FakeBot()
+    bot = FakeDirectory()
+    permissions = PermissionService(bot)
     oauth = FakeOAuth()
     oauth.add("mocha", 42, "모카", {GUILD})
     oauth.add("latte", 43, "라떼", {GUILD})
     oauth.add("stranger", 44, "남", {123456789012345678})
     oauth.add("other", 45, "옆동네", {OTHER_GUILD})
     clock = [1_800_000_000.0]
-    app = create_app(settings, db, repo, hub, bot, oauth=oauth, clock=lambda: clock[0])
+    app = create_app(
+        settings, db, repo, hub, bot, oauth=oauth, clock=lambda: clock[0], permissions=permissions
+    )
     with TestClient(app, base_url=ORIGIN) as client:
-        yield Env(client, bot, hub, repo, oauth, clock)
+        yield Env(client, bot, hub, repo, oauth, clock, permissions)
 
 
 @pytest.fixture
@@ -176,7 +235,7 @@ def test_healthz_reports_ok_and_gateway(env: Env) -> None:
 def test_empty_session_and_no_access(env: Env) -> None:
     assert session(env) == {"accounts": [], "active_account_id": None, "max_accounts": 5}
     assert messages_status(env) == 401
-    assert env.client.get("/api/preview/channel").status_code == 401
+    assert env.client.get("/api/groups").status_code == 401
 
 
 # ------------------------------------------------------------ 처음 연결과 비밀번호
@@ -212,7 +271,7 @@ def test_first_connect_then_password_then_messages(env: Env) -> None:
     body = env.client.get(f"/api/channels/{CHANNEL}/messages?limit=2").json()
     assert [m["id"] for m in body["messages"]] == ["2", "3"]
     assert env.client.get("/api/channels/123456789012345678/messages").status_code == 404
-    assert env.client.get("/api/preview/channel").json()["name"] == "일반"
+    assert env.client.get(f"/api/channels/{CHANNEL}").json()["name"] == "일반"
 
 
 def test_password_setup_window_expires(env: Env) -> None:
@@ -366,14 +425,19 @@ def test_add_with_same_account_is_reported(env: Env) -> None:
     assert len(session(env)["accounts"]) == 2
 
 
-def test_reconnect_refreshes_server_list(env: Env) -> None:
+def test_add_same_account_keeps_state(env: Env) -> None:
     env.oauth.add("late", 46, "늦게옴", {OTHER_GUILD})
     account_id = signed_up(env, "late")
-    assert messages_status(env) == 404  # 아직 미리보기 서버에 없음
-    env.oauth.users["late"] = (env.oauth.users["late"][0], {OTHER_GUILD, GUILD})  # 서버 A 들어감
     assert connect(env, "late", purpose="add") == "/?connect_error=already_added"
     assert session(env)["active_account_id"] == account_id
-    assert messages_status(env) == 200  # 같은 계정으로 다시 연결만 해도 서버 목록이 새로 반영
+
+
+def test_joining_a_server_shows_up_after_member_event(env: Env) -> None:
+    signed_up(env, "other")
+    assert messages_status(env) == 404
+    env.bot.members[(GUILD, 45)] = frozenset({GUILD})  # 서버 A에 들어감
+    env.permissions.forget_member(GUILD, 45)  # 봇이 받는 '멤버 들어옴' 이벤트
+    assert messages_status(env) == 200
 
 
 def test_account_limit_per_device(env: Env) -> None:
@@ -384,10 +448,11 @@ def test_account_limit_per_device(env: Env) -> None:
     assert connect(env, "user0") == "/"  # 이미 있는 계정은 다시 연결 가능
 
 
-def test_account_outside_preview_server_cannot_read(env: Env) -> None:
+def test_account_outside_server_cannot_read(env: Env) -> None:
     signed_up(env, "other")
     assert messages_status(env) == 404
-    assert env.client.get("/api/preview/channel").status_code == 404
+    assert env.client.get(f"/api/channels/{CHANNEL}").status_code == 404
+    assert env.client.get(f"/api/groups/{GUILD}/channels").status_code == 404
 
 
 def test_reset_password_via_reconnect(env: Env) -> None:
@@ -415,6 +480,11 @@ def test_remove_last_account_forgets_device(env: Env) -> None:
 # ------------------------------------------------------------ 실시간
 
 
+def ws_cookie(env: Env) -> str:
+    # 테스트 클라이언트는 웹소켓에 쿠키를 자동으로 싣지 않아 직접 넣는다(브라우저는 자동)
+    return f"{COOKIE_NAME}={env.client.cookies.get(COOKIE_NAME)}"
+
+
 def test_websocket_requires_origin_and_unlocked_session(env: Env) -> None:
     with (
         pytest.raises(WebSocketDisconnect),
@@ -423,8 +493,7 @@ def test_websocket_requires_origin_and_unlocked_session(env: Env) -> None:
         pass  # 로그인 전
 
     signed_up(env)
-    # 테스트 클라이언트는 웹소켓에 쿠키를 자동으로 싣지 않아 직접 넣는다(브라우저는 자동)
-    cookie = f"{COOKIE_NAME}={env.client.cookies.get(COOKIE_NAME)}"
+    cookie = ws_cookie(env)
     with (
         pytest.raises(WebSocketDisconnect),
         env.client.websocket_connect(
@@ -437,8 +506,6 @@ def test_websocket_requires_origin_and_unlocked_session(env: Env) -> None:
         ws.send_text("ping")
         assert ws.receive_text() == "pong"
         assert env.hub.count == 1
-        env.client.portal.call(env.hub.broadcast, "message_create", {"id": "1"})
-        assert ws.receive_json() == {"type": "message_create", "data": {"id": "1"}}
 
     env.client.post("/api/session/lock", headers=POST)
     with (
@@ -446,6 +513,86 @@ def test_websocket_requires_origin_and_unlocked_session(env: Env) -> None:
         env.client.websocket_connect("/ws", headers={"origin": ORIGIN, "cookie": cookie}),
     ):
         pass  # 잠긴 뒤에는 연결 불가
+
+
+def test_websocket_only_gets_subscribed_and_permitted_channels(env: Env) -> None:
+    signed_up(env, "latte")  # 서버 A 멤버지만 비밀 채널 역할은 없음
+    with env.client.websocket_connect(
+        "/ws", headers={"origin": ORIGIN, "cookie": ws_cookie(env)}
+    ) as ws:
+        ws.send_text(f'{{"type": "subscribe", "channel_id": "{SECRET}"}}')
+        assert ws.receive_json()["type"] == "subscribe_denied"
+        env.client.portal.call(env.hub.publish, SECRET, "message_create", {"id": "s"})
+
+        ws.send_text(f'{{"type": "subscribe", "channel_id": "{CHANNEL}"}}')
+        assert ws.receive_json() == {"type": "subscribed", "data": {"channel_id": str(CHANNEL)}}
+        env.client.portal.call(env.hub.publish, 9001, "message_create", {"id": "other"})
+        env.client.portal.call(env.hub.publish, CHANNEL, "message_create", {"id": "1"})
+        # 비밀·다른 채널 것은 오지 않고, 구독한 채널 것만 온다
+        assert ws.receive_json() == {"type": "message_create", "data": {"id": "1"}}
+
+        # 권한이 사라지면(역할 제거) 구독 중이어도 더 이상 보내지 않는다
+        env.bot.members.pop((GUILD, 43))
+        env.permissions.forget_member(GUILD, 43)
+        env.client.portal.call(env.hub.publish, CHANNEL, "message_create", {"id": "2"})
+        ws.send_text("ping")
+        assert ws.receive_text() == "pong"  # 그 사이 아무것도 안 왔다
+
+
+def test_open_websocket_is_closed_after_lock(env: Env, monkeypatch: pytest.MonkeyPatch) -> None:
+    import mos.api.app as app_module
+
+    monkeypatch.setattr(app_module, "WS_RECHECK_SEC", 0.05)
+    # 감시 간격은 앱을 만들 때가 아니라 연결마다 읽으므로 여기서 바꿔도 된다
+    signed_up(env)
+    with env.client.websocket_connect(
+        "/ws", headers={"origin": ORIGIN, "cookie": ws_cookie(env)}
+    ) as ws:
+        env.client.post("/api/session/lock", headers=POST)
+        with pytest.raises(WebSocketDisconnect) as closed:
+            ws.receive_text()
+        assert closed.value.code == 1008
+
+
+# ------------------------------------------------------------ 모임·채널 목록
+
+
+def test_groups_and_channels_follow_permissions(env: Env) -> None:
+    signed_up(env, "mocha")  # 비밀 역할 있음
+    groups = env.client.get("/api/groups").json()["groups"]
+    assert groups == [{"id": str(GUILD), "name": "서버 A", "icon_url": None}]
+    body = env.client.get(f"/api/groups/{GUILD}/channels").json()
+    assert [c["name"] for c in body["channels"]] == ["일반", "비밀", "포럼"]
+    assert body["channels"][0]["can_send"] is True
+    assert env.client.get(f"/api/groups/{OTHER_GUILD}/channels").status_code == 404
+
+    signed_up(env, "latte")  # 같은 서버, 역할 없음
+    names = [c["name"] for c in env.client.get(f"/api/groups/{GUILD}/channels").json()["channels"]]
+    assert names == ["일반", "포럼"]
+    assert env.client.get(f"/api/channels/{SECRET}").status_code == 404
+    assert env.client.get(f"/api/channels/{SECRET}/messages").status_code == 404
+
+
+def test_forum_messages_are_not_served_yet(env: Env) -> None:
+    signed_up(env)
+    assert env.client.get(f"/api/channels/{FORUM}/messages").status_code == 404
+
+
+def test_first_open_syncs_and_short_page_fetches_older(env: Env) -> None:
+    signed_up(env)
+    env.client.portal.call(env.repo.upsert_many, [make_row(i, channel_id=CHANNEL) for i in (5, 6)])
+    env.client.get(f"/api/channels/{CHANNEL}/messages")
+    assert env.bot.synced == [CHANNEL]
+    assert env.bot.older_calls == [(CHANNEL, 5)]  # 저장된 가장 오래된 것보다 앞을 더 받아 봄
+    env.client.get(f"/api/channels/{CHANNEL}/messages?before=5")
+    assert env.bot.synced == [CHANNEL]  # 위로 넘길 때는 최신 동기화를 다시 하지 않는다
+    assert env.bot.older_calls[-1] == (CHANNEL, 5)
+
+
+def test_not_ready_gateway_returns_503(env: Env) -> None:
+    signed_up(env)
+    env.bot.ready = False
+    assert env.client.get("/api/groups").status_code == 503
 
 
 def test_cookie_name_is_not_discord_related() -> None:
@@ -457,7 +604,13 @@ def test_hub_drops_broken_sockets() -> None:
         async def send_json(self, data: Any) -> None:
             raise ConnectionError
 
+    async def allow(_user: int, _channel: int) -> bool:
+        return True
+
     hub = RealtimeHub()
-    hub.add(Broken())
-    asyncio.run(hub.broadcast("x", {}))
+    hub.set_access_check(allow)
+    socket = Broken()
+    hub.add(socket, 42)
+    hub.subscribe(socket, 7)
+    asyncio.run(hub.publish(7, "x", {}))
     assert hub.count == 0

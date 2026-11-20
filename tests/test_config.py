@@ -22,7 +22,6 @@ def test_minimal_settings() -> None:
     assert settings.api_host == "127.0.0.1"
     assert settings.api_port == 8000
     assert settings.cookie_secure is True
-    assert settings.preview_channel_id is None
     assert settings.connect_redirect_uri == "https://chat.example.com/api/auth/connect/callback"
     assert settings.secret_key == b"k" * 32
 
@@ -42,7 +41,6 @@ def test_secrets_are_hidden_in_repr() -> None:
         ({"PUBLIC_ORIGIN": "https://chat.example.com/app"}, "PUBLIC_ORIGIN"),
         ({"PUBLIC_ORIGIN": "http://chat.example.com"}, "https"),
         ({"API_PORT": "99999"}, "API_PORT"),
-        ({"PREVIEW_CHANNEL_ID": "abc"}, "PREVIEW_CHANNEL_ID"),
         ({"DISCORD_CLIENT_ID": ""}, "DISCORD_CLIENT_ID"),
         ({"DISCORD_CLIENT_SECRET": ""}, "DISCORD_CLIENT_SECRET"),
         ({"MOS_SECRET_KEY": ""}, "MOS_SECRET_KEY"),

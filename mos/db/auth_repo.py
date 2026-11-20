@@ -26,6 +26,10 @@ class AuthRepo:
         row = await self.db.fetch_one("SELECT * FROM device WHERE token_hash = ?", (token_hash,))
         return dict(row) if row else None
 
+    async def device_by_id(self, device_id: int) -> dict[str, Any] | None:
+        row = await self.db.fetch_one("SELECT * FROM device WHERE id = ?", (device_id,))
+        return dict(row) if row else None
+
     async def rotate_device_token(self, device_id: int, token_hash: str, now: int) -> None:
         async with self.db.writing() as conn:
             await conn.execute(

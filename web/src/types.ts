@@ -52,16 +52,36 @@ export interface MessagePage {
   has_more: boolean;
 }
 
+/** 모임 = 디스코드 서버(화면에는 '서버'라고 쓰지 않는다) */
+export interface Group {
+  id: string;
+  name: string;
+  icon_url: string | null;
+}
+
+export type ChannelKind = "text" | "news" | "forum" | "thread";
+
 export interface ChannelInfo {
   id: string;
   name: string;
-  guild_id: string;
-  guild_name: string;
+  kind: ChannelKind;
+  group_id: string;
+  /** 채널 하나를 따로 물을 때만 온다 */
+  group_name?: string;
+  category_id: string | null;
+  category_name: string | null;
+  can_send: boolean;
+}
+
+export interface GroupChannels {
+  group: Group;
+  channels: ChannelInfo[];
 }
 
 export type RealtimeEvent =
   | { type: "message_create" | "message_update"; data: Message }
-  | { type: "message_delete"; data: { channel_id: string; ids: string[] } };
+  | { type: "message_delete"; data: { channel_id: string; ids: string[] } }
+  | { type: "subscribed" | "subscribe_denied"; data: { channel_id: string } };
 
 /** 이 브라우저에 저장된 계정 하나 */
 export interface SessionAccount {

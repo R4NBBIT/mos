@@ -56,8 +56,6 @@ class Settings:
     api_host: str = "127.0.0.1"
     api_port: int = 8000
     operator_discord_id: int | None = None
-    # 임시 설정: 볼 채널 하나. 3-2단계(권한 계산·채널 목록)에서 없어진다
-    preview_channel_id: int | None = None
 
     @property
     def cookie_secure(self) -> bool:
@@ -104,5 +102,4 @@ def load_settings(environ: Mapping[str, str] | None = None) -> Settings:
         api_host=env.get("API_HOST", "127.0.0.1").strip(),
         api_port=int(port_raw),
         operator_discord_id=_read_snowflake(env, "OPERATOR_DISCORD_ID", required=False),
-        preview_channel_id=_read_snowflake(env, "PREVIEW_CHANNEL_ID", required=False),
     )

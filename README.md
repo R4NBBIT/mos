@@ -22,7 +22,7 @@ python -m venv .venv
 cd web; npm ci; cd ..
 ```
 
-`tools/dev/.env.example`을 `tools/dev/.env`로 복사해 채운다(봇 토큰, OAuth 클라이언트 ID·시크릿, 암호화 열쇠, 볼 채널 ID).
+`tools/dev/.env.example`을 `tools/dev/.env`로 복사해 채운다(봇 토큰, OAuth 클라이언트 ID·시크릿, 암호화 열쇠).
 개발자 포털 › OAuth2 › Redirects에 `http://localhost:5173/api/auth/connect/callback`을 등록해 둔다.
 
 터미널 두 개에서:
@@ -35,7 +35,7 @@ cd web; npm ci; cd ..
 cd web; npm run dev
 ```
 
-브라우저에서 http://localhost:5173 을 연다(127.0.0.1 주소는 안 됨). 계정 연결 → 비밀번호 정하기 → 채널 하나가 실시간으로 보인다.
+브라우저에서 http://localhost:5173 을 연다(127.0.0.1 주소는 안 됨). 계정 연결 → 비밀번호 정하기 → 모임 목록 → 채널 목록 → 채팅방(실시간).
 
 ## 검사
 

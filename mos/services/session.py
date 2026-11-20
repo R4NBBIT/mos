@@ -109,6 +109,12 @@ class SessionService:
             return None
         return Device(id=int(row["id"]), active_account_id=row["active_account_id"])
 
+    async def device_by_id(self, device_id: int) -> Device | None:
+        row = await self.repo.device_by_id(device_id)
+        if row is None:
+            return None
+        return Device(id=int(row["id"]), active_account_id=row["active_account_id"])
+
     async def create_device(self) -> tuple[Device, str]:
         token = crypto.new_token()
         device_id = await self.repo.create_device(crypto.token_hash(token), self.now())
@@ -162,8 +168,8 @@ class SessionService:
             "max_accounts": MAX_ACCOUNTS_PER_DEVICE,
         }
 
-    async def require_active(self, device: Device | None) -> ActiveAccount:
-        """잠금이 풀린 활성 계정. 요청마다 자동 잠금 시간을 늦춘다."""
+    async def require_active(self, device: Device | None, touch: bool = True) -> ActiveAccount:
+        """잠금이 풀린 활성 계정. touch면 자동 잠금 시간을 늦춘다(실시간 확인은 늦추지 않음)."""
         if device is None or device.active_account_id is None:
             raise SessionError("login_required", status=401)
         now = self.now()
@@ -176,7 +182,7 @@ class SessionService:
         if not self._is_unlocked(link, now):
             raise SessionError("locked", status=401)
         new_until = now + AUTO_LOCK_SEC
-        if new_until - (link.get("unlocked_until") or 0) >= SLIDE_MIN_STEP_SEC:
+        if touch and new_until - (link.get("unlocked_until") or 0) >= SLIDE_MIN_STEP_SEC:
             await self.repo.update_device_account(
                 device.id, device.active_account_id, unlocked_until=new_until
             )
@@ -186,9 +192,6 @@ class SessionService:
             account_id=device.active_account_id,
             discord_user_id=int(link["discord_user_id"]),
         )
-
-    async def account_can_see_guild(self, account_id: int, guild_id: int) -> bool:
-        return await self.repo.account_in_guild(account_id, guild_id)
 
     # ------------------------------------------------------------ OAuth 연결
 

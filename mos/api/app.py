@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import json
 import logging
 import time
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-from typing import Any, Protocol
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response, WebSocket
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -19,8 +22,10 @@ from mos.db.auth_repo import AuthRepo
 from mos.db.database import Database
 from mos.db.repo import MAX_PAGE_SIZE, MessageRepo
 from mos.services.crypto import TokenCipher
+from mos.services.directory import Directory, DirectoryError, GuildInfo
 from mos.services.discord_oauth import DiscordOAuth, OAuthClient
 from mos.services.messages import row_to_api
+from mos.services.permissions import ChannelAccess, PermissionService
 from mos.services.realtime import RealtimeHub
 from mos.services.session import ActiveAccount, Device, SessionError, SessionService
 from mos.version import current_version
@@ -32,14 +37,29 @@ WS_POLICY_VIOLATION = 1008
 COOKIE_NAME = "sid"
 COOKIE_MAX_AGE_SEC = 180 * 24 * 3600
 ACCOUNT_ID_PATTERN = r"^[0-9]{1,18}$"
+WS_RECHECK_SEC = 60  # 열린 실시간 연결도 잠금·계정 변경을 이 간격으로 확인
+OLDER_FETCH_LIMIT = 100
 
 
-class BotState(Protocol):
-    def is_gateway_ready(self) -> bool: ...
+def group_to_api(guild: GuildInfo) -> dict[str, Any]:
+    # 화면·주소에는 '서버(guild)' 대신 평범한 '모임(group)'이라는 말을 쓴다
+    return {"id": str(guild.id), "name": guild.name, "icon_url": guild.icon_url}
 
-    def guild_ids(self) -> set[int]: ...
 
-    def channel_info(self, channel_id: int) -> dict[str, Any] | None: ...
+def channel_to_api(access: ChannelAccess, group_name: str | None = None) -> dict[str, Any]:
+    channel = access.channel
+    data: dict[str, Any] = {
+        "id": str(channel.id),
+        "name": channel.name,
+        "kind": channel.kind,
+        "group_id": str(channel.guild_id),
+        "category_id": str(channel.category_id) if channel.category_id else None,
+        "category_name": channel.category_name,
+        "can_send": access.can_send,
+    }
+    if group_name is not None:
+        data["group_name"] = group_name
+    return data
 
 
 class PasswordBody(BaseModel):
@@ -61,10 +81,13 @@ def create_app(
     db: Database,
     repo: MessageRepo,
     hub: RealtimeHub,
-    bot: BotState,
+    directory: Directory,
     oauth: OAuthClient | None = None,
     clock: Callable[[], float] = time.time,
+    permissions: PermissionService | None = None,
 ) -> FastAPI:
+    perms = permissions or PermissionService(directory)
+    hub.set_access_check(perms.can_read)
     sessions = SessionService(
         AuthRepo(db),
         TokenCipher(settings.secret_key),
@@ -74,7 +97,7 @@ def create_app(
             settings.discord_client_secret,
             settings.connect_redirect_uri,
         ),
-        bot_guild_ids=bot.guild_ids,
+        bot_guild_ids=directory.guild_ids,
         clock=clock,
     )
     connect_limiter = RateLimiter(limit=20, window_sec=600)
@@ -137,16 +160,21 @@ def create_app(
     async def require_account(request: Request) -> ActiveAccount:
         return await sessions.require_active(await current_device(request))
 
-    async def require_preview_channel(account: ActiveAccount, channel_id: int) -> dict[str, Any]:
-        """3-1 임시: 미리보기 채널 하나, 그 서버에 들어가 있는 계정만. 3-2에서 can()으로 바뀐다."""
-        if settings.preview_channel_id is None or channel_id != settings.preview_channel_id:
+    async def require_channel(account: ActiveAccount, channel_id: int) -> ChannelAccess:
+        """볼 수 없는 채널은 없는 채널과 똑같이 404."""
+        access = await perms.channel_access(account.discord_user_id, channel_id)
+        if access is None:
             raise HTTPException(status_code=404, detail="not found")
-        info = bot.channel_info(channel_id)
-        if info is None:
-            raise HTTPException(status_code=503, detail="channel not ready")
-        if not await sessions.account_can_see_guild(account.account_id, int(info["guild_id"])):
-            raise HTTPException(status_code=404, detail="not found")
-        return info
+        return access
+
+    def require_ready() -> None:
+        if not directory.is_gateway_ready():
+            raise HTTPException(status_code=503, detail="not ready")
+
+    @app.exception_handler(DirectoryError)
+    async def directory_error(_request: Request, error: DirectoryError) -> JSONResponse:
+        log.warning("디스코드 조회 실패: %s", error)
+        return JSONResponse({"detail": "upstream_unavailable"}, status_code=503)
 
     def check_rate(limiter: RateLimiter, request: Request) -> None:
         if not limiter.allow(client_ip(request)):
@@ -157,7 +185,7 @@ def create_app(
     @app.get("/api/healthz")
     async def healthz() -> JSONResponse:
         db_ok = await db.can_write()
-        gateway_ok = bot.is_gateway_ready()
+        gateway_ok = directory.is_gateway_ready()
         ok = db_ok and gateway_ok
         body = {"ok": ok, "version": current_version(), "db": db_ok, "gateway": gateway_ok}
         return JSONResponse(body, status_code=200 if ok else 503)
@@ -228,14 +256,36 @@ def create_app(
         if await sessions.remove_account(await current_device(request), account_id):
             clear_device_cookie(response)
 
-    # ------------------------------------------------------------ 임시: 채널 하나(3-2에서 목록으로)
+    # ------------------------------------------------------------ 모임·채널 목록
 
-    @app.get("/api/preview/channel")
-    async def preview_channel(request: Request) -> dict[str, Any]:
+    @app.get("/api/groups")
+    async def list_groups(request: Request) -> dict[str, Any]:
         account = await require_account(request)
-        if settings.preview_channel_id is None:
-            raise HTTPException(status_code=404, detail="not configured")
-        return await require_preview_channel(account, settings.preview_channel_id)
+        require_ready()
+        guilds = await perms.visible_guilds(account.discord_user_id)
+        guilds.sort(key=lambda guild: guild.name.casefold())
+        return {"groups": [group_to_api(guild) for guild in guilds]}
+
+    @app.get("/api/groups/{group_id}/channels")
+    async def list_channels(group_id: int, request: Request) -> dict[str, Any]:
+        account = await require_account(request)
+        require_ready()
+        accesses = await perms.visible_channels(account.discord_user_id, group_id)
+        guild = directory.guild(group_id)
+        if accesses is None or guild is None:
+            raise HTTPException(status_code=404, detail="not found")
+        return {
+            "group": group_to_api(guild),
+            "channels": [channel_to_api(access) for access in accesses],
+        }
+
+    @app.get("/api/channels/{channel_id}")
+    async def channel_detail(channel_id: int, request: Request) -> dict[str, Any]:
+        account = await require_account(request)
+        require_ready()
+        access = await require_channel(account, channel_id)
+        guild = directory.guild(access.channel.guild_id)
+        return channel_to_api(access, group_name=guild.name if guild else "")
 
     # ------------------------------------------------------------ 메시지
 
@@ -247,8 +297,20 @@ def create_app(
         limit: int = Query(default=50, ge=1, le=MAX_PAGE_SIZE),
     ) -> dict[str, Any]:
         account = await require_account(request)
-        await require_preview_channel(account, channel_id)
+        require_ready()
+        access = await require_channel(account, channel_id)
+        if access.channel.kind == "forum":
+            raise HTTPException(status_code=404, detail="not found")  # 포럼 화면은 5단계
+        if before is None:
+            await directory.ensure_synced(channel_id)
         rows = await repo.list_page(channel_id, before_id=before, limit=limit)
+        if len(rows) < limit:
+            # 저장된 것이 모자라면 그보다 오래된 메시지를 디스코드에서 더 받아 온다
+            oldest = int(rows[0]["id"]) if rows else before
+            if oldest is not None and await directory.fetch_older(
+                channel_id, oldest, OLDER_FETCH_LIMIT
+            ):
+                rows = await repo.list_page(channel_id, before_id=before, limit=limit)
         return {"messages": [row_to_api(row) for row in rows], "has_more": len(rows) == limit}
 
     # ------------------------------------------------------------ 실시간
@@ -261,21 +323,68 @@ def create_app(
         try:
             device = await sessions.device_from_token(websocket.cookies.get(COOKIE_NAME))
             account = await sessions.require_active(device)
-            if settings.preview_channel_id is not None:
-                await require_preview_channel(account, settings.preview_channel_id)
-        except (SessionError, HTTPException):
+        except SessionError:
             await websocket.close(code=WS_POLICY_VIOLATION)
             return
         await websocket.accept()
-        hub.add(websocket)
+        hub.add(websocket, account.discord_user_id)
+
+        async def watch_session() -> None:
+            # 다른 탭에서 잠그거나 계정을 바꾸면, 열려 있던 연결도 끊는다(잠금 시간은 늘리지 않음)
+            while True:
+                await asyncio.sleep(WS_RECHECK_SEC)
+                try:
+                    # 쿠키 토큰은 잠금 해제 때 바뀌므로 기기 번호로 다시 찾는다
+                    current = await sessions.device_by_id(account.device_id)
+                    still = await sessions.require_active(current, touch=False)
+                    ok = still.account_id == account.account_id
+                except SessionError:
+                    ok = False
+                if not ok:
+                    hub.remove(websocket)
+                    with contextlib.suppress(Exception):
+                        await websocket.close(code=WS_POLICY_VIOLATION)
+                    return
+
+        watcher = asyncio.create_task(watch_session())
         try:
             while True:
                 text = await websocket.receive_text()
                 if text == "ping":
                     await websocket.send_text("pong")
+                    continue
+                await handle_client_message(websocket, account, text)
         except WebSocketDisconnect:
             pass
+        except RuntimeError:
+            pass  # 감시 작업이 먼저 닫은 경우
         finally:
+            watcher.cancel()
             hub.remove(websocket)
+
+    async def handle_client_message(
+        websocket: WebSocket, account: ActiveAccount, text: str
+    ) -> None:
+        """화면이 보는 채널을 알려 준다: {"type": "subscribe", "channel_id": "123" | null}"""
+        try:
+            message = json.loads(text)
+        except ValueError:
+            return
+        if not isinstance(message, dict) or message.get("type") != "subscribe":
+            return
+        raw = message.get("channel_id")
+        if raw is None:
+            hub.subscribe(websocket, None)
+            return
+        if not isinstance(raw, str) or not raw.isdigit() or len(raw) > 21:
+            return
+        channel_id = int(raw)
+        allowed = False
+        with contextlib.suppress(DirectoryError):
+            allowed = await perms.can_read(account.discord_user_id, channel_id)
+        hub.subscribe(websocket, channel_id if allowed else None)
+        await websocket.send_json(
+            {"type": "subscribed" if allowed else "subscribe_denied", "data": {"channel_id": raw}}
+        )
 
     return app

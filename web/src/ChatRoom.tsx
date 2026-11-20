@@ -9,6 +9,9 @@ const GROUP_GAP_MS = 5 * 60 * 1000;
 const NEAR_BOTTOM_PX = 120;
 
 interface Props {
+  channelId: string;
+  /** 채널 목록으로 */
+  onBack: () => void;
   /** 오른쪽 위 계정 메뉴 */
   menu: ReactNode;
   /** 잠겼거나 세션이 끝나 401을 받았을 때 */
@@ -26,7 +29,7 @@ function mergeMessages(current: Message[], incoming: Message[]): Message[] {
   return [...byId.values()].sort((a, b) => compareIds(a.id, b.id));
 }
 
-export default function ChatRoom({ menu, onAuthLost, notice, onNoticeClose }: Props) {
+export default function ChatRoom({ channelId, onBack, menu, onAuthLost, notice, onNoticeClose }: Props) {
   const [channel, setChannel] = useState<ChannelInfo | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -69,7 +72,7 @@ export default function ChatRoom({ menu, onAuthLost, notice, onNoticeClose }: Pr
     let timer: number | undefined;
     const attempt = async (delayMs: number) => {
       try {
-        const info = await fetchChannel();
+        const info = await fetchChannel(channelId);
         if (stopped) return;
         setError("");
         setChannel(info);
@@ -77,8 +80,8 @@ export default function ChatRoom({ menu, onAuthLost, notice, onNoticeClose }: Pr
       } catch (caught) {
         if (stopped || handleAuthError(caught)) return;
         if (caught instanceof ApiError && caught.status === 404) {
-          // 이 계정이 들어가 있지 않은 서버의 채널. 다시 물어도 같으니 멈춘다
-          setError("이 계정으로 볼 수 있는 채널이 아직 없어요. 다른 계정으로 바꿔 보세요.");
+          // 없는 채널이거나 이 계정으로는 볼 수 없는 채널. 다시 물어도 같으니 멈춘다
+          setError("볼 수 없는 채널이에요. 목록으로 돌아가 주세요.");
           return;
         }
         if (caught instanceof ApiError && caught.status === 503) {
@@ -94,7 +97,7 @@ export default function ChatRoom({ menu, onAuthLost, notice, onNoticeClose }: Pr
       stopped = true;
       window.clearTimeout(timer);
     };
-  }, [handleAuthError, loadLatest]);
+  }, [channelId, handleAuthError, loadLatest]);
 
   const loadOlder = async () => {
     if (!channel || loadingOlder || messages.length === 0) return;
@@ -114,8 +117,9 @@ export default function ChatRoom({ menu, onAuthLost, notice, onNoticeClose }: Pr
     }
   };
 
-  useRealtime(channel !== null, {
+  useRealtime(channel ? channel.id : null, {
     onStatus: setConnected,
+    onRejected: onAuthLost,
     onConnected: () => {
       if (channel) void loadLatest(channel); // 끊긴 사이 메시지 채우기
     },
@@ -127,11 +131,13 @@ export default function ChatRoom({ menu, onAuthLost, notice, onNoticeClose }: Pr
         setMessages((current) => current.filter((message) => !removed.has(message.id)));
         return;
       }
-      if (event.data.channel_id !== channel.id) return;
+      if (event.type !== "message_create" && event.type !== "message_update") return;
+      const incoming = event.data;
+      if (incoming.channel_id !== channel.id) return;
       if (event.type === "message_create" && !stickToBottom.current) {
         setUnseen((count) => count + 1);
       }
-      setMessages((current) => mergeMessages(current, [event.data]));
+      setMessages((current) => mergeMessages(current, [incoming]));
     },
   });
 
@@ -167,9 +173,12 @@ export default function ChatRoom({ menu, onAuthLost, notice, onNoticeClose }: Pr
   return (
     <div className="room">
       <header className="room-header">
+        <button type="button" className="back-button" onClick={onBack} aria-label="채널 목록으로">
+          ‹
+        </button>
         <div className="room-title">
           <strong>{channel ? `# ${channel.name}` : "…"}</strong>
-          <span className="room-sub">{channel?.guild_name ?? ""}</span>
+          <span className="room-sub">{channel?.group_name ?? ""}</span>
         </div>
         <span className={connected ? "dot dot-on" : "dot"} title={connected ? "실시간 연결됨" : "연결 중"} />
         {menu}

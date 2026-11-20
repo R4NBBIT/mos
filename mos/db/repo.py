@@ -86,3 +86,8 @@ class MessageRepo:
             "SELECT MAX(id) AS last_id FROM message WHERE channel_id = ?", (channel_id,)
         )
         return row["last_id"] if row and row["last_id"] is not None else None
+
+    async def channel_ids(self) -> list[int]:
+        """메시지를 받아 둔 채널(재시작 때 이어 받을 대상)."""
+        rows = await self.db.fetch_all("SELECT DISTINCT channel_id FROM message")
+        return [int(row[0]) for row in rows]

@@ -1,4 +1,4 @@
-import type { ChannelInfo, MessagePage, SessionState } from "./types";
+import type { ChannelInfo, Group, GroupChannels, MessagePage, SessionState } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -65,8 +65,17 @@ export async function removeAccount(accountId: string): Promise<void> {
   await request(`/api/session/accounts/${encodeURIComponent(accountId)}`, { method: "DELETE" });
 }
 
-export async function fetchChannel(): Promise<ChannelInfo> {
-  return (await request("/api/preview/channel")).json() as Promise<ChannelInfo>;
+export async function fetchGroups(): Promise<Group[]> {
+  const body = (await (await request("/api/groups")).json()) as { groups: Group[] };
+  return body.groups;
+}
+
+export async function fetchGroupChannels(groupId: string): Promise<GroupChannels> {
+  return (await request(`/api/groups/${encodeURIComponent(groupId)}/channels`)).json() as Promise<GroupChannels>;
+}
+
+export async function fetchChannel(channelId: string): Promise<ChannelInfo> {
+  return (await request(`/api/channels/${encodeURIComponent(channelId)}`)).json() as Promise<ChannelInfo>;
 }
 
 export async function fetchMessages(channelId: string, beforeId?: string): Promise<MessagePage> {

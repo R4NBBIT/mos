@@ -4,6 +4,7 @@ import { fetchSession, lock } from "./api";
 import { ConnectScreen, PasswordSetup, ReconnectScreen, UnlockScreen } from "./AuthScreens";
 import { authText } from "./authText";
 import ChatRoom from "./ChatRoom";
+import { ChannelList, GroupList } from "./Lists";
 import type { SessionAccount, SessionState } from "./types";
 
 // 서버의 자동 잠금(30분)과 같게. 조작이 없으면 화면도 잠금으로 간다
@@ -16,8 +17,32 @@ function takeConnectError(): string {
   const params = new URLSearchParams(window.location.search);
   const code = params.get("connect_error");
   if (code === null) return "";
-  window.history.replaceState(null, "", window.location.pathname);
+  window.history.replaceState(null, "", window.location.pathname + window.location.hash);
   return authText(code);
+}
+
+type Route = { view: "groups" } | { view: "channels"; groupId: string } | { view: "chat"; groupId: string; channelId: string };
+
+/** 주소 # 뒤: #/ 모임 목록, #/g/모임 채널 목록, #/g/모임/c/채널 채팅방. ID는 숫자만 받는다 */
+function parseRoute(hash: string): Route {
+  const chat = /^#\/g\/(\d{1,21})\/c\/(\d{1,21})$/.exec(hash);
+  if (chat?.[1] && chat[2]) return { view: "chat", groupId: chat[1], channelId: chat[2] };
+  const channels = /^#\/g\/(\d{1,21})$/.exec(hash);
+  if (channels?.[1]) return { view: "channels", groupId: channels[1] };
+  return { view: "groups" };
+}
+
+function useHashRoute(): [Route, (hash: string) => void] {
+  const [route, setRoute] = useState(() => parseRoute(window.location.hash));
+  useEffect(() => {
+    const onChange = () => setRoute(parseRoute(window.location.hash));
+    window.addEventListener("hashchange", onChange);
+    return () => window.removeEventListener("hashchange", onChange);
+  }, []);
+  const go = useCallback((hash: string) => {
+    window.location.hash = hash; // 브라우저 뒤로 가기로 돌아올 수 있게 기록에 남긴다
+  }, []);
+  return [route, go];
 }
 
 function pickActive(session: SessionState): SessionAccount | null {
@@ -53,6 +78,7 @@ export default function App() {
   const [session, setSession] = useState<SessionState | null>(null);
   const [failed, setFailed] = useState(false);
   const [notice, setNotice] = useState(takeConnectError);
+  const [route, go] = useHashRoute();
 
   const refresh = useCallback(async () => {
     try {
@@ -101,13 +127,32 @@ export default function App() {
   if (active.locked) {
     return <UnlockScreen session={session} account={active} notice={notice} onChanged={changed} />;
   }
-  return (
-    <ChatRoom
-      key={active.id}
-      menu={<AccountMenu session={session} account={active} onChanged={changed} />}
-      onAuthLost={changed}
-      notice={notice}
-      onNoticeClose={() => setNotice("")}
-    />
-  );
+  const common = {
+    menu: <AccountMenu session={session} account={active} onChanged={changed} />,
+    onAuthLost: changed,
+    notice,
+    onNoticeClose: () => setNotice(""),
+  };
+  if (route.view === "chat") {
+    return (
+      <ChatRoom
+        key={`${active.id}:${route.channelId}`}
+        channelId={route.channelId}
+        onBack={() => go(`#/g/${route.groupId}`)}
+        {...common}
+      />
+    );
+  }
+  if (route.view === "channels") {
+    return (
+      <ChannelList
+        key={`${active.id}:${route.groupId}`}
+        groupId={route.groupId}
+        onBack={() => go("#/")}
+        onOpen={(channelId) => go(`#/g/${route.groupId}/c/${channelId}`)}
+        {...common}
+      />
+    );
+  }
+  return <GroupList key={active.id} onOpen={(groupId) => go(`#/g/${groupId}`)} {...common} />;
 }

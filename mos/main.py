@@ -14,10 +14,11 @@ import discord
 import uvicorn
 
 from mos.api.app import create_app
-from mos.bot.client import MosBot
+from mos.bot.client import BotDirectory, MosBot
 from mos.config import ConfigError, load_settings
 from mos.db.database import Database
 from mos.db.repo import MessageRepo
+from mos.services.permissions import PermissionService
 from mos.services.realtime import RealtimeHub
 from mos.version import current_version
 
@@ -48,7 +49,10 @@ async def run() -> int:
     repo = MessageRepo(db)
     hub = RealtimeHub()
     bot = MosBot(settings, repo, hub)
-    app = create_app(settings, db, repo, hub, bot)
+    directory = BotDirectory(bot)
+    permissions = PermissionService(directory)
+    bot.member_changed = permissions.forget_member  # 역할 변경·탈퇴 때 권한 캐시 지우기
+    app = create_app(settings, db, repo, hub, directory, permissions=permissions)
     server = uvicorn.Server(
         uvicorn.Config(
             app,

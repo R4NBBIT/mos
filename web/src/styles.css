@@ -261,6 +261,106 @@ button {
   cursor: pointer;
 }
 
+.back-button {
+  border: 0;
+  background: none;
+  font-size: 26px;
+  line-height: 1;
+  padding: 0 6px 2px 0;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.list-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px 24px;
+}
+
+.list-note {
+  margin: 24px 0;
+  text-align: center;
+  color: var(--sub);
+}
+
+.list-section {
+  margin-top: 8px;
+}
+
+.list-section-title {
+  margin: 12px 4px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sub);
+}
+
+.list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.list-item:hover {
+  background: var(--surface);
+}
+
+.list-item-disabled {
+  cursor: default;
+  color: var(--sub);
+}
+
+.list-item-disabled:hover {
+  background: none;
+}
+
+.list-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--line-soft);
+  color: var(--sub);
+  font-size: 12px;
+}
+
+.channel-mark {
+  width: 20px;
+  text-align: center;
+  color: var(--sub);
+}
+
+.group-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  object-fit: cover;
+  background: var(--line);
+  flex-shrink: 0;
+}
+
+.group-icon-fallback {
+  display: grid;
+  place-items: center;
+  color: var(--sub);
+  font-weight: 600;
+}
+
 .room-notice {
   display: flex;
   align-items: flex-start;
