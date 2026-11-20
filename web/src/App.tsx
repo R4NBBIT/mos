@@ -1,5 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AccountMenu from "./AccountMenu";
+import BossScreen from "./boss/BossScreen";
+import { setDisguised } from "./boss/bossState";
+import { loadMyFile } from "./boss/myFile";
+import { buildTemplate, type Workbook } from "./boss/templates";
 import { fetchSession, fetchSettings, lock } from "./api";
 import { ConnectScreen, PasswordSetup, ReconnectScreen, UnlockScreen } from "./AuthScreens";
 import { authText } from "./authText";
@@ -7,7 +11,7 @@ import ChatRoom from "./ChatRoom";
 import { ChannelList, GroupList } from "./Lists";
 import Posts from "./Posts";
 import SettingsScreen from "./SettingsScreen";
-import { applyLook, cachedLook, type Settings } from "./theme";
+import { applyDisguise, applyLook, type BossTemplate, cachedLook, type Settings } from "./theme";
 import type { ChannelInfo, SessionAccount, SessionState } from "./types";
 
 // 서버의 자동 잠금(30분)과 같게. 조작이 없으면 화면도 잠금으로 간다
@@ -107,14 +111,21 @@ function useIdleLock(enabled: boolean, onLocked: () => void) {
   }, [enabled, onLocked]);
 }
 
-export default function App() {
+interface ScreensProps {
+  look: Settings;
+  setLook: (settings: Settings) => void;
+  /** 바뀌면 세션을 다시 받는다(위장 화면에서 돌아오며 잠갔을 때) */
+  refreshKey: number;
+  onShowBoss: () => void;
+  onFileChanged: () => void;
+}
+
+function Screens({ look, setLook, refreshKey, onShowBoss, onFileChanged }: ScreensProps) {
   const [session, setSession] = useState<SessionState | null>(null);
   const [failed, setFailed] = useState(false);
   const [notice, setNotice] = useState(takeConnectError);
   const [route, go] = useHashRoute();
   const wide = useWide();
-  const [look, setLook] = useState<Settings>(cachedLook);
-  useEffect(() => applyLook(look), [look]);
 
   const refresh = useCallback(async () => {
     try {
@@ -139,6 +150,10 @@ export default function App() {
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [refresh]);
+
+  useEffect(() => {
+    if (refreshKey > 0) changed();
+  }, [refreshKey, changed]);
 
   const active = session ? pickActive(session) : null;
   const open = Boolean(active && !active.locked && active.password_set && !active.disconnected);
@@ -250,6 +265,8 @@ export default function App() {
         onChange={setLook}
         onBack={() => window.history.back()}
         menu={common.menu}
+        onShowBoss={onShowBoss}
+        onFileChanged={onFileChanged}
       />
     );
   }
@@ -287,4 +304,115 @@ export default function App() {
   if (route.view === "thread") return chatRoom(route.groupId, route.threadId, false, route.parentId);
   if (route.view === "channels") return channelList(route.groupId);
   return groupList;
+}
+
+const DOUBLE_ESC_MS = 450;
+
+/** 위장 화면에 쓸 표: 고른 템플릿(날짜는 오늘 기준) 또는 불러온 내 파일 */
+function pickWorkbook(
+  template: BossTemplate,
+  day: string,
+  fileVersion: number,
+): { workbook: Workbook; storageKey: string } {
+  void day; // 날짜가 바뀌면 템플릿 날짜도 새로
+  void fileVersion; // 내 파일을 새로 불러오면 다시 읽기
+  if (template === "myfile") {
+    const file = loadMyFile();
+    if (file) return { workbook: file, storageKey: `mos.boss.edits.v1.myfile.${file.stamp}` };
+  }
+  const id = template === "myfile" ? "weekly" : template;
+  return { workbook: buildTemplate(id), storageKey: `mos.boss.edits.v1.${id}` };
+}
+
+/** 화면 맨 위: 평소 화면 + 위장 화면(SCR-12). 위장 화면은 미리 그려 두고 숨겼다 보였다만 한다 */
+export default function App() {
+  const [look, setLook] = useState<Settings>(cachedLook);
+  const [bossOn, setBossOn] = useState(false);
+  const [fileVersion, setFileVersion] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const day = new Date().toDateString();
+  const { workbook, storageKey } = useMemo(
+    () => pickWorkbook(look.boss_template, day, fileVersion),
+    [look.boss_template, day, fileVersion],
+  );
+
+  useEffect(() => {
+    setDisguised(bossOn);
+    if (bossOn) applyDisguise(workbook.fileName);
+    else applyLook(look);
+  }, [bossOn, look, workbook.fileName]);
+
+  const relock = look.boss_relock;
+  const toggle = useCallback(
+    (on?: boolean) => {
+      setBossOn((current) => {
+        const next = on ?? !current;
+        if (current && !next && relock) {
+          // 돌아올 때 잠그기: 잠그고 잠금 화면으로
+          void lock()
+            .catch(() => {})
+            .finally(() => setRefreshKey((key) => key + 1));
+        }
+        return next;
+      });
+    },
+    [relock],
+  );
+
+  // 보스키: Esc 두 번 빠르게(어느 화면에서나)
+  useEffect(() => {
+    let last = 0;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.repeat) return;
+      const now = Date.now();
+      if (now - last <= DOUBLE_ESC_MS) {
+        last = 0;
+        toggle();
+      } else last = now;
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [toggle]);
+
+  // 자동 위장(선택): 창에서 벗어나거나 마우스가 창 밖으로 나가면
+  useEffect(() => {
+    if (!look.boss_auto || bossOn) return;
+    const choosingFile = () => document.activeElement instanceof HTMLInputElement && document.activeElement.type === "file";
+    const onBlur = () => {
+      if (!choosingFile()) toggle(true);
+    };
+    const onLeave = (event: MouseEvent) => {
+      if (event.relatedTarget === null && !choosingFile()) toggle(true);
+    };
+    window.addEventListener("blur", onBlur);
+    document.addEventListener("mouseout", onLeave);
+    return () => {
+      window.removeEventListener("blur", onBlur);
+      document.removeEventListener("mouseout", onLeave);
+    };
+  }, [look.boss_auto, bossOn, toggle]);
+
+  return (
+    <>
+      <div className="app-root" inert={bossOn} aria-hidden={bossOn || undefined}>
+        <Screens
+          look={look}
+          setLook={setLook}
+          refreshKey={refreshKey}
+          onShowBoss={() => toggle(true)}
+          onFileChanged={() => setFileVersion((version) => version + 1)}
+        />
+      </div>
+      <div className="boss-layer" hidden={!bossOn}>
+        <BossScreen workbook={workbook} storageKey={storageKey} active={bossOn} />
+      </div>
+      <button
+        type="button"
+        className="boss-corner-button"
+        tabIndex={-1}
+        aria-label="화면 전환"
+        onClick={() => toggle()}
+      />
+    </>
+  );
 }

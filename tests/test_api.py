@@ -1294,11 +1294,26 @@ def test_create_forum_post(env: Env) -> None:
 
 def test_settings_per_account(env: Env) -> None:
     signed_up(env, "mocha")
-    assert env.client.get("/api/settings").json() == {"theme": "moon", "tab_title": None}
+    defaults = {
+        "theme": "moon",
+        "tab_title": None,
+        "boss_template": "weekly",
+        "boss_auto": False,
+        "boss_relock": False,
+    }
+    assert env.client.get("/api/settings").json() == defaults
     changed = env.client.patch(
         "/api/settings", json={"theme": "sheet", "tab_title": "  주간   보고  "}, headers=POST
     )
-    assert changed.json() == {"theme": "sheet", "tab_title": "주간 보고"}
+    assert changed.json() == {**defaults, "theme": "sheet", "tab_title": "주간 보고"}
+    boss = env.client.patch(
+        "/api/settings",
+        json={"boss_template": "budget", "boss_auto": True, "boss_relock": True},
+        headers=POST,
+    ).json()
+    assert (boss["boss_template"], boss["boss_auto"], boss["boss_relock"]) == ("budget", True, True)
+    for bad in ({"boss_template": "../x"}, {"boss_auto": "yes"}, {"boss_relock": 1}):
+        assert env.client.patch("/api/settings", json=bad, headers=POST).status_code == 400
     assert (
         env.client.patch("/api/settings", json={"theme": "pink"}, headers=POST).status_code == 400
     )

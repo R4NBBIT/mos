@@ -9,6 +9,7 @@ import {
   sendFiles,
   sendMessage,
 } from "./api";
+import { isDisguised } from "./boss/bossState";
 import Composer from "./Composer";
 import { compareIds, dayKey, formatDay, formatTime } from "./format";
 import MessageItem, { Avatar, MessageBody, type ReplyPreview } from "./MessageItem";
@@ -245,7 +246,7 @@ export default function ChatRoom({
     const last = messages[messages.length - 1];
     if (!last) return;
     const timer = window.setTimeout(() => {
-      if (!stickToBottom.current || document.visibilityState !== "visible") return;
+      if (!stickToBottom.current || document.visibilityState !== "visible" || isDisguised()) return;
       if (lastMarked.current && compareIds(last.id, lastMarked.current) <= 0) return;
       lastMarked.current = last.id;
       markRead(channel.id, last.id).catch(() => {

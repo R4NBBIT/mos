@@ -3,10 +3,26 @@
 
 export type Theme = "moon" | "night" | "sheet" | "memo";
 
+export type BossTemplate = "weekly" | "sales" | "schedule" | "budget" | "myfile";
+
 export interface Settings {
   theme: Theme;
   tab_title: string | null;
+  /** 위장 화면 템플릿, 자동 위장, 돌아올 때 잠그기 */
+  boss_template: BossTemplate;
+  boss_auto: boolean;
+  boss_relock: boolean;
 }
+
+const BOSS_TEMPLATES: BossTemplate[] = ["weekly", "sales", "schedule", "budget", "myfile"];
+
+export const DEFAULT_SETTINGS: Settings = {
+  theme: "moon",
+  tab_title: null,
+  boss_template: "weekly",
+  boss_auto: false,
+  boss_relock: false,
+};
 
 export const THEMES: { id: Theme; name: string }[] = [
   { id: "moon", name: "달빛(기본)" },
@@ -38,18 +54,28 @@ export function defaultTitle(theme: Theme): string {
   return DEFAULT_TITLES[theme];
 }
 
-export function applyLook(settings: Settings): void {
-  const root = document.documentElement;
-  if (settings.theme === "moon") delete root.dataset.theme;
-  else root.dataset.theme = settings.theme;
-  document.title = settings.tab_title || DEFAULT_TITLES[settings.theme];
+function setIcon(href: string): void {
   let icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
   if (!icon) {
     icon = document.createElement("link");
     icon.rel = "icon";
     document.head.appendChild(icon);
   }
-  icon.href = FAVICONS[settings.theme];
+  icon.href = href;
+}
+
+/** 위장 화면: 파일 이름을 탭 제목으로, 시트 아이콘 */
+export function applyDisguise(fileName: string): void {
+  document.title = fileName;
+  setIcon(FAVICONS.sheet);
+}
+
+export function applyLook(settings: Settings): void {
+  const root = document.documentElement;
+  if (settings.theme === "moon") delete root.dataset.theme;
+  else root.dataset.theme = settings.theme;
+  document.title = settings.tab_title || DEFAULT_TITLES[settings.theme];
+  setIcon(FAVICONS[settings.theme]);
   try {
     window.localStorage.setItem(CACHE_KEY, JSON.stringify(settings));
   } catch {
@@ -64,11 +90,18 @@ export function cachedLook(): Settings {
     if (raw) {
       const value = JSON.parse(raw) as Partial<Settings>;
       if (value.theme && value.theme in DEFAULT_TITLES) {
-        return { theme: value.theme, tab_title: typeof value.tab_title === "string" ? value.tab_title.slice(0, 40) : null };
+        return {
+          theme: value.theme,
+          tab_title: typeof value.tab_title === "string" ? value.tab_title.slice(0, 40) : null,
+          boss_template:
+            value.boss_template && BOSS_TEMPLATES.includes(value.boss_template) ? value.boss_template : "weekly",
+          boss_auto: value.boss_auto === true,
+          boss_relock: value.boss_relock === true,
+        };
       }
     }
   } catch {
     // 무시
   }
-  return { theme: "moon", tab_title: null };
+  return { ...DEFAULT_SETTINGS };
 }

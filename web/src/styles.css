@@ -2190,3 +2190,351 @@ button.tag-chip:disabled {
 .sheet-pics .attachment-file {
   margin-top: 0;
 }
+
+/* ------------------------------------------------------------ 위장 화면 SCR-12 */
+.boss-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: #ffffff;
+}
+
+.boss-layer[hidden] {
+  display: none;
+}
+
+/* 왼쪽 아래 숨은 전환 버튼(24px, 보이지 않음) */
+.boss-corner-button {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  z-index: 1001;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  opacity: 0;
+  cursor: default;
+}
+
+.boss {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  color: #111827;
+  font-family: "Malgun Gothic", "맑은 고딕", system-ui, sans-serif;
+  font-size: 12px;
+}
+
+.boss-titlebar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  background: #1f6e43;
+  color: #ffffff;
+  font-size: 12.5px;
+}
+
+.boss-menus {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 28px;
+  padding: 0 14px;
+  background: #f3f4f6;
+  color: #374151;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.boss-menu-on {
+  border-bottom: 2px solid #1f6e43;
+  padding-bottom: 2px;
+}
+
+.boss-ribbon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  padding: 0 14px;
+  background: #f9fafb;
+  border-bottom: 1px solid #d1d5db;
+  color: #374151;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.boss-box {
+  height: 24px;
+  min-width: 28px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+}
+
+.boss-font {
+  width: 98px;
+}
+
+.boss-sep {
+  width: 1px;
+  height: 20px;
+  background: #d1d5db;
+}
+
+.boss-formula {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 28px;
+  border-bottom: 1px solid #d1d5db;
+}
+
+.boss-namebox {
+  width: 72px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border-right: 1px solid #d1d5db;
+  box-sizing: border-box;
+}
+
+.boss-fx {
+  width: 36px;
+  text-align: center;
+  color: #4b5563;
+  font-style: italic;
+}
+
+.boss-formula-input {
+  flex: 1;
+  height: 100%;
+  border: 0;
+  border-left: 1px solid #e5e7eb;
+  padding: 0 8px;
+  font: inherit;
+  outline: none;
+}
+
+.boss-scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.boss-colhead,
+.boss-row {
+  display: grid;
+  width: max-content;
+}
+
+.boss-colhead {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  height: 22px;
+}
+
+.boss-corner,
+.boss-colname,
+.boss-rownum {
+  background: #f3f4f6;
+  color: #4b5563;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid #d1d5db;
+  border-bottom: 1px solid #d1d5db;
+  box-sizing: border-box;
+}
+
+.boss-corner {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+}
+
+.boss-on {
+  background: #d3e6da;
+  color: #1f6e43;
+  font-weight: 700;
+}
+
+.boss-row {
+  height: 24px;
+}
+
+.boss-rownum {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+}
+
+.boss-cell {
+  border-right: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0 4px;
+  line-height: 23px;
+  white-space: nowrap;
+  overflow: hidden;
+  box-sizing: border-box;
+  cursor: cell;
+}
+
+.boss-overflow {
+  overflow: visible;
+}
+
+.boss-spill {
+  position: relative;
+  z-index: 1;
+  padding-right: 2px;
+}
+
+.boss-right {
+  text-align: right;
+}
+
+.boss-b {
+  font-weight: 700;
+}
+
+.boss-top {
+  border-top: 2px solid #6b7280;
+}
+
+.boss-error {
+  color: #b91c1c;
+}
+
+.boss-selection {
+  position: absolute;
+  z-index: 2;
+  box-sizing: border-box;
+  border: 2px solid #1f6e43;
+  pointer-events: none;
+}
+
+.boss-editor {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  padding: 0 2px;
+  font: inherit;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  outline: none;
+  pointer-events: none;
+}
+
+.boss-editing {
+  pointer-events: auto;
+}
+
+.boss-editing .boss-editor {
+  background: #ffffff;
+  color: #111827;
+  caret-color: auto;
+  pointer-events: auto;
+}
+
+.boss-tabs {
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  height: 28px;
+  background: #f3f4f6;
+  border-top: 1px solid #d1d5db;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.boss-tabs-pad {
+  flex: none;
+  width: 40px;
+}
+
+.boss-tab {
+  border: 0;
+  border-right: 1px solid #d1d5db;
+  background: none;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  font: inherit;
+  color: #374151;
+}
+
+.boss-tab-on {
+  background: #ffffff;
+  border-bottom: 2px solid #1f6e43;
+  color: #1f6e43;
+  font-weight: 700;
+}
+
+.boss-status {
+  flex: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 22px;
+  padding: 0 12px 0 30px;
+  background: #1f6e43;
+  color: #ffffff;
+  font-size: 11px;
+  white-space: pre;
+}
+
+.boss-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 2px;
+}
+
+.boss-choice,
+.settings-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.settings-check {
+  margin: 10px 2px 0;
+}
+
+.boss-choice-off {
+  color: var(--sub);
+}
+
+.settings-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 4px 2px;
+}
+
+.file-button {
+  cursor: pointer;
+}
+
+.file-button.busy {
+  opacity: 0.6;
+}
+
+.app-root {
+  height: 100%;
+}
