@@ -16,7 +16,7 @@ from mos.api.app import COOKIE_NAME, create_app
 from mos.config import load_settings
 from mos.db.database import Database
 from mos.db.repo import MessageRepo
-from mos.services.directory import ChannelInfo, GuildInfo, MemberInfo, Overwrite
+from mos.services.directory import ChannelInfo, EmojiInfo, GuildInfo, MemberInfo, Overwrite
 from mos.services.discord_oauth import DiscordUser, OAuthError, TokenSet
 from mos.services.permissions import (
     MENTION_EVERYONE,
@@ -71,6 +71,16 @@ class FakeDirectory:
             (GUILD, 43): frozenset({GUILD}),
             (OTHER_GUILD, 45): frozenset({OTHER_GUILD}),
         }
+        self.emoji_map = {
+            GUILD: [
+                EmojiInfo(1573320336554852801, "smile", False, GUILD),
+                EmojiInfo(1573320336554852802, "dance", True, GUILD),
+                EmojiInfo(
+                    1573320336554852803, "vip", False, GUILD, role_ids=frozenset({SECRET_ROLE})
+                ),
+            ],
+            OTHER_GUILD: [EmojiInfo(1573320336554852804, "other", False, OTHER_GUILD)],
+        }
         self.synced: list[int] = []
         self.older_calls: list[tuple[int, int]] = []
 
@@ -91,6 +101,9 @@ class FakeDirectory:
 
     def channel(self, channel_id: int) -> ChannelInfo | None:
         return self.channel_map.get(channel_id)
+
+    def emojis(self, guild_id: int) -> list[EmojiInfo]:
+        return self.emoji_map.get(guild_id, [])
 
     async def fetch_member(self, guild_id: int, user_id: int) -> MemberInfo | None:
         roles = self.members.get((guild_id, user_id))
@@ -153,8 +166,8 @@ class FakeOAuth:
         self.users: dict[str, tuple[DiscordUser, set[int]]] = {}
         self.verifiers: list[str] = []
 
-    def add(self, code: str, user_id: int, name: str, guilds: set[int]) -> None:
-        self.users[code] = (DiscordUser(user_id, name, None, 0), guilds)
+    def add(self, code: str, user_id: int, name: str, guilds: set[int], premium: int = 0) -> None:
+        self.users[code] = (DiscordUser(user_id, name, None, premium), guilds)
 
     def authorize_url(self, state: str, code_challenge: str) -> str:
         return f"https://discord.com/oauth2/authorize?state={state}&code_challenge={code_challenge}"
@@ -618,7 +631,16 @@ def test_open_websocket_is_closed_after_lock(env: Env, monkeypatch: pytest.Monke
 def test_groups_and_channels_follow_permissions(env: Env) -> None:
     signed_up(env, "mocha")  # 비밀 역할 있음
     groups = env.client.get("/api/groups").json()["groups"]
-    assert groups == [{"id": str(GUILD), "name": "서버 A", "icon_url": None}]
+    assert groups == [
+        {
+            "id": str(GUILD),
+            "name": "서버 A",
+            "icon_url": None,
+            "pinned": False,
+            "unread": 0,
+            "mentions": 0,
+        }
+    ]
     body = env.client.get(f"/api/groups/{GUILD}/channels").json()
     assert [c["name"] for c in body["channels"]] == ["일반", "비밀", "포럼"]
     assert body["channels"][0]["can_send"] is True
@@ -857,3 +879,202 @@ def test_send_needs_unlocked_account_and_origin(env: Env) -> None:
         headers={"origin": "https://evil.example"},
     )
     assert bad.status_code == 403
+
+
+# ------------------------------------------------------------ 4단계: 고정·안 읽음·이모지·첨부
+
+
+def pin(env: Env, kind: str, target: int) -> int:
+    return env.client.post(
+        "/api/pins", json={"kind": kind, "id": str(target)}, headers=POST
+    ).status_code
+
+
+def test_pins_order_limits_and_permissions(env: Env) -> None:
+    signed_up(env, "mocha")
+    env.bot.members[(OTHER_GUILD, 42)] = frozenset({OTHER_GUILD})
+    env.permissions.forget_member(OTHER_GUILD, 42)
+    groups = [g["name"] for g in env.client.get("/api/groups").json()["groups"]]
+    assert groups == ["서버 A", "옆 서버"]
+    assert pin(env, "group", OTHER_GUILD) == 204
+    assert pin(env, "group", OTHER_GUILD) == 204  # 이미 있으면 그대로
+    body = env.client.get("/api/groups").json()
+    assert [g["name"] for g in body["groups"]] == ["옆 서버", "서버 A"]  # 고정이 위로
+    assert body["groups"][0]["pinned"] is True
+
+    assert pin(env, "channel", SECRET) == 204
+    shortcuts = env.client.get("/api/groups").json()["pinned_channels"]
+    assert [(c["name"], c["group_name"]) for c in shortcuts] == [("비밀", "서버 A")]
+    channels = env.client.get(f"/api/groups/{GUILD}/channels").json()["channels"]
+    assert {c["name"]: c["pinned"] for c in channels}["비밀"] is True
+
+    # 권한이 사라지면 바로가기에서 숨는다
+    env.bot.members[(GUILD, 42)] = frozenset({GUILD})
+    env.permissions.forget_member(GUILD, 42)
+    assert env.client.get("/api/groups").json()["pinned_channels"] == []
+
+    assert env.client.delete(f"/api/pins/group/{OTHER_GUILD}", headers=POST).status_code == 204
+    assert env.client.get("/api/groups").json()["groups"][0]["pinned"] is False
+    assert pin(env, "group", 123456789012345678) == 404  # 볼 수 없는 모임은 고정 불가
+    assert pin(env, "channel", SECRET) == 404
+
+
+def test_pin_limit(env: Env) -> None:
+    signed_up(env)
+    for index in range(10):
+        channel_id = 1573319705849103000 + index
+        env.bot.channel_map[channel_id] = ChannelInfo(channel_id, GUILD, f"c{index}", "text", 5)
+        assert pin(env, "channel", channel_id) == 204
+    extra = 1573319705849103999
+    env.bot.channel_map[extra] = ChannelInfo(extra, GUILD, "더", "text", 5)
+    response = env.client.post(
+        "/api/pins", json={"kind": "channel", "id": str(extra)}, headers=POST
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "pin_limit"
+
+
+def test_unread_counts_and_mentions(env: Env) -> None:
+    signed_up(env, "latte")  # 43
+    rows = [make_row(1573319705849102500 + i, channel_id=CHANNEL) for i in range(1, 4)]
+    env.client.portal.call(env.repo.upsert_many, rows)
+    channels = env.client.get(f"/api/groups/{GUILD}/channels").json()["channels"]
+    assert channels[0]["unread"] == 0  # 한 번도 안 연 채널은 0에서 시작
+
+    read = env.client.post(
+        f"/api/channels/{CHANNEL}/read", json={"last_id": str(rows[0]["id"])}, headers=POST
+    )
+    assert read.status_code == 204
+    mention = make_row(1573319705849102600, channel_id=CHANNEL)
+    mention["mentions_json"] = '{"users": {"43": "라떼"}, "roles": {}, "channels": {}}'
+    mine = make_row(1573319705849102601, channel_id=CHANNEL)
+    mine["author_id"] = 43  # 내가 디스코드에서 쓴 것은 세지 않는다
+    env.client.portal.call(env.repo.upsert_many, [mention, mine])
+
+    channel = env.client.get(f"/api/groups/{GUILD}/channels").json()["channels"][0]
+    assert (channel["unread"], channel["mentions"]) == (3, 1)
+    group = env.client.get("/api/groups").json()["groups"][0]
+    assert (group["unread"], group["mentions"]) == (3, 1)
+
+    env.client.post(
+        f"/api/channels/{CHANNEL}/read", json={"last_id": str(rows[0]["id"])}, headers=POST
+    )  # 예전 위치로는 되돌아가지 않는다
+    env.client.post(
+        f"/api/channels/{CHANNEL}/read", json={"last_id": str(mine["id"])}, headers=POST
+    )
+    assert env.client.get(f"/api/groups/{GUILD}/channels").json()["channels"][0]["unread"] == 0
+    secret = env.client.post(
+        f"/api/channels/{SECRET}/read", json={"last_id": str(mine["id"])}, headers=POST
+    )
+    assert secret.status_code == 404
+
+
+def test_emoji_rules_follow_nitro(env: Env) -> None:
+    signed_up(env, "latte")  # 니트로 없음, 비밀 역할 없음
+    body = env.client.get(f"/api/channels/{CHANNEL}/emojis").json()
+    assert body["premium"] is False
+    assert [e["name"] for e in body["emojis"]] == ["smile"]  # 움직이는·역할 전용·다른 모임 빠짐
+    assert send(env, "<a:dance:1573320336554852802>").json()["detail"] == "emoji_not_allowed"
+    env.tick(2)
+    assert send(env, "<:smile:1573320336554852801> 좋아").status_code == 200
+
+    env.oauth.add("nitro", 42, "모카", {GUILD}, premium=2)  # 비밀 역할 + 니트로
+    env.bot.members[(OTHER_GUILD, 42)] = frozenset({OTHER_GUILD})
+    env.bot.guild_map[GUILD] = GuildInfo(
+        GUILD, "서버 A", None, 1, {GUILD: BASIC | (1 << 18), SECRET_ROLE: MENTION_EVERYONE}
+    )
+    signed_up(env, "nitro")
+    names = [e["name"] for e in env.client.get(f"/api/channels/{CHANNEL}/emojis").json()["emojis"]]
+    assert names == ["smile", "dance", "vip", "other"]  # 이 모임 먼저, 외부 이모지 포함
+    env.tick(2)
+    assert send(env, "<a:dance:1573320336554852802><:other:1573320336554852804>").status_code == 200
+
+
+def upload(env: Env, files: list[tuple[str, bytes]], content: str = "", channel: int = CHANNEL):
+    _nonce_counter[0] += 1
+    return env.client.post(
+        f"/api/channels/{channel}/messages/files",
+        data={"nonce": f"files-{_nonce_counter[0]:06d}", "content": content},
+        files=[("files", (name, data, "application/octet-stream")) for name, data in files],
+        headers=POST,
+    )
+
+
+def test_send_files(env: Env) -> None:
+    signed_up(env)
+    response = upload(env, [("../../사진 1.jpg", b"x" * 1000), ("SPOILER_a.png", b"y")], "사진")
+    assert response.status_code == 200
+    outgoing = env.messenger.sent[-1][1]
+    assert [f.filename for f in outgoing.files] == ["사진 1.jpg", "SPOILER_a.png"]
+    assert [f.spoiler for f in outgoing.files] == [False, True]
+    assert outgoing.content == "사진"
+
+    env.tick(2)
+    assert upload(env, [("a.bin", b"z")]).status_code == 200  # 글 없이 파일만도 된다
+    env.tick(2)
+    too_big = upload(env, [("big.bin", b"0" * (10 * 1024 * 1024 + 1))])
+    assert too_big.status_code == 413
+    env.tick(2)
+    many = upload(env, [(f"{i}.txt", b"1") for i in range(11)])
+    assert many.status_code == 400
+
+
+def test_egress_limit_blocks_attachments_and_alerts_once(tmp_path: Path) -> None:
+    import mos.api.app as app_module
+
+    alerts: list[str] = []
+
+    async def notify(text: str) -> None:
+        alerts.append(text)
+
+    settings = load_settings(
+        {
+            "DISCORD_BOT_TOKEN": "t",
+            "DISCORD_CLIENT_ID": "1573318317446529064",
+            "DISCORD_CLIENT_SECRET": "s",
+            "MOS_SECRET_KEY": base64.urlsafe_b64encode(b"k" * 32).decode(),
+            "PUBLIC_ORIGIN": ORIGIN,
+            "DB_PATH": str(tmp_path / "e.db"),
+            "EGRESS_LIMIT_MB": "10",
+        }
+    )
+    db = Database(settings.db_path)
+    bot = FakeDirectory()
+    messenger = FakeMessenger()
+    oauth = FakeOAuth()
+    oauth.add("mocha", 42, "모카", {GUILD})
+    clock = [1_800_000_000.0]
+    app = app_module.create_app(
+        settings,
+        db,
+        MessageRepo(db),
+        RealtimeHub(),
+        bot,
+        oauth=oauth,
+        clock=lambda: clock[0],
+        messenger=messenger,
+        notify_operator=notify,
+    )
+    with TestClient(app, base_url=ORIGIN) as client:
+        env = Env(
+            client,
+            bot,
+            RealtimeHub(),
+            MessageRepo(db),
+            oauth,
+            clock,
+            PermissionService(bot),
+            messenger,
+        )
+        signed_up(env)
+        assert upload(env, [("a.bin", b"0" * (8 * 1024 * 1024 + 300_000))]).status_code == 200
+        assert len(alerts) == 1 and "8" in alerts[0]  # 80% 넘음 → 한 번 알림
+        env.tick(2)
+        assert upload(env, [("b.bin", b"0" * (1024 * 1024 + 300_000))]).status_code == 200
+        assert len(alerts) == 1  # 두 번 알리지 않는다
+        env.tick(2)
+        blocked = upload(env, [("c.bin", b"0")])
+        assert blocked.status_code == 403  # 95% 넘음 → 첨부 막기
+        assert blocked.json()["detail"] == "egress_limit"
+        env.tick(2)
+        assert send(env, "글은 계속 돼").status_code == 200

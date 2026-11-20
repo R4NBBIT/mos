@@ -149,7 +149,7 @@ class AuthRepo:
 
     async def device_accounts(self, device_id: int) -> list[dict[str, Any]]:
         rows = await self.db.fetch_all(
-            "SELECT da.*, a.name, a.avatar_url, a.status, a.discord_user_id,"
+            "SELECT da.*, a.name, a.avatar_url, a.status, a.discord_user_id, a.premium_type,"
             " a.password_hash IS NOT NULL AS password_set"
             " FROM device_account da JOIN account a ON a.id = da.account_id"
             " WHERE da.device_id = ? ORDER BY da.added_at, da.account_id",

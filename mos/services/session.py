@@ -66,6 +66,7 @@ class ActiveAccount:
     device_id: int
     account_id: int
     discord_user_id: int
+    premium: bool = False  # 니트로(다른 서버·움직이는 이모지)
 
 
 def password_problem(password: str, account_name: str = "") -> str | None:
@@ -193,6 +194,7 @@ class SessionService:
             device_id=device.id,
             account_id=device.active_account_id,
             discord_user_id=int(link["discord_user_id"]),
+            premium=bool(link.get("premium_type")),
         )
 
     # ------------------------------------------------------------ OAuth 연결

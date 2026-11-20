@@ -45,6 +45,20 @@ function useHashRoute(): [Route, (hash: string) => void] {
   return [route, go];
 }
 
+const WIDE_QUERY = "(min-width: 900px)";
+
+/** 넓은 창(900px 이상)이면 목록 + 채팅방 2단 */
+function useWide(): boolean {
+  const [wide, setWide] = useState(() => window.matchMedia(WIDE_QUERY).matches);
+  useEffect(() => {
+    const query = window.matchMedia(WIDE_QUERY);
+    const onChange = () => setWide(query.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+  return wide;
+}
+
 function pickActive(session: SessionState): SessionAccount | null {
   return (
     session.accounts.find((account) => account.id === session.active_account_id) ??
@@ -79,6 +93,7 @@ export default function App() {
   const [failed, setFailed] = useState(false);
   const [notice, setNotice] = useState(takeConnectError);
   const [route, go] = useHashRoute();
+  const wide = useWide();
 
   const refresh = useCallback(async () => {
     try {
@@ -133,27 +148,57 @@ export default function App() {
     notice,
     onNoticeClose: () => setNotice(""),
   };
-  if (route.view === "chat") {
+  const groupList = (
+    <GroupList
+      key={active.id}
+      onOpen={(groupId) => go(`#/g/${groupId}`)}
+      onOpenChannel={(groupId, channelId) => go(`#/g/${groupId}/c/${channelId}`)}
+      {...common}
+    />
+  );
+  const channelList = (groupId: string, activeChannelId?: string) => (
+    <ChannelList
+      key={`${active.id}:${groupId}`}
+      groupId={groupId}
+      activeChannelId={activeChannelId}
+      onBack={() => go("#/")}
+      onOpen={(channelId) => go(`#/g/${groupId}/c/${channelId}`)}
+      {...common}
+    />
+  );
+  const chatRoom = (groupId: string, channelId: string, inSplit: boolean) => (
+    <ChatRoom
+      key={`${active.id}:${channelId}`}
+      channelId={channelId}
+      myUserId={active.user_id}
+      showBack={!inSplit}
+      onBack={() => go(`#/g/${groupId}`)}
+      menu={inSplit ? null : common.menu}
+      onAuthLost={changed}
+      notice={inSplit ? "" : notice}
+      onNoticeClose={common.onNoticeClose}
+    />
+  );
+
+  if (wide) {
     return (
-      <ChatRoom
-        key={`${active.id}:${route.channelId}`}
-        channelId={route.channelId}
-        myUserId={active.user_id}
-        onBack={() => go(`#/g/${route.groupId}`)}
-        {...common}
-      />
+      <div className="split">
+        <aside className="split-list">
+          {route.view === "groups"
+            ? groupList
+            : channelList(route.groupId, route.view === "chat" ? route.channelId : undefined)}
+        </aside>
+        <main className="split-main">
+          {route.view === "chat" ? (
+            chatRoom(route.groupId, route.channelId, true)
+          ) : (
+            <div className="split-empty">왼쪽에서 {route.view === "groups" ? "모임" : "채널"}을 골라 주세요.</div>
+          )}
+        </main>
+      </div>
     );
   }
-  if (route.view === "channels") {
-    return (
-      <ChannelList
-        key={`${active.id}:${route.groupId}`}
-        groupId={route.groupId}
-        onBack={() => go("#/")}
-        onOpen={(channelId) => go(`#/g/${route.groupId}/c/${channelId}`)}
-        {...common}
-      />
-    );
-  }
-  return <GroupList key={active.id} onOpen={(groupId) => go(`#/g/${groupId}`)} {...common} />;
+  if (route.view === "chat") return chatRoom(route.groupId, route.channelId, false);
+  if (route.view === "channels") return channelList(route.groupId);
+  return groupList;
 }

@@ -55,6 +55,17 @@ class ChannelInfo:
 
 
 @dataclass(frozen=True)
+class EmojiInfo:
+    id: int
+    name: str
+    animated: bool
+    guild_id: int
+    # 비어 있지 않으면 이 역할이 있는 사람만 쓸 수 있다
+    role_ids: frozenset[int] = frozenset()
+    available: bool = True
+
+
+@dataclass(frozen=True)
 class MemberInfo:
     guild_id: int
     user_id: int
@@ -80,6 +91,8 @@ class Directory(Protocol):
     def channel(self, channel_id: int) -> ChannelInfo | None:
         """스레드도 포함. 스레드면 overwrites는 부모 채널 것."""
         ...
+
+    def emojis(self, guild_id: int) -> list[EmojiInfo]: ...
 
     async def fetch_member(self, guild_id: int, user_id: int) -> MemberInfo | None:
         """서버에 없으면 None. 캐시하지 않는다(PermissionService가 캐시)."""

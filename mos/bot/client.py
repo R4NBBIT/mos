@@ -6,6 +6,7 @@ API에는 services/directory.py의 Directory 모양으로 서버·채널·멤버
 from __future__ import annotations
 
 import asyncio
+import io
 import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
@@ -16,7 +17,14 @@ from discord import app_commands
 from mos.bot.backfill import backfill_channel, fetch_older_messages
 from mos.config import Settings
 from mos.db.repo import MessageRepo
-from mos.services.directory import ChannelInfo, DirectoryError, GuildInfo, MemberInfo, Overwrite
+from mos.services.directory import (
+    ChannelInfo,
+    DirectoryError,
+    EmojiInfo,
+    GuildInfo,
+    MemberInfo,
+    Overwrite,
+)
 from mos.services.messages import message_to_row, row_to_api
 from mos.services.realtime import RealtimeHub
 from mos.services.sender import OutgoingMessage, SendError, Webhook, WebhookGoneError
@@ -194,6 +202,31 @@ class MosBot(discord.Client):
                 if channel is not None:
                     break
         return channel_to_info(channel) if channel is not None else None
+
+    def emojis_info(self, guild_id: int) -> list[EmojiInfo]:
+        guild = self.get_guild(guild_id)
+        if guild is None:
+            return []
+        return [
+            EmojiInfo(
+                id=emoji.id,
+                name=emoji.name,
+                animated=emoji.animated,
+                guild_id=guild_id,
+                role_ids=frozenset(role.id for role in emoji.roles),
+                available=emoji.available,
+            )
+            for emoji in guild.emojis
+        ]
+
+    async def notify_operator(self, text: str) -> None:
+        """운영자에게 디스코드 DM(송신량 경고 등). 운영자 ID가 없으면 로그만."""
+        operator_id = self.settings.operator_discord_id
+        if operator_id is None:
+            log.warning("운영자 알림(OPERATOR_DISCORD_ID 없음): %s", text)
+            return
+        user = self.get_user(operator_id) or await self.fetch_user(operator_id)
+        await user.send(text)
 
     async def fetch_member(self, guild_id: int, user_id: int) -> MemberInfo | None:
         guild = self.get_guild(guild_id)
@@ -405,8 +438,13 @@ class BotMessenger:
             discord.Object(id=message.thread_id) if message.thread_id else discord.utils.MISSING
         )
         try:
+            files = [
+                discord.File(io.BytesIO(item.data), filename=item.filename, spoiler=item.spoiler)
+                for item in message.files
+            ]
             sent = await self._hook(webhook).send(
                 content=message.content,
+                files=files or discord.utils.MISSING,
                 username=message.username,
                 avatar_url=message.avatar_url or discord.utils.MISSING,
                 allowed_mentions=self._mentions(message),
@@ -469,6 +507,9 @@ class BotDirectory:
 
     def channel(self, channel_id: int) -> ChannelInfo | None:
         return self.bot.channel_info(channel_id)
+
+    def emojis(self, guild_id: int) -> list[EmojiInfo]:
+        return self.bot.emojis_info(guild_id)
 
     async def fetch_member(self, guild_id: int, user_id: int) -> MemberInfo | None:
         return await self.bot.fetch_member(guild_id, user_id)

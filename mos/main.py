@@ -53,7 +53,14 @@ async def run() -> int:
     permissions = PermissionService(directory)
     bot.member_changed = permissions.forget_member  # 역할 변경·탈퇴 때 권한 캐시 지우기
     app = create_app(
-        settings, db, repo, hub, directory, permissions=permissions, messenger=BotMessenger(bot)
+        settings,
+        db,
+        repo,
+        hub,
+        directory,
+        permissions=permissions,
+        messenger=BotMessenger(bot),
+        notify_operator=bot.notify_operator,
     )
     bot.sender = app.state.sender  # 디스코드 앱의 'ㅁㅇㅅ 메시지 삭제' 명령
     server = uvicorn.Server(

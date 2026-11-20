@@ -45,6 +45,13 @@ def _read_secret_key(environ: Mapping[str, str]) -> bytes:
     return key
 
 
+def _read_egress_limit(environ: Mapping[str, str]) -> int:
+    raw = environ.get("EGRESS_LIMIT_MB", "1024").strip()
+    if not raw.isdigit() or not 10 <= int(raw) <= 1_000_000:
+        raise ConfigError("EGRESS_LIMIT_MB 는 10 이상의 숫자(MB)여야 합니다")
+    return int(raw) * 1024 * 1024
+
+
 @dataclass(frozen=True)
 class Settings:
     discord_bot_token: str = field(repr=False)
@@ -56,6 +63,8 @@ class Settings:
     api_host: str = "127.0.0.1"
     api_port: int = 8000
     operator_discord_id: int | None = None
+    # 월 송신량 한도(구글 무료 1GB). 80% 알림, 95% 첨부 막기
+    egress_limit_bytes: int = 1024 * 1024 * 1024
 
     @property
     def cookie_secure(self) -> bool:
@@ -102,4 +111,5 @@ def load_settings(environ: Mapping[str, str] | None = None) -> Settings:
         api_host=env.get("API_HOST", "127.0.0.1").strip(),
         api_port=int(port_raw),
         operator_discord_id=_read_snowflake(env, "OPERATOR_DISCORD_ID", required=False),
+        egress_limit_bytes=_read_egress_limit(env),
     )

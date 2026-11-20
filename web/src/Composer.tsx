@@ -1,11 +1,15 @@
-import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { ApiError } from "./api";
+import EmojiPicker from "./EmojiPicker";
+import { formatBytes, prepareImage } from "./imageResize";
 import type { Message } from "./types";
 
 const MAX_LENGTH = 2000;
 // 맨 앞이 /로 시작하면(디스코드 슬래시 명령처럼 보이면) 웹에서는 실행되지 않아 한 번 더 묻는다
 const SLASH_COMMAND = /^\//;
 const SHOW_COUNT_FROM = 1800;
+const MAX_FILES = 10;
+const MAX_FILES_BYTES = 10 * 1024 * 1024;
 
 const sendErrors: Record<string, string> = {
   cannot_send: "이 채널에는 보낼 수 없어요.",
@@ -17,6 +21,10 @@ const sendErrors: Record<string, string> = {
   duplicate: "보내는 중이에요.",
   bot_cannot_send: "이 채널에 보낼 권한이 없어요. 관리자에게 봇의 '웹후크 관리' 권한을 부탁해 주세요.",
   rejected: "보내지 못했어요. 내용을 확인해 주세요.",
+  emoji_not_allowed: "쓸 수 없는 이모지가 있어요(움직이는·다른 모임 이모지는 니트로가 필요해요).",
+  too_many_files: "파일은 한 번에 10개까지 보낼 수 있어요.",
+  files_too_large: "파일은 합쳐서 10MB까지 보낼 수 있어요.",
+  egress_limit: "이번 달 전송량이 거의 다 차서 사진·파일 보내기를 잠시 막았어요. 글은 보낼 수 있어요.",
   upstream_unavailable: "연결이 잠깐 불안정해요. 다시 보내 주세요.",
 };
 
@@ -32,19 +40,24 @@ function newNonce(): string {
 }
 
 interface Props {
+  channelId: string;
   canSend: boolean;
   replyTo: Message | null;
   editing: Message | null;
   onCancel: () => void;
   /** 보내기·고치기. 실패하면 던진다(입력 내용은 그대로 둔다) */
-  onSubmit: (text: string, nonce: string) => Promise<void>;
+  onSubmit: (text: string, nonce: string, files: File[]) => Promise<void>;
 }
 
-export default function Composer({ canSend, replyTo, editing, onCancel, onSubmit }: Props) {
+export default function Composer({ channelId, canSend, replyTo, editing, onCancel, onSubmit }: Props) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirmSlash, setConfirmSlash] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [preparing, setPreparing] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // 같은 내용을 다시 보내면(네트워크 오류 뒤 재시도) 같은 nonce → 서버가 한 번만 보낸다
   const nonceRef = useRef(newNonce());
@@ -74,9 +87,46 @@ export default function Composer({ canSend, replyTo, editing, onCancel, onSubmit
 
   const looksLikeCommand = !editing && SLASH_COMMAND.test(text);
 
+  const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+
+  const addFiles = async (event: ChangeEvent<HTMLInputElement>) => {
+    const picked = [...(event.target.files ?? [])];
+    event.target.value = ""; // 같은 파일을 다시 고를 수 있게
+    if (picked.length === 0) return;
+    setError("");
+    setPreparing(true);
+    try {
+      const prepared = await Promise.all(picked.map((file) => prepareImage(file)));
+      const next = [...files, ...prepared];
+      if (next.length > MAX_FILES) setError(sendErrors.too_many_files ?? "");
+      setFiles(next.slice(0, MAX_FILES));
+      nonceRef.current = newNonce();
+    } finally {
+      setPreparing(false);
+    }
+  };
+
+  const insertText = (value: string) => {
+    const input = inputRef.current;
+    const start = input?.selectionStart ?? text.length;
+    const end = input?.selectionEnd ?? text.length;
+    const next = text.slice(0, start) + value + text.slice(end);
+    if (next.length > MAX_LENGTH) return;
+    setText(next);
+    nonceRef.current = newNonce();
+    window.requestAnimationFrame(() => {
+      input?.focus();
+      input?.setSelectionRange(start + value.length, start + value.length);
+    });
+  };
+
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
-    if (busy || !text.trim()) return;
+    if (busy || preparing || (!text.trim() && files.length === 0)) return;
+    if (totalBytes > MAX_FILES_BYTES) {
+      setError(sendErrors.files_too_large ?? "");
+      return;
+    }
     if (looksLikeCommand && !confirmSlash) {
       setConfirmSlash(true);
       return;
@@ -85,8 +135,10 @@ export default function Composer({ canSend, replyTo, editing, onCancel, onSubmit
     setBusy(true);
     setError("");
     try {
-      await onSubmit(text, nonceRef.current);
+      await onSubmit(text, nonceRef.current, editing ? [] : files);
       setText("");
+      setFiles([]);
+      setPickerOpen(false);
       nonceRef.current = newNonce();
     } catch (caught) {
       setError(sendErrorText(caught));
@@ -138,6 +190,32 @@ export default function Composer({ canSend, replyTo, editing, onCancel, onSubmit
         </div>
       )}
       {error && <p className="composer-error">{error}</p>}
+      {pickerOpen && (
+        <EmojiPicker channelId={channelId} onPick={insertText} onClose={() => setPickerOpen(false)} />
+      )}
+      {files.length > 0 && (
+        <div className="composer-files">
+          {files.map((file, index) => (
+            <span key={`${file.name}-${index}`} className="file-chip">
+              <span className="file-chip-name">{file.name}</span>
+              <span className="file-chip-size">{formatBytes(file.size)}</span>
+              <button
+                type="button"
+                aria-label={`${file.name} 빼기`}
+                onClick={() => {
+                  setFiles(files.filter((_, i) => i !== index));
+                  nonceRef.current = newNonce();
+                }}
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+          <span className={totalBytes > MAX_FILES_BYTES ? "composer-error" : "file-total"}>
+            합계 {formatBytes(totalBytes)} / 10MB
+          </span>
+        </div>
+      )}
       {looksLikeCommand && !confirmSlash && (
         <p className="composer-hint">슬래시 명령은 디스코드 앱에서만 실행돼요. 여기서는 글자로만 올라가요.</p>
       )}
@@ -160,6 +238,30 @@ export default function Composer({ canSend, replyTo, editing, onCancel, onSubmit
         </div>
       )}
       <div className="composer-row">
+        {!editing && (
+          <>
+            <button
+              type="button"
+              className="composer-icon"
+              onClick={() => fileInputRef.current?.click()}
+              aria-label="사진·파일 붙이기"
+              title="사진·파일 붙이기"
+              disabled={preparing}
+            >
+              {preparing ? "…" : "＋"}
+            </button>
+            <input ref={fileInputRef} type="file" multiple hidden onChange={(event) => void addFiles(event)} />
+          </>
+        )}
+        <button
+          type="button"
+          className={pickerOpen ? "composer-icon composer-icon-on" : "composer-icon"}
+          onClick={() => setPickerOpen((open) => !open)}
+          aria-label="이모지"
+          title="이모지"
+        >
+          ☺
+        </button>
         <textarea
           ref={inputRef}
           className="composer-input"
@@ -175,7 +277,11 @@ export default function Composer({ canSend, replyTo, editing, onCancel, onSubmit
           }}
           onKeyDown={onKeyDown}
         />
-        <button type="submit" className="composer-send" disabled={busy || !text.trim()}>
+        <button
+          type="submit"
+          className="composer-send"
+          disabled={busy || preparing || (!text.trim() && files.length === 0)}
+        >
           {editing ? "저장" : "보내기"}
         </button>
       </div>

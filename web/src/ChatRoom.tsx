@@ -1,5 +1,14 @@
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ApiError, deleteMessage, editMessage, fetchChannel, fetchMessages, sendMessage } from "./api";
+import {
+  ApiError,
+  deleteMessage,
+  editMessage,
+  fetchChannel,
+  fetchMessages,
+  markRead,
+  sendFiles,
+  sendMessage,
+} from "./api";
 import Composer from "./Composer";
 import { compareIds, dayKey, formatDay } from "./format";
 import MessageItem, { type ReplyPreview } from "./MessageItem";
@@ -15,8 +24,10 @@ interface Props {
   myUserId: string;
   /** 채널 목록으로 */
   onBack: () => void;
+  /** 좁은 화면에서만 뒤로 버튼(넓은 화면은 왼쪽에 목록이 있다) */
+  showBack?: boolean;
   /** 오른쪽 위 계정 메뉴 */
-  menu: ReactNode;
+  menu: ReactNode | null;
   /** 잠겼거나 세션이 끝나 401을 받았을 때 */
   onAuthLost: () => void;
   /** 계정 추가 실패 같은 한 번 보여 줄 안내 */
@@ -32,7 +43,16 @@ function mergeMessages(current: Message[], incoming: Message[]): Message[] {
   return [...byId.values()].sort((a, b) => compareIds(a.id, b.id));
 }
 
-export default function ChatRoom({ channelId, myUserId, onBack, menu, onAuthLost, notice, onNoticeClose }: Props) {
+export default function ChatRoom({
+  channelId,
+  myUserId,
+  onBack,
+  showBack = true,
+  menu,
+  onAuthLost,
+  notice,
+  onNoticeClose,
+}: Props) {
   const [channel, setChannel] = useState<ChannelInfo | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -168,7 +188,7 @@ export default function ChatRoom({ channelId, myUserId, onBack, menu, onAuthLost
     if (list.scrollTop < 40 && hasMore && !loadingOlder) void loadOlder();
   };
 
-  const submit = async (text: string, nonce: string) => {
+  const submit = async (text: string, nonce: string, files: File[]) => {
     if (!channel) return;
     if (editing) {
       const saved = await editMessage(editing.id, text);
@@ -176,7 +196,10 @@ export default function ChatRoom({ channelId, myUserId, onBack, menu, onAuthLost
       setEditing(null);
       return;
     }
-    const sent = await sendMessage(channel.id, text, nonce, replyTo?.id ?? null);
+    const sent =
+      files.length > 0
+        ? await sendFiles(channel.id, text, nonce, replyTo?.id ?? null, files)
+        : await sendMessage(channel.id, text, nonce, replyTo?.id ?? null);
     stickToBottom.current = true;
     setMessages((current) => mergeMessages(current, [sent]));
     setReplyTo(null);
@@ -196,6 +219,23 @@ export default function ChatRoom({ channelId, myUserId, onBack, menu, onAuthLost
     return { author: original.author.name, text };
   };
 
+  // 맨 아래를 보고 있고 탭이 보일 때, 마지막 메시지까지 읽음으로 남긴다(1초 모아서)
+  const lastMarked = useRef<string | null>(null);
+  useEffect(() => {
+    if (!channel || messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    if (!last) return;
+    const timer = window.setTimeout(() => {
+      if (!stickToBottom.current || document.visibilityState !== "visible") return;
+      if (lastMarked.current && compareIds(last.id, lastMarked.current) <= 0) return;
+      lastMarked.current = last.id;
+      markRead(channel.id, last.id).catch(() => {
+        lastMarked.current = null; // 다음에 다시
+      });
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [channel, messages, unseen]);
+
   const scrollToBottom = () => {
     const list = listRef.current;
     if (!list) return;
@@ -207,9 +247,11 @@ export default function ChatRoom({ channelId, myUserId, onBack, menu, onAuthLost
   return (
     <div className="room">
       <header className="room-header">
-        <button type="button" className="back-button" onClick={onBack} aria-label="채널 목록으로">
-          ‹
-        </button>
+        {showBack && (
+          <button type="button" className="back-button" onClick={onBack} aria-label="채널 목록으로">
+            ‹
+          </button>
+        )}
         <div className="room-title">
           <strong>{channel ? `# ${channel.name}` : "…"}</strong>
           <span className="room-sub">{channel?.group_name ?? ""}</span>
@@ -279,6 +321,7 @@ export default function ChatRoom({ channelId, myUserId, onBack, menu, onAuthLost
       )}
       {channel && (
         <Composer
+          channelId={channel.id}
           canSend={channel.can_send}
           replyTo={replyTo}
           editing={editing}

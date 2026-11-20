@@ -59,6 +59,10 @@ export interface Group {
   id: string;
   name: string;
   icon_url: string | null;
+  pinned?: boolean;
+  unread?: number;
+  /** 나를 부른(멘션) 안 읽은 메시지 수 */
+  mentions?: number;
 }
 
 export type ChannelKind = "text" | "news" | "forum" | "thread";
@@ -73,6 +77,15 @@ export interface ChannelInfo {
   category_id: string | null;
   category_name: string | null;
   can_send: boolean;
+  pinned?: boolean;
+  unread?: number;
+  mentions?: number;
+}
+
+export interface GroupList {
+  groups: Group[];
+  /** 고정한 채널(모임 목록 맨 위 바로가기) */
+  pinned_channels: ChannelInfo[];
 }
 
 export interface GroupChannels {

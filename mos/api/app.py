@@ -7,11 +7,21 @@ import contextlib
 import json
 import logging
 import time
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import FastAPI, HTTPException, Query, Request, Response, WebSocket
+from fastapi import (
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+    WebSocket,
+)
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from starlette.websockets import WebSocketDisconnect
@@ -20,15 +30,26 @@ from mos.api.rate_limit import RateLimiter
 from mos.config import Settings
 from mos.db.auth_repo import AuthRepo
 from mos.db.database import Database
+from mos.db.lists_repo import ListsRepo
 from mos.db.repo import MAX_PAGE_SIZE, MessageRepo
 from mos.db.sender_repo import SenderRepo
 from mos.services.crypto import TokenCipher
 from mos.services.directory import Directory, DirectoryError, GuildInfo
 from mos.services.discord_oauth import DiscordOAuth, OAuthClient
+from mos.services.egress import EgressMeter
+from mos.services.emojis import EmojiService
 from mos.services.messages import row_to_api
 from mos.services.permissions import ChannelAccess, PermissionService
 from mos.services.realtime import RealtimeHub
-from mos.services.sender import Messenger, SendError, SenderService
+from mos.services.sender import (
+    MAX_FILES,
+    MAX_FILES_BYTES,
+    Messenger,
+    OutgoingFile,
+    SendError,
+    SenderService,
+    safe_filename,
+)
 from mos.services.session import ActiveAccount, Device, SessionError, SessionService
 from mos.version import current_version
 
@@ -41,6 +62,11 @@ COOKIE_MAX_AGE_SEC = 180 * 24 * 3600
 ACCOUNT_ID_PATTERN = r"^[0-9]{1,18}$"
 WS_RECHECK_SEC = 60  # 열린 실시간 연결도 잠금·계정 변경을 이 간격으로 확인
 OLDER_FETCH_LIMIT = 100
+MAX_PINNED_GROUPS = 5
+MAX_PINNED_CHANNELS = 10
+NONCE_PATTERN = r"^[A-Za-z0-9-]{8,64}$"
+SNOWFLAKE_PATTERN = r"^[0-9]{15,21}$"
+UPLOAD_CHUNK = 64 * 1024
 
 
 def group_to_api(guild: GuildInfo) -> dict[str, Any]:
@@ -89,6 +115,15 @@ class EditBody(BaseModel):
     content: str = Field(min_length=1, max_length=2000)
 
 
+class PinBody(BaseModel):
+    kind: str = Field(pattern=r"^(group|channel)$")
+    id: str = Field(pattern=SNOWFLAKE_PATTERN)
+
+
+class ReadBody(BaseModel):
+    last_id: str = Field(pattern=SNOWFLAKE_PATTERN)
+
+
 def create_app(
     settings: Settings,
     db: Database,
@@ -99,12 +134,26 @@ def create_app(
     clock: Callable[[], float] = time.time,
     permissions: PermissionService | None = None,
     messenger: Messenger | None = None,
+    notify_operator: Callable[[str], Awaitable[None]] | None = None,
 ) -> FastAPI:
     perms = permissions or PermissionService(directory)
     hub.set_access_check(perms.can_read)
     cipher = TokenCipher(settings.secret_key)
+    emojis = EmojiService(directory, perms)
+    lists = ListsRepo(db)
+    egress = EgressMeter(lists, settings.egress_limit_bytes, notify=notify_operator, clock=clock)
     sender = (
-        SenderService(repo, SenderRepo(db), cipher, messenger, directory, perms, hub, clock=clock)
+        SenderService(
+            repo,
+            SenderRepo(db),
+            cipher,
+            messenger,
+            directory,
+            perms,
+            hub,
+            clock=clock,
+            emojis=emojis,
+        )
         if messenger is not None
         else None
     )
@@ -146,6 +195,10 @@ def create_app(
             if request.headers.get("origin") != settings.public_origin:
                 return JSONResponse({"detail": "forbidden"}, status_code=403)
         response: Response = await call_next(request)
+        if request.url.path.startswith("/api/"):
+            length = response.headers.get("content-length")
+            if length and length.isdigit():
+                await egress.record(int(length))  # 월 송신량(가끔 모아서 기록)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
         if request.url.path.startswith("/api/"):
@@ -291,13 +344,50 @@ def create_app(
 
     # ------------------------------------------------------------ 모임·채널 목록
 
+    async def unread_for(
+        account: ActiveAccount, accesses: list[ChannelAccess]
+    ) -> dict[int, tuple[int, int]]:
+        ids = [access.channel.id for access in accesses if access.channel.kind != "forum"]
+        return await lists.unread(account.account_id, account.discord_user_id, ids)
+
+    def with_unread(data: dict[str, Any], counts: tuple[int, int] | None) -> dict[str, Any]:
+        data["unread"], data["mentions"] = counts or (0, 0)
+        return data
+
     @app.get("/api/groups")
     async def list_groups(request: Request) -> dict[str, Any]:
         account = await require_account(request)
         require_ready()
-        guilds = await perms.visible_guilds(account.discord_user_id)
-        guilds.sort(key=lambda guild: guild.name.casefold())
-        return {"groups": [group_to_api(guild) for guild in guilds]}
+        user = account.discord_user_id
+        pins = await lists.pins(account.account_id)
+        group_pins = {p["target_id"]: p["position"] for p in pins if p["kind"] == "group"}
+        groups = []
+        for guild in await perms.visible_guilds(user):
+            accesses = await perms.visible_channels(user, guild.id) or []
+            counts = await unread_for(account, accesses)
+            data = group_to_api(guild)
+            data["pinned"] = guild.id in group_pins
+            data["unread"] = sum(count for count, _ in counts.values())
+            data["mentions"] = sum(mention for _, mention in counts.values())
+            groups.append(data)
+        groups.sort(
+            key=lambda g: (
+                group_pins.get(int(g["id"]), 1_000_000),
+                str(g["name"]).casefold(),
+            )
+        )
+        pinned_channels = []
+        for pin in pins:
+            if pin["kind"] != "channel":
+                continue
+            access = await perms.channel_access(user, pin["target_id"])
+            if access is None:
+                continue  # 권한이 사라진 고정은 숨긴다(지우지는 않음)
+            guild = directory.guild(access.channel.guild_id)
+            counts = await unread_for(account, [access])
+            data = channel_to_api(access, group_name=guild.name if guild else "")
+            pinned_channels.append(with_unread(data, counts.get(access.channel.id)))
+        return {"groups": groups, "pinned_channels": pinned_channels}
 
     @app.get("/api/groups/{group_id}/channels")
     async def list_channels(group_id: int, request: Request) -> dict[str, Any]:
@@ -307,9 +397,65 @@ def create_app(
         guild = directory.guild(group_id)
         if accesses is None or guild is None:
             raise HTTPException(status_code=404, detail="not found")
+        pins = await lists.pins(account.account_id)
+        pinned = {p["target_id"] for p in pins if p["kind"] == "channel"}
+        counts = await unread_for(account, accesses)
+        group = group_to_api(guild)
+        group["pinned"] = any(p["kind"] == "group" and p["target_id"] == group_id for p in pins)
+        channels = []
+        for access in accesses:
+            data = with_unread(channel_to_api(access), counts.get(access.channel.id))
+            data["pinned"] = access.channel.id in pinned
+            channels.append(data)
+        return {"group": group, "channels": channels}
+
+    @app.post("/api/pins", status_code=204)
+    async def add_pin(body: PinBody, request: Request) -> None:
+        account = await require_account(request)
+        require_ready()
+        target = int(body.id)
+        if body.kind == "group":
+            if await perms.visible_channels(account.discord_user_id, target) is None:
+                raise HTTPException(status_code=404, detail="not found")
+            limit = MAX_PINNED_GROUPS
+        else:
+            await require_channel(account, target)
+            limit = MAX_PINNED_CHANNELS
+        if not await lists.add_pin(account.account_id, body.kind, target, limit):
+            raise HTTPException(status_code=409, detail="pin_limit")
+
+    @app.delete("/api/pins/{kind}/{target_id}", status_code=204)
+    async def remove_pin(kind: str, target_id: int, request: Request) -> None:
+        account = await require_account(request)
+        if kind not in ("group", "channel"):
+            raise HTTPException(status_code=404, detail="not found")
+        await lists.remove_pin(account.account_id, kind, target_id)
+
+    @app.post("/api/channels/{channel_id}/read", status_code=204)
+    async def mark_read(channel_id: int, body: ReadBody, request: Request) -> None:
+        account = await require_account(request)
+        require_ready()
+        await require_channel(account, channel_id)
+        await lists.mark_read(account.account_id, channel_id, int(body.last_id))
+
+    @app.get("/api/channels/{channel_id}/emojis")
+    async def channel_emojis(channel_id: int, request: Request) -> dict[str, Any]:
+        account = await require_account(request)
+        require_ready()
+        access = await require_channel(account, channel_id)
+        items = await emojis.usable(account.discord_user_id, account.premium, access)
         return {
-            "group": group_to_api(guild),
-            "channels": [channel_to_api(access) for access in accesses],
+            "premium": account.premium,
+            "emojis": [
+                {
+                    "id": str(item.emoji.id),
+                    "name": item.emoji.name,
+                    "animated": item.emoji.animated,
+                    "group_id": str(item.emoji.guild_id),
+                    "group_name": item.group_name,
+                }
+                for item in items
+            ],
         }
 
     @app.get("/api/channels/{channel_id}")
@@ -358,14 +504,59 @@ def create_app(
             body.content,
             body.nonce,
             int(body.reply_to) if body.reply_to else None,
+            premium=account.premium,
         )
+
+    @app.post("/api/channels/{channel_id}/messages/files")
+    async def send_files(
+        channel_id: int,
+        request: Request,
+        nonce: Annotated[str, Form(pattern=NONCE_PATTERN)],
+        content: Annotated[str, Form(max_length=2000)] = "",
+        reply_to: Annotated[str | None, Form(pattern=SNOWFLAKE_PATTERN)] = None,
+        files: Annotated[list[UploadFile] | None, File()] = None,
+    ) -> dict[str, Any]:
+        account = await require_account(request)
+        require_ready()
+        if not files or len(files) > MAX_FILES:
+            raise HTTPException(status_code=400, detail="too_many_files")
+        if not await egress.attachments_allowed():
+            raise HTTPException(status_code=403, detail="egress_limit")
+        outgoing: list[OutgoingFile] = []
+        total = 0
+        for upload in files:
+            chunks = []
+            while chunk := await upload.read(UPLOAD_CHUNK):
+                total += len(chunk)
+                if total > MAX_FILES_BYTES:
+                    raise HTTPException(status_code=413, detail="files_too_large")
+                chunks.append(chunk)
+            name = safe_filename(upload.filename or "file")
+            outgoing.append(
+                OutgoingFile(name, b"".join(chunks), spoiler=name.startswith("SPOILER_"))
+            )
+        service = require_sender(account)
+        message = await service.send(
+            account.account_id,
+            account.discord_user_id,
+            channel_id,
+            content,
+            nonce,
+            int(reply_to) if reply_to else None,
+            premium=account.premium,
+            files=outgoing,
+        )
+        await egress.record(total, force=True)
+        return message
 
     @app.patch("/api/messages/{message_id}")
     async def edit_message(message_id: int, body: EditBody, request: Request) -> dict[str, Any]:
         account = await require_account(request)
         require_ready()
         service = require_sender(account)
-        return await service.edit(account.discord_user_id, message_id, body.content)
+        return await service.edit(
+            account.discord_user_id, message_id, body.content, premium=account.premium
+        )
 
     @app.delete("/api/messages/{message_id}", status_code=204)
     async def delete_message(message_id: int, request: Request) -> None:

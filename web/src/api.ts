@@ -1,4 +1,4 @@
-import type { ChannelInfo, Group, GroupChannels, Message, MessagePage, SessionState } from "./types";
+import type { ChannelInfo, GroupChannels, GroupList, Message, MessagePage, SessionState } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -65,9 +65,20 @@ export async function removeAccount(accountId: string): Promise<void> {
   await request(`/api/session/accounts/${encodeURIComponent(accountId)}`, { method: "DELETE" });
 }
 
-export async function fetchGroups(): Promise<Group[]> {
-  const body = (await (await request("/api/groups")).json()) as { groups: Group[] };
-  return body.groups;
+export async function fetchGroups(): Promise<GroupList> {
+  return (await request("/api/groups")).json() as Promise<GroupList>;
+}
+
+export async function setPinned(kind: "group" | "channel", id: string, pinned: boolean): Promise<void> {
+  if (pinned) {
+    await postJson("/api/pins", { kind, id });
+  } else {
+    await request(`/api/pins/${kind}/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+}
+
+export async function markRead(channelId: string, lastId: string): Promise<void> {
+  await postJson(`/api/channels/${encodeURIComponent(channelId)}/read`, { last_id: lastId });
 }
 
 export async function fetchGroupChannels(groupId: string): Promise<GroupChannels> {
@@ -110,4 +121,39 @@ export async function editMessage(messageId: string, content: string): Promise<M
 
 export async function deleteMessage(messageId: string): Promise<void> {
   await request(`/api/messages/${encodeURIComponent(messageId)}`, { method: "DELETE" });
+}
+
+export interface ChannelEmoji {
+  id: string;
+  name: string;
+  animated: boolean;
+  group_id: string;
+  group_name: string;
+}
+
+export async function fetchEmojis(channelId: string): Promise<{ premium: boolean; emojis: ChannelEmoji[] }> {
+  return (await request(`/api/channels/${encodeURIComponent(channelId)}/emojis`)).json() as Promise<{
+    premium: boolean;
+    emojis: ChannelEmoji[];
+  }>;
+}
+
+export async function sendFiles(
+  channelId: string,
+  content: string,
+  nonce: string,
+  replyTo: string | null,
+  files: File[],
+): Promise<Message> {
+  const form = new FormData();
+  form.append("nonce", nonce);
+  form.append("content", content);
+  if (replyTo) form.append("reply_to", replyTo);
+  for (const file of files) form.append("files", file, file.name);
+  // Content-Type(경계 포함)은 브라우저가 정한다
+  const response = await request(`/api/channels/${encodeURIComponent(channelId)}/messages/files`, {
+    method: "POST",
+    body: form,
+  });
+  return response.json() as Promise<Message>;
 }

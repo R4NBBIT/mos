@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -20,6 +20,7 @@ from mos.db.repo import MessageRepo
 from mos.db.sender_repo import SenderRepo
 from mos.services.crypto import DecryptError, TokenCipher
 from mos.services.directory import Directory
+from mos.services.emojis import EmojiService
 from mos.services.messages import REPLY_QUOTE_MARK, row_to_api
 from mos.services.permissions import PermissionService
 from mos.services.realtime import RealtimeHub
@@ -27,6 +28,9 @@ from mos.services.realtime import RealtimeHub
 log = logging.getLogger(__name__)
 
 MAX_CONTENT = 2000
+MAX_FILES = 10
+MAX_FILES_BYTES = 10 * 1024 * 1024  # 디스코드 기본 한도(검증상 20MB까지 되지만 늘리지 않음)
+_FILENAME_SAFE = re.compile(r"[^\w.\-가-힣 ]")
 QUOTE_SNIPPET = 50
 NAME_LIMIT = 80
 _NONCE = re.compile(r"^[A-Za-z0-9-]{8,64}$")
@@ -54,12 +58,30 @@ class Webhook:
 
 
 @dataclass(frozen=True)
+class OutgoingFile:
+    filename: str
+    data: bytes = field(repr=False)
+    spoiler: bool = False
+
+
+@dataclass(frozen=True)
 class OutgoingMessage:
     content: str
     username: str
     avatar_url: str | None
     thread_id: int | None
     allow_everyone: bool
+    files: tuple[OutgoingFile, ...] = ()
+
+
+def safe_filename(name: str) -> str:
+    """경로·특수문자를 뺀 파일 이름(디스코드에 그대로 보인다)."""
+    base = name.replace("\\", "/").rsplit("/", 1)[-1]
+    base = _FILENAME_SAFE.sub("_", base).strip(" .")
+    if len(base) > 100:
+        stem, dot, ext = base.rpartition(".")
+        base = (stem[:90] + dot + ext[:9]) if dot else base[:100]
+    return base or "file"
 
 
 class Messenger(Protocol):
@@ -105,6 +127,7 @@ class SenderService:
         permissions: PermissionService,
         hub: RealtimeHub,
         clock: Callable[[], float] = time.time,
+        emojis: EmojiService | None = None,
     ) -> None:
         self.messages = messages
         self.repo = repo
@@ -114,6 +137,7 @@ class SenderService:
         self.permissions = permissions
         self.hub = hub
         self.clock = clock
+        self.emojis = emojis or EmojiService(directory, permissions)
         self._in_flight: set[tuple[int, str]] = set()
 
     # ------------------------------------------------------------ 웹훅
@@ -156,12 +180,26 @@ class SenderService:
         return access
 
     @staticmethod
-    def _check_content(content: str, prefix: str = "") -> str:
-        if not content.strip():
+    def _check_content(content: str, prefix: str = "", has_files: bool = False) -> str:
+        if not content.strip() and not has_files:
             raise SendError("empty")
         if len(prefix) + len(content) > MAX_CONTENT:
             raise SendError("too_long")
         return prefix + content
+
+    async def _check_emojis(self, user_id: int, premium: bool, access: Any, content: str) -> None:
+        if not await self.emojis.allowed_in(user_id, premium, access, content):
+            raise SendError("emoji_not_allowed", 403)  # 니트로 규칙(웹훅은 따지지 않는다)
+
+    @staticmethod
+    def _check_files(files: Sequence[OutgoingFile]) -> tuple[OutgoingFile, ...]:
+        if len(files) > MAX_FILES:
+            raise SendError("too_many_files")
+        if sum(len(item.data) for item in files) > MAX_FILES_BYTES:
+            raise SendError("files_too_large", 413)
+        if any(not item.data for item in files):
+            raise SendError("empty_file")
+        return tuple(files)
 
     async def _publish(self, channel_id: int, message_id: int, event: str) -> dict[str, Any]:
         row = await self.messages.get(message_id)
@@ -181,11 +219,14 @@ class SenderService:
         content: str,
         nonce: str,
         reply_to_id: int | None = None,
+        premium: bool = False,
+        files: Sequence[OutgoingFile] = (),
     ) -> dict[str, Any]:
         if not _NONCE.match(nonce):
             raise SendError("bad_nonce")
         access = await self._sendable(user_id, channel_id)
         channel = access.channel
+        attached = self._check_files(files)
 
         key = (account_id, nonce)
         done = await self.repo.sent_by_key(account_id, nonce)
@@ -203,7 +244,8 @@ class SenderService:
                 link = f"https://discord.com/channels/{channel.guild_id}/{channel_id}/{reply_to_id}"
                 original_text = row_to_api(original)["content"]
                 prefix = reply_quote(original["author_name"], original_text, link)
-            text = self._check_content(content, prefix)
+            text = self._check_content(content, prefix, has_files=bool(attached))
+            await self._check_emojis(user_id, premium, access, content)
 
             member = await self.permissions.member(channel.guild_id, user_id)
             if member is None:
@@ -214,6 +256,7 @@ class SenderService:
                 avatar_url=member.avatar_url,
                 thread_id=channel.id if channel.kind == "thread" else None,
                 allow_everyone=access.can_mention_everyone,
+                files=attached,
             )
             hook_channel = channel.parent_id or channel.id
 
@@ -239,7 +282,9 @@ class SenderService:
             raise SendError("not_found", 404)  # 남의 메시지는 있는지도 알려 주지 않는다
         return sent
 
-    async def edit(self, user_id: int, message_id: int, content: str) -> dict[str, Any]:
+    async def edit(
+        self, user_id: int, message_id: int, content: str, premium: bool = False
+    ) -> dict[str, Any]:
         sent = await self._own(user_id, message_id)
         channel_id = int(sent["channel_id"])
         access = await self._sendable(user_id, channel_id)
@@ -250,8 +295,10 @@ class SenderService:
             first_line = stored["content"].partition("\n")[0]
             if first_line.startswith(REPLY_QUOTE_MARK):
                 prefix = first_line + "\n"  # 답장 인용은 그대로 둔다
+        await self._check_emojis(user_id, premium, access, content)
+        has_files = bool(stored and stored["attachments_json"] not in ("[]", ""))
         outgoing = OutgoingMessage(
-            content=self._check_content(content, prefix),
+            content=self._check_content(content, prefix, has_files=has_files),
             username="",
             avatar_url=None,
             thread_id=channel.id if channel.kind == "thread" else None,
