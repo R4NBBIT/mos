@@ -3,6 +3,8 @@ import { ApiError, createPost, fetchThreads } from "./api";
 import { sendErrorText } from "./Composer";
 import { formatDay, formatTime } from "./format";
 import { formatBytes, prepareImage } from "./imageResize";
+import { SheetFrame } from "./SheetView";
+import type { Theme } from "./theme";
 import type { ChannelInfo, ForumTag, ThreadPage, ThreadSummary } from "./types";
 
 const MAX_TAGS = 5;
@@ -23,6 +25,14 @@ function when(iso: string): string {
   const date = new Date(iso);
   const today = new Date();
   return date.toDateString() === today.toDateString() ? formatTime(iso) : formatDay(iso).replace(/ \S+요일$/, "");
+}
+
+/** 시트 셀용 짧은 날짜: 오늘이면 14:05, 아니면 2026-11-20 */
+function cellWhen(iso: string): string {
+  const date = new Date(iso);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  if (date.toDateString() === new Date().toDateString()) return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 function TagChip({ tag, active, onClick }: { tag: ForumTag; active?: boolean; onClick?: () => void }) {
@@ -153,16 +163,30 @@ interface Props {
   onBack: (parent: ChannelInfo | null) => void;
   onOpen: (threadId: string) => void;
   onAuthLost: () => void;
+  /** 시트 테마면 글 목록도 표로 */
+  theme?: Theme;
+  /** 시트 탭에서 다른 채널 열기 */
+  onOpenChannel?: (channel: ChannelInfo) => void;
 }
 
 /** 포럼 글 목록, 또는 일반 채널의 스레드 목록 */
-export default function Posts({ parentId, showBack, menu, onBack, onOpen, onAuthLost }: Props) {
+export default function Posts({
+  parentId,
+  showBack,
+  menu,
+  onBack,
+  onOpen,
+  onAuthLost,
+  theme = "moon",
+  onOpenChannel,
+}: Props) {
   const [page, setPage] = useState<ThreadPage | null>(null);
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [error, setError] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
   const [filter, setFilter] = useState<string | null>(null);
   const [writing, setWriting] = useState(false);
+  const [pointed, setPointed] = useState<string | null>(null);
 
   useEffect(() => {
     let stopped = false;
@@ -204,6 +228,109 @@ export default function Posts({ parentId, showBack, menu, onBack, onOpen, onAuth
   const isForum = parent?.kind === "forum";
   const tagsById = new Map((parent?.tags ?? []).map((tag) => [tag.id, tag]));
   const shown = filter ? threads.filter((thread) => thread.tag_ids.includes(filter)) : threads;
+  const tagText = (thread: ThreadSummary) =>
+    thread.tag_ids
+      .map((id) => tagsById.get(id))
+      .filter((tag): tag is ForumTag => Boolean(tag))
+      .map((tag) => `${tag.emoji ? `${tag.emoji} ` : ""}${tag.name}`)
+      .join(", ");
+
+  if (theme === "sheet") {
+    // 글 = 행. A 제목, B 태그, C 첫 글 미리보기, D 댓글 수, E 최근 활동, F 상태. 행을 누르면 열린다
+    const pointedThread = shown.find((thread) => thread.id === pointed) ?? null;
+    const pointedRow = pointedThread ? shown.indexOf(pointedThread) + 2 : shown.length + 2;
+    return (
+      <SheetFrame
+        variant="posts"
+        showBack
+        onBack={() => onBack(parent)}
+        menu={menu}
+        menuExtra={
+          isForum && parent?.can_post && !writing ? (
+            <button type="button" className="sheet-menu sheet-menu-link" onClick={() => setWriting(true)}>
+              새 글
+            </button>
+          ) : null
+        }
+        ribbon={
+          isForum && (parent?.tags?.length ?? 0) > 0 ? (
+            <div className="sheet-ribbon sheet-filter">
+              <span className="sheet-ribbon-item">필터</span>
+              {parent?.tags?.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  className={filter === tag.id ? "sheet-ribbon-item sheet-ribbon-on" : "sheet-ribbon-item"}
+                  aria-pressed={filter === tag.id}
+                  onClick={() => setFilter(filter === tag.id ? null : tag.id)}
+                >
+                  {tag.emoji ? `${tag.emoji} ` : ""}
+                  {tag.name}
+                </button>
+              ))}
+            </div>
+          ) : undefined
+        }
+        nameBox={`A${pointedRow}`}
+        formula={pointedThread ? `${pointedThread.name}${pointedThread.preview ? ` — ${pointedThread.preview}` : ""}` : null}
+        tabsChannel={parent}
+        onOpenTab={onOpenChannel}
+        status={
+          <span>
+            {page === null && !error
+              ? "불러오는 중…"
+              : `${isForum ? "글" : "스레드"} ${shown.length}${page?.has_more ? "+" : ""}개${filter ? " (필터)" : ""}`}
+          </span>
+        }
+      >
+        {writing && parent && (
+          <div className="sheet-panel">
+            <NewPost forum={parent} onCreated={onOpen} onCancel={() => setWriting(false)} />
+          </div>
+        )}
+        <div className="sheet-row sheet-head">
+          <span className="sheet-rownum">1</span>
+          <span className="sheet-cell">제목</span>
+          <span className="sheet-cell">태그</span>
+          <span className="sheet-cell">{isForum ? "본문" : "내용"}</span>
+          <span className="sheet-cell">댓글</span>
+          <span className="sheet-cell sheet-wide">최근 활동</span>
+          <span className="sheet-cell sheet-wide">상태</span>
+        </div>
+        {error && <p className="room-error">{error}</p>}
+        {shown.map((thread, index) => (
+          <div
+            key={thread.id}
+            role="button"
+            tabIndex={0}
+            className={thread.id === pointed ? "sheet-row sheet-row-link sheet-row-selected" : "sheet-row sheet-row-link"}
+            onMouseEnter={() => setPointed(thread.id)}
+            onFocus={() => setPointed(thread.id)}
+            onClick={() => onOpen(thread.id)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") onOpen(thread.id);
+            }}
+          >
+            <span className="sheet-rownum">{index + 2}</span>
+            <span className="sheet-cell sheet-cell-title">
+              {thread.locked ? "🔒 " : ""}
+              {thread.name}
+            </span>
+            <span className="sheet-cell">{tagText(thread)}</span>
+            <span className="sheet-cell sheet-cell-c">{thread.preview ?? ""}</span>
+            <span className="sheet-cell sheet-num">{thread.message_count}</span>
+            <span className="sheet-cell sheet-wide">{cellWhen(thread.last_message_at)}</span>
+            <span className="sheet-cell sheet-wide">{thread.archived ? "보관됨" : thread.locked ? "잠김" : ""}</span>
+          </div>
+        ))}
+        {page?.has_more && (
+          <button type="button" className="sheet-older" onClick={() => void loadMore()} disabled={loadingMore}>
+            {loadingMore ? "불러오는 중…" : "아래 행 더 불러오기(지난 글)"}
+          </button>
+        )}
+      </SheetFrame>
+    );
+  }
 
   return (
     <div className="room">

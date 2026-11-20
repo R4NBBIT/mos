@@ -1688,7 +1688,7 @@ button.tag-chip:disabled {
 }
 
 .sheet-titlebar .dot {
-  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .sheet-back {
@@ -1701,6 +1701,8 @@ button.tag-chip:disabled {
 }
 
 .sheet-doc {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
@@ -1732,7 +1734,10 @@ button.tag-chip:disabled {
 }
 
 .sheet-menu-link {
+  position: sticky;
+  right: 0;
   margin-left: auto;
+  background: #ffffff;
   color: #1f6e43;
   text-decoration: underline;
 }
@@ -2039,6 +2044,107 @@ button.tag-chip:disabled {
   }
 
   .sheet-input {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+}
+
+/* 시트: 글·스레드 제목 행, 본문 행 */
+.sheet-title-row {
+  grid-template-columns: 40px minmax(0, 1fr);
+}
+
+.sheet-merged {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  min-height: 34px;
+}
+
+.sheet-tag {
+  padding: 0 6px;
+  border: 1px solid #b7d7c3;
+  background: #e8f3ec;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.sheet-title-sub {
+  margin-left: auto;
+  color: #777;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.sheet-row-starter .sheet-cell {
+  font-weight: 700;
+  background: #f4f9f6;
+}
+
+/* 시트: 글 목록 */
+.sheet-posts .sheet-row {
+  grid-template-columns: 40px minmax(120px, 2fr) 110px minmax(0, 3fr) 56px 96px 64px;
+}
+
+.sheet-posts .sheet-row.sheet-title-row {
+  grid-template-columns: 40px minmax(0, 1fr);
+}
+
+.sheet-row-link {
+  cursor: pointer;
+}
+
+.sheet-row-link:hover .sheet-cell-title,
+.sheet-row-link:focus .sheet-cell-title {
+  text-decoration: underline;
+  color: #1f6e43;
+}
+
+.sheet-row-link.sheet-row-selected .sheet-cell-c {
+  outline: 0;
+}
+
+.sheet-row-link.sheet-row-selected .sheet-cell-title {
+  outline: 2px solid #1f6e43;
+  outline-offset: -2px;
+}
+
+.sheet-num {
+  text-align: right;
+}
+
+.sheet-filter button {
+  border: 1px solid var(--grid-line);
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.sheet-ribbon-on {
+  background: #e8f3ec !important;
+  border-color: #1f6e43 !important;
+  color: #1f6e43;
+  font-weight: 700;
+}
+
+.sheet-panel {
+  padding: 8px;
+  border-bottom: 2px solid #1f6e43;
+  background: #ffffff;
+}
+
+@media (max-width: 640px) {
+  .sheet-filter {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .sheet-posts .sheet-row {
+    grid-template-columns: 34px minmax(0, 1.3fr) 70px minmax(0, 1fr);
+  }
+
+  .sheet-title-row,
+  .sheet-posts .sheet-row.sheet-title-row {
     grid-template-columns: 34px minmax(0, 1fr);
   }
 }

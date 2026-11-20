@@ -10,6 +10,7 @@ import type { ChannelInfo, Message } from "./types";
 const RIBBON = ["붙여넣기", "가", "가", "가", "≡", "≡", "≡", "%", "조건부 서식", "표 서식", "Σ 자동 합계", "정렬"];
 const MENUS = ["파일", "홈", "삽입", "페이지 레이아웃", "수식", "데이터", "검토", "보기"];
 const TAB_REFRESH_MS = 20000;
+const TITLE_ROW = 1;
 
 /** 셀에 맞게 짧은 24시간 표기(14:05) */
 function cellTime(iso: string): string {
@@ -127,8 +128,10 @@ export default function SheetView(props: Props) {
   const canSend = Boolean(channel?.can_send);
   const manageable = selected !== null && selected.web_sender_id === myUserId && canSend;
 
-  // 행 번호: 1행은 머리글, 날짜가 바뀌면 날짜 행이 하나 끼어든다
-  let rowNumber = 1;
+  // 행 번호: 1행은 머리글(글·스레드는 1행 제목, 2행 머리글), 날짜가 바뀌면 날짜 행이 하나 끼어든다
+  const isThread = channel?.kind === "thread";
+  const headRow = isThread ? TITLE_ROW + 1 : 1;
+  let rowNumber = headRow;
   const body: ReactNode[] = [];
   const rowNumberOf = new Map<string, number>();
   rows.forEach((message, index) => {
@@ -155,6 +158,8 @@ export default function SheetView(props: Props) {
     const classes = ["sheet-row"];
     if (mine) classes.push("sheet-row-mine");
     if (isSelected) classes.push("sheet-row-selected");
+    const isStarter = isThread && message.id === channel?.id;
+    if (isStarter) classes.push("sheet-row-starter");
     const text = plainText(message);
     body.push(
       <div
@@ -178,7 +183,10 @@ export default function SheetView(props: Props) {
             </span>
           ))}
         </span>
-        <span className="sheet-cell">{message.edited_at ? "(수정됨)" : ""}</span>
+        <span className="sheet-cell">
+          {isStarter ? "본문" : isThread ? "댓글" : ""}
+          {message.edited_at ? `${isThread ? " " : ""}(수정됨)` : ""}
+        </span>
         <span className="sheet-cell sheet-wide" />
         <span className="sheet-cell sheet-wide" />
       </div>,
@@ -198,56 +206,37 @@ export default function SheetView(props: Props) {
     }
   };
 
+  const forumPost = channel?.kind === "thread" && channel.parent_kind === "forum";
+
   return (
-    <div className="room sheet">
-      <header className="sheet-titlebar">
-        {props.showBack && (
-          <button type="button" className="sheet-back" onClick={props.onBack} aria-label="채널 목록으로">
-            ‹
-          </button>
-        )}
-        <span className="sheet-doc">{document.title}</span>
-        <span className={props.connected ? "dot dot-on" : "dot"} title={props.connected ? "실시간 연결됨" : "연결 중"} />
-        {props.menu}
-      </header>
-      <div className="sheet-menus">
-        {MENUS.map((name) => (
-          <span key={name} className={name === "홈" ? "sheet-menu sheet-menu-on" : "sheet-menu"} aria-hidden="true">
-            {name}
-          </span>
-        ))}
-        {props.onOpenThreads && channel && channel.kind !== "thread" && (
+    <SheetFrame
+      showBack={props.showBack}
+      onBack={props.onBack}
+      connected={props.connected}
+      menu={props.menu}
+      menuExtra={
+        props.onOpenThreads && channel && channel.kind !== "thread" ? (
           <button type="button" className="sheet-menu sheet-menu-link" onClick={props.onOpenThreads}>
             스레드
           </button>
-        )}
-      </div>
-      <div className="sheet-ribbon" aria-hidden="true">
-        {RIBBON.map((name, index) => (
-          <span key={index} className="sheet-ribbon-item">
-            {name}
-          </span>
-        ))}
-      </div>
-      <div className="sheet-formula">
-        <span className="sheet-namebox">{nameBox}</span>
-        <span className="sheet-fx" aria-hidden="true">
-          fx
-        </span>
-        <div className="sheet-formula-text">
-          {selected ? (
-            <>
-              {selectedReply && (
-                <span className="sheet-formula-reply">
-                  ↪ {selectedReply.author}: {selectedReply.text}
-                  <br />
-                </span>
-              )}
-              <MessageTextOnly message={selected} />
-            </>
-          ) : null}
-        </div>
-        {selected && (
+        ) : null
+      }
+      nameBox={nameBox}
+      formula={
+        selected ? (
+          <>
+            {selectedReply && (
+              <span className="sheet-formula-reply">
+                ↪ {selectedReply.author}: {selectedReply.text}
+                <br />
+              </span>
+            )}
+            <MessageTextOnly message={selected} />
+          </>
+        ) : null
+      }
+      actions={
+        selected && (
           <div className="sheet-actions">
             {confirming ? (
               <>
@@ -280,7 +269,140 @@ export default function SheetView(props: Props) {
             )}
             {actionError && <span className="danger">{actionError}</span>}
           </div>
+        )
+      }
+      notice={props.notice}
+      onNoticeClose={props.onNoticeClose}
+      listRef={props.listRef}
+      onScroll={props.onScroll}
+      bottom={
+        <div className="sheet-input">
+          <span className="sheet-rownum">{inputRow}</span>
+          <div className="sheet-input-cell">{props.composer}</div>
+        </div>
+      }
+      tabsChannel={channel}
+      onOpenTab={props.onOpenTab}
+      status={
+        props.unseen > 0 ? (
+          <button type="button" className="sheet-status-new" onClick={props.onScrollToBottom}>
+            새 메시지 {props.unseen}개 ↓
+          </button>
+        ) : (
+          <span>{props.connected ? "준비" : "연결 중…"}</span>
+        )
+      }
+    >
+      {channel?.kind === "thread" && (
+        // 글·스레드: 맨 위에 보고서 제목처럼 글 제목과 태그
+        <div className="sheet-row sheet-title-row">
+          <span className="sheet-rownum">{TITLE_ROW}</span>
+          <span className="sheet-cell sheet-merged">
+            {channel.locked ? "🔒 " : ""}
+            {channel.name}
+            {(channel.applied_tags ?? []).map((tag) => (
+              <span key={tag.id} className="sheet-tag">
+                {tag.emoji ? `${tag.emoji} ` : ""}
+                {tag.name}
+              </span>
+            ))}
+            <span className="sheet-title-sub">
+              {forumPost ? "글" : "스레드"} · {channel.parent_name ?? ""}
+              {channel.archived ? " · 보관됨(쓰면 다시 열려요)" : ""}
+            </span>
+          </span>
+        </div>
+      )}
+      <div className="sheet-row sheet-head">
+        <span className="sheet-rownum">{headRow}</span>
+        <span className="sheet-cell">시간</span>
+        <span className="sheet-cell">보낸 사람</span>
+        <span className="sheet-cell">내용</span>
+        <span className="sheet-cell">{channel?.kind === "thread" ? "구분" : "반응"}</span>
+        <span className="sheet-cell sheet-wide" />
+        <span className="sheet-cell sheet-wide" />
+      </div>
+      {props.hasMore && (
+        <button type="button" className="sheet-older" onClick={props.onLoadOlder} disabled={props.loadingOlder}>
+          {props.loadingOlder ? "불러오는 중…" : "위 행 더 불러오기"}
+        </button>
+      )}
+      {props.error && <p className="room-error">{props.error}</p>}
+      {body}
+    </SheetFrame>
+  );
+}
+
+interface FrameProps {
+  showBack: boolean;
+  onBack: () => void;
+  connected?: boolean;
+  menu: ReactNode | null;
+  /** 메뉴 줄 오른쪽의 진짜 버튼(스레드, 새 글) */
+  menuExtra?: ReactNode;
+  /** 리본 자리(없으면 장식 리본) */
+  ribbon?: ReactNode;
+  nameBox: string;
+  formula: ReactNode;
+  actions?: ReactNode;
+  notice?: string;
+  onNoticeClose?: () => void;
+  listRef?: RefObject<HTMLDivElement | null>;
+  onScroll?: () => void;
+  /** 열 머리(A, B, …) 아래 행들 */
+  children: ReactNode;
+  /** 격자 아래 고정(입력 행 등) */
+  bottom?: ReactNode;
+  tabsChannel: ChannelInfo | null;
+  onOpenTab?: (channel: ChannelInfo) => void;
+  status: ReactNode;
+  /** 열 너비를 바꿀 때(글 목록 등) */
+  variant?: string;
+}
+
+/** 엑셀처럼 보이는 껍데기: 제목 줄·메뉴·리본·수식 입력줄·격자·시트 탭·상태 줄 */
+export function SheetFrame(props: FrameProps) {
+  return (
+    <div className={props.variant ? `room sheet sheet-${props.variant}` : "room sheet"}>
+      <header className="sheet-titlebar">
+        {props.showBack && (
+          <button type="button" className="sheet-back" onClick={props.onBack} aria-label="뒤로">
+            ‹
+          </button>
         )}
+        <span className="sheet-doc">{document.title}</span>
+        {props.connected !== undefined && (
+          <span
+            className={props.connected ? "dot dot-on" : "dot"}
+            title={props.connected ? "실시간 연결됨" : "연결 중"}
+          />
+        )}
+        {props.menu}
+      </header>
+      <div className="sheet-menus">
+        {MENUS.map((name) => (
+          <span key={name} className={name === "홈" ? "sheet-menu sheet-menu-on" : "sheet-menu"} aria-hidden="true">
+            {name}
+          </span>
+        ))}
+        {props.menuExtra}
+      </div>
+      {props.ribbon ?? (
+        <div className="sheet-ribbon" aria-hidden="true">
+          {RIBBON.map((name, index) => (
+            <span key={index} className="sheet-ribbon-item">
+              {name}
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="sheet-formula">
+        <span className="sheet-namebox">{props.nameBox}</span>
+        <span className="sheet-fx" aria-hidden="true">
+          fx
+        </span>
+        <div className="sheet-formula-text">{props.formula}</div>
+        {props.actions}
       </div>
       {props.notice && (
         <div className="room-notice" role="status">
@@ -301,38 +423,13 @@ export default function SheetView(props: Props) {
           <span className="sheet-cell sheet-wide">E</span>
           <span className="sheet-cell sheet-wide">F</span>
         </div>
-        <div className="sheet-row sheet-head">
-          <span className="sheet-rownum">1</span>
-          <span className="sheet-cell">시간</span>
-          <span className="sheet-cell">보낸 사람</span>
-          <span className="sheet-cell">내용</span>
-          <span className="sheet-cell">반응</span>
-          <span className="sheet-cell sheet-wide" />
-          <span className="sheet-cell sheet-wide" />
-        </div>
-        {props.hasMore && (
-          <button type="button" className="sheet-older" onClick={props.onLoadOlder} disabled={props.loadingOlder}>
-            {props.loadingOlder ? "불러오는 중…" : "위 행 더 불러오기"}
-          </button>
-        )}
-        {props.error && <p className="room-error">{props.error}</p>}
-        {body}
+        {props.children}
       </div>
 
-      <div className="sheet-input">
-        <span className="sheet-rownum">{inputRow}</span>
-        <div className="sheet-input-cell">{props.composer}</div>
-      </div>
-
-      <SheetTabsOrNothing channel={channel} onOpenTab={props.onOpenTab} />
+      {props.bottom}
+      <SheetTabsOrNothing channel={props.tabsChannel} onOpenTab={props.onOpenTab} />
       <footer className="sheet-status">
-        {props.unseen > 0 ? (
-          <button type="button" className="sheet-status-new" onClick={props.onScrollToBottom}>
-            새 메시지 {props.unseen}개 ↓
-          </button>
-        ) : (
-          <span>{props.connected ? "준비" : "연결 중…"}</span>
-        )}
+        {props.status}
         <span className="sheet-status-right" aria-hidden="true">
           ▦ ▣ ▤ 　100%
         </span>

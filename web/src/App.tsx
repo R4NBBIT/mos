@@ -238,6 +238,8 @@ export default function App() {
       }
       onOpen={(threadId) => go(`#/g/${groupId}/p/${parentId}/t/${threadId}`)}
       onAuthLost={changed}
+      theme={look.theme}
+      onOpenChannel={(channel) => openChannel(groupId, channel)}
     />
   );
 
@@ -252,8 +254,9 @@ export default function App() {
     );
   }
 
-  // 시트 테마의 대화방은 화면 전체가 문서 한 장이다(채널은 아래 시트 탭으로)
-  const sheetRoom = look.theme === "sheet" && (route.view === "chat" || route.view === "thread");
+  // 시트 테마의 대화방·글 목록은 화면 전체가 문서 한 장이다(채널은 아래 시트 탭으로)
+  const sheetRoom =
+    look.theme === "sheet" && (route.view === "chat" || route.view === "thread" || route.view === "posts");
   if (wide && !sheetRoom) {
     return (
       <div className="split">
