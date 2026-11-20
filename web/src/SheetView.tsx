@@ -1,7 +1,7 @@
 import { type ReactNode, type RefObject, useEffect, useState } from "react";
 import { fetchGroupChannels } from "./api";
 import { dayKey, formatDay } from "./format";
-import { AttachmentText, MessageTextOnly, type ReplyPreview } from "./MessageItem";
+import { AttachmentText, AttachmentView, isPicture, MessageTextOnly, type ReplyPreview } from "./MessageItem";
 import type { ChannelInfo, Message } from "./types";
 
 // 스프레드시트 테마 대화방(화면명세서 SCR-11). 메시지 하나 = 행 하나.
@@ -161,6 +161,7 @@ export default function SheetView(props: Props) {
     const isStarter = isThread && message.id === channel?.id;
     if (isStarter) classes.push("sheet-row-starter");
     const text = plainText(message);
+    const pictures = message.attachments.filter(isPicture);
     body.push(
       <div
         className={classes.join(" ")}
@@ -171,17 +172,31 @@ export default function SheetView(props: Props) {
         <span className="sheet-cell">{cellTime(message.created_at)}</span>
         <span className="sheet-cell">{message.author.name}</span>
         <span
-          className={message.reference_id ? "sheet-cell sheet-cell-c sheet-has-note" : "sheet-cell sheet-cell-c"}
+          className={[
+            "sheet-cell sheet-cell-c",
+            message.reference_id ? "sheet-has-note" : "",
+            pictures.length > 0 ? "sheet-cell-pics" : "",
+          ].join(" ")}
           title={reply ? `↪ ${reply.author}: ${reply.text}` : undefined}
         >
           {text}
           {message.embeds.length > 0 && !text ? `[${message.embeds[0]?.title || "링크 미리보기"}]` : ""}
-          {message.attachments.map((attachment) => (
-            <span key={attachment.id}>
-              {" "}
-              <AttachmentText attachment={attachment} />
+          {message.attachments
+            .filter((attachment) => !isPicture(attachment))
+            .map((attachment) => (
+              <span key={attachment.id}>
+                {" "}
+                <AttachmentText attachment={attachment} />
+              </span>
+            ))}
+          {pictures.length > 0 && (
+            // 셀 안에 삽입한 그림처럼(행이 그만큼 높아진다)
+            <span className="sheet-pics">
+              {pictures.map((attachment) => (
+                <AttachmentView key={attachment.id} attachment={attachment} />
+              ))}
             </span>
-          ))}
+          )}
         </span>
         <span className="sheet-cell">
           {isStarter ? "본문" : isThread ? "댓글" : ""}

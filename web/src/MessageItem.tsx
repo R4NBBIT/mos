@@ -64,8 +64,14 @@ export function AttachmentText({ attachment }: { attachment: Attachment }) {
   );
 }
 
-/** 글자만: 본문 + 임베드 제목 + 첨부 이름 */
-export function MessageTextOnly({ message }: { message: Message }) {
+export function isPicture(attachment: Attachment): boolean {
+  return attachment.content_type?.startsWith("image/") ?? false;
+}
+
+/** 글자 위주 테마(메모장·시트 수식 줄): 본문 + 임베드 제목 + 첨부. pictures면 사진은 작은 그림으로 */
+export function MessageTextOnly({ message, pictures = false }: { message: Message; pictures?: boolean }) {
+  const shownPictures = pictures ? message.attachments.filter(isPicture) : [];
+  const others = message.attachments.filter((attachment) => !shownPictures.includes(attachment));
   return (
     <>
       {message.content && <MessageContent content={message.content} mentions={message.mentions} />}
@@ -75,12 +81,19 @@ export function MessageTextOnly({ message }: { message: Message }) {
           [{embed.title || embed.description || "링크 미리보기"}]
         </span>
       ))}
-      {message.attachments.map((attachment) => (
+      {others.map((attachment) => (
         <span key={attachment.id}>
           {" "}
           <AttachmentText attachment={attachment} />
         </span>
       ))}
+      {shownPictures.length > 0 && (
+        <span className="inline-pics">
+          {shownPictures.map((attachment) => (
+            <AttachmentView key={attachment.id} attachment={attachment} />
+          ))}
+        </span>
+      )}
     </>
   );
 }
@@ -201,7 +214,7 @@ function MessageItem({
             <span className="line-time">↪ {reply ? `${reply.author}: ${reply.text} / ` : ""}</span>
           )}
           <span className="line-name">{author.name}</span>
-          {isApp && " [앱]"}: <MessageTextOnly message={message} />
+          {isApp && " [앱]"}: <MessageTextOnly message={message} pictures />
           {message.edited_at && <span className="line-time"> (수정됨)</span>}
           {actions}
         </div>

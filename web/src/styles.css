@@ -2148,3 +2148,45 @@ button.tag-chip:disabled {
     grid-template-columns: 34px minmax(0, 1fr);
   }
 }
+
+/* 글자 위주 테마에서도 사진은 작은 그림으로 */
+.inline-pics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 4px;
+}
+
+.inline-pics .attachment-image img {
+  max-height: 180px;
+  max-width: min(260px, 100%);
+  margin-top: 2px;
+  border-radius: 2px;
+}
+
+.line-main .inline-pics {
+  display: flex;
+}
+
+.sheet-cell-pics {
+  white-space: normal;
+}
+
+.sheet-pics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.sheet-pics .attachment-image img {
+  max-height: 120px;
+  max-width: 220px;
+  margin-top: 0;
+  border: 1px solid var(--grid-line);
+  border-radius: 0;
+}
+
+.sheet-pics .attachment-file {
+  margin-top: 0;
+}
