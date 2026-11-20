@@ -37,6 +37,15 @@ _insert_sql = (
 )
 
 
+# 웹에서 보낸 메시지면 보낸 사람(디스코드 사용자 ID)과 답장 대상을 함께 읽는다
+_select_sql = (
+    "SELECT m.*, ws.reply_to_id AS web_reply_to_id, a.discord_user_id AS web_sender_id"
+    " FROM message m"
+    " LEFT JOIN web_sent ws ON ws.message_id = m.id"
+    " LEFT JOIN account a ON a.id = ws.account_id"
+)
+
+
 class MessageRepo:
     def __init__(self, db: Database) -> None:
         self.db = db
@@ -67,18 +76,18 @@ class MessageRepo:
         limit = max(1, min(limit, MAX_PAGE_SIZE))
         if before_id is None:
             rows = await self.db.fetch_all(
-                "SELECT * FROM message WHERE channel_id = ? ORDER BY id DESC LIMIT ?",
+                _select_sql + " WHERE m.channel_id = ? ORDER BY m.id DESC LIMIT ?",
                 (channel_id, limit),
             )
         else:
             rows = await self.db.fetch_all(
-                "SELECT * FROM message WHERE channel_id = ? AND id < ? ORDER BY id DESC LIMIT ?",
+                _select_sql + " WHERE m.channel_id = ? AND m.id < ? ORDER BY m.id DESC LIMIT ?",
                 (channel_id, before_id, limit),
             )
         return [dict(row) for row in reversed(rows)]
 
     async def get(self, message_id: int) -> dict[str, Any] | None:
-        row = await self.db.fetch_one("SELECT * FROM message WHERE id = ?", (message_id,))
+        row = await self.db.fetch_one(_select_sql + " WHERE m.id = ?", (message_id,))
         return dict(row) if row else None
 
     async def latest_id(self, channel_id: int) -> int | None:

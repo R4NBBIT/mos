@@ -47,6 +47,8 @@ class ChannelInfo:
     # 스레드면 부모 채널. 스레드의 권한은 부모 채널의 덮어쓰기를 따른다
     parent_id: int | None = None
     private_thread: bool = False
+    # 잠긴 스레드·포럼 글. 웹훅은 잠금을 무시하고 써지므로 앱이 막는다(검증 결과)
+    thread_locked: bool = False
     overwrites: tuple[Overwrite, ...] = ()
     # 봇이 이 채널의 메시지를 읽을 수 있는지(못 읽으면 목록에서 뺀다)
     bot_can_read: bool = True

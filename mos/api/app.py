@@ -21,12 +21,14 @@ from mos.config import Settings
 from mos.db.auth_repo import AuthRepo
 from mos.db.database import Database
 from mos.db.repo import MAX_PAGE_SIZE, MessageRepo
+from mos.db.sender_repo import SenderRepo
 from mos.services.crypto import TokenCipher
 from mos.services.directory import Directory, DirectoryError, GuildInfo
 from mos.services.discord_oauth import DiscordOAuth, OAuthClient
 from mos.services.messages import row_to_api
 from mos.services.permissions import ChannelAccess, PermissionService
 from mos.services.realtime import RealtimeHub
+from mos.services.sender import Messenger, SendError, SenderService
 from mos.services.session import ActiveAccount, Device, SessionError, SessionService
 from mos.version import current_version
 
@@ -76,6 +78,17 @@ class SwitchBody(BaseModel):
     account_id: str = Field(pattern=ACCOUNT_ID_PATTERN)
 
 
+class SendBody(BaseModel):
+    content: str = Field(min_length=1, max_length=2000)
+    # 화면이 메시지마다 만드는 무작위 값. 같은 값으로 다시 오면 다시 보내지 않는다
+    nonce: str = Field(pattern=r"^[A-Za-z0-9-]{8,64}$")
+    reply_to: str | None = Field(default=None, pattern=r"^[0-9]{15,21}$")
+
+
+class EditBody(BaseModel):
+    content: str = Field(min_length=1, max_length=2000)
+
+
 def create_app(
     settings: Settings,
     db: Database,
@@ -85,12 +98,19 @@ def create_app(
     oauth: OAuthClient | None = None,
     clock: Callable[[], float] = time.time,
     permissions: PermissionService | None = None,
+    messenger: Messenger | None = None,
 ) -> FastAPI:
     perms = permissions or PermissionService(directory)
     hub.set_access_check(perms.can_read)
+    cipher = TokenCipher(settings.secret_key)
+    sender = (
+        SenderService(repo, SenderRepo(db), cipher, messenger, directory, perms, hub, clock=clock)
+        if messenger is not None
+        else None
+    )
     sessions = SessionService(
         AuthRepo(db),
-        TokenCipher(settings.secret_key),
+        cipher,
         oauth
         or DiscordOAuth(
             settings.discord_client_id,
@@ -101,6 +121,7 @@ def create_app(
         clock=clock,
     )
     connect_limiter = RateLimiter(limit=20, window_sec=600)
+    send_limiter = RateLimiter(limit=2, window_sec=1, clock=clock)  # 계정당 1초 2번(설계서 11장)
     unlock_limiter = RateLimiter(limit=10, window_sec=60)
 
     @asynccontextmanager
@@ -114,6 +135,7 @@ def create_app(
                 await db.close()
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    app.state.sender = sender  # 디스코드 앱 메시지 명령(봇)도 같은 서비스를 쓴다
 
     # ------------------------------------------------------------ 공통 보호
 
@@ -170,6 +192,17 @@ def create_app(
     def require_ready() -> None:
         if not directory.is_gateway_ready():
             raise HTTPException(status_code=503, detail="not ready")
+
+    @app.exception_handler(SendError)
+    async def send_error(_request: Request, error: SendError) -> JSONResponse:
+        return JSONResponse({"detail": error.code}, status_code=error.status)
+
+    def require_sender(account: ActiveAccount) -> SenderService:
+        if sender is None:
+            raise HTTPException(status_code=503, detail="sending_unavailable")
+        if not send_limiter.allow(f"account:{account.account_id}"):
+            raise SessionError("rate_limited", status=429, retry_after=1)
+        return sender
 
     @app.exception_handler(DirectoryError)
     async def directory_error(_request: Request, error: DirectoryError) -> JSONResponse:
@@ -312,6 +345,33 @@ def create_app(
             ):
                 rows = await repo.list_page(channel_id, before_id=before, limit=limit)
         return {"messages": [row_to_api(row) for row in rows], "has_more": len(rows) == limit}
+
+    @app.post("/api/channels/{channel_id}/messages")
+    async def send_message(channel_id: int, body: SendBody, request: Request) -> dict[str, Any]:
+        account = await require_account(request)
+        require_ready()
+        service = require_sender(account)
+        return await service.send(
+            account.account_id,
+            account.discord_user_id,
+            channel_id,
+            body.content,
+            body.nonce,
+            int(body.reply_to) if body.reply_to else None,
+        )
+
+    @app.patch("/api/messages/{message_id}")
+    async def edit_message(message_id: int, body: EditBody, request: Request) -> dict[str, Any]:
+        account = await require_account(request)
+        require_ready()
+        service = require_sender(account)
+        return await service.edit(account.discord_user_id, message_id, body.content)
+
+    @app.delete("/api/messages/{message_id}", status_code=204)
+    async def delete_message(message_id: int, request: Request) -> None:
+        account = await require_account(request)
+        require_ready()
+        await require_sender(account).delete(account.discord_user_id, message_id)
 
     # ------------------------------------------------------------ 실시간
 

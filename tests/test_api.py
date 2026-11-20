@@ -19,12 +19,14 @@ from mos.db.repo import MessageRepo
 from mos.services.directory import ChannelInfo, GuildInfo, MemberInfo, Overwrite
 from mos.services.discord_oauth import DiscordUser, OAuthError, TokenSet
 from mos.services.permissions import (
+    MENTION_EVERYONE,
     READ_MESSAGE_HISTORY,
     SEND_MESSAGES,
     VIEW_CHANNEL,
     PermissionService,
 )
 from mos.services.realtime import RealtimeHub
+from mos.services.sender import OutgoingMessage, Webhook, WebhookGoneError
 from tests.test_db import make_row
 
 ORIGIN = "https://chat.example.com"
@@ -45,7 +47,13 @@ class FakeDirectory:
     def __init__(self) -> None:
         self.ready = True
         self.guild_map = {
-            GUILD: GuildInfo(GUILD, "서버 A", None, owner_id=1, role_permissions={GUILD: BASIC}),
+            GUILD: GuildInfo(
+                GUILD,
+                "서버 A",
+                None,
+                owner_id=1,
+                role_permissions={GUILD: BASIC, SECRET_ROLE: MENTION_EVERYONE},
+            ),
             OTHER_GUILD: GuildInfo(OTHER_GUILD, "옆 서버", None, 1, {OTHER_GUILD: BASIC}),
         }
         deny_everyone = Overwrite(GUILD, True, 0, VIEW_CHANNEL)
@@ -98,6 +106,46 @@ class FakeDirectory:
         return 0
 
 
+class FakeMessenger:
+    """웹훅 대신. 보낸 내용을 기록하고 메시지 행을 돌려준다."""
+
+    def __init__(self) -> None:
+        self.created: list[int] = []
+        self.hook_channel: dict[int, int] = {}
+        self.sent: list[tuple[Webhook, OutgoingMessage]] = []
+        self.edited: list[tuple[int, OutgoingMessage]] = []
+        self.deleted: list[tuple[int, int | None]] = []
+        self.gone_once = False
+        self.next_id = 1573400000000000000
+
+    async def create_webhook(self, channel_id: int) -> Webhook:
+        self.created.append(channel_id)
+        hook = Webhook(700 + len(self.created), f"hook-token-secret-{len(self.created)}")
+        self.hook_channel[hook.id] = channel_id
+        return hook
+
+    def _row(self, hook: Webhook, message_id: int, message: OutgoingMessage) -> dict:
+        channel = message.thread_id or self.hook_channel[hook.id]
+        row = make_row(message_id, channel_id=channel, content=message.content)
+        row.update(author_id=hook.id, author_name=message.username or "x", webhook_id=hook.id)
+        return row
+
+    async def send(self, webhook: Webhook, message: OutgoingMessage) -> dict:
+        if self.gone_once:
+            self.gone_once = False
+            raise WebhookGoneError
+        self.next_id += 1
+        self.sent.append((webhook, message))
+        return self._row(webhook, self.next_id, message)
+
+    async def edit(self, webhook: Webhook, message_id: int, message: OutgoingMessage) -> dict:
+        self.edited.append((message_id, message))
+        return self._row(webhook, message_id, message)
+
+    async def delete(self, webhook: Webhook, message_id: int, thread_id: int | None) -> None:
+        self.deleted.append((message_id, thread_id))
+
+
 class FakeOAuth:
     """code → (사용자, 들어가 있는 서버)"""
 
@@ -133,6 +181,7 @@ class Env:
     oauth: FakeOAuth
     clock: list[float]
     permissions: PermissionService
+    messenger: FakeMessenger
 
     def tick(self, seconds: float) -> None:
         self.clock[0] += seconds
@@ -155,16 +204,25 @@ def build_client(tmp_path: Path) -> Iterator[Env]:
     bot = FakeDirectory()
     permissions = PermissionService(bot)
     oauth = FakeOAuth()
+    messenger = FakeMessenger()
     oauth.add("mocha", 42, "모카", {GUILD})
     oauth.add("latte", 43, "라떼", {GUILD})
     oauth.add("stranger", 44, "남", {123456789012345678})
     oauth.add("other", 45, "옆동네", {OTHER_GUILD})
     clock = [1_800_000_000.0]
     app = create_app(
-        settings, db, repo, hub, bot, oauth=oauth, clock=lambda: clock[0], permissions=permissions
+        settings,
+        db,
+        repo,
+        hub,
+        bot,
+        oauth=oauth,
+        clock=lambda: clock[0],
+        permissions=permissions,
+        messenger=messenger,
     )
     with TestClient(app, base_url=ORIGIN) as client:
-        yield Env(client, bot, hub, repo, oauth, clock, permissions)
+        yield Env(client, bot, hub, repo, oauth, clock, permissions, messenger)
 
 
 @pytest.fixture
@@ -614,3 +672,188 @@ def test_hub_drops_broken_sockets() -> None:
     hub.subscribe(socket, 7)
     asyncio.run(hub.publish(7, "x", {}))
     assert hub.count == 0
+
+
+# ------------------------------------------------------------ 보내기(3-3)
+
+_nonce_counter = [0]
+
+
+def send(env: Env, content: str = "안녕", channel: int = CHANNEL, **extra: Any) -> Any:
+    _nonce_counter[0] += 1
+    body = {"content": content, "nonce": f"nonce-{_nonce_counter[0]:06d}", **extra}
+    return env.client.post(f"/api/channels/{channel}/messages", json=body, headers=POST)
+
+
+def test_send_uses_my_server_name_and_records_sender(env: Env, tmp_path: Path) -> None:
+    signed_up(env, "latte")
+    response = send(env, "점심 뭐 먹지")
+    assert response.status_code == 200
+    message = response.json()
+    assert message["content"] == "점심 뭐 먹지"
+    assert message["web_sender_id"] == "43"
+    hook, outgoing = env.messenger.sent[0]
+    assert outgoing.username == "user43"  # 그 서버의 내 닉네임으로 고정
+    assert outgoing.allow_everyone is False  # 권한 없으면 @everyone 막음
+    assert env.messenger.created == [CHANNEL]
+    assert session(env)["accounts"][0]["user_id"] == "43"
+
+    send(env, "두 번째")
+    assert env.messenger.created == [CHANNEL]  # 웹훅은 채널마다 한 번만 만든다
+    raw = (tmp_path / "api.db").read_bytes()
+    assert hook.token.encode() not in raw  # 웹훅 토큰은 암호화 저장
+
+    page = env.client.get(f"/api/channels/{CHANNEL}/messages").json()["messages"]
+    assert [m["web_sender_id"] for m in page] == ["43", "43"]
+
+
+def test_mention_everyone_only_with_permission(env: Env) -> None:
+    signed_up(env, "mocha")  # 역할에 @everyone 멘션 권한 있음
+    assert send(env, "@everyone 모여").status_code == 200
+    assert env.messenger.sent[0][1].allow_everyone is True
+
+
+def test_same_nonce_is_sent_once(env: Env) -> None:
+    signed_up(env)
+    body = {"content": "한 번만", "nonce": "same-nonce-1234"}
+    first = env.client.post(f"/api/channels/{CHANNEL}/messages", json=body, headers=POST)
+    env.tick(2)
+    second = env.client.post(f"/api/channels/{CHANNEL}/messages", json=body, headers=POST)
+    assert first.json()["id"] == second.json()["id"]
+    assert len(env.messenger.sent) == 1
+
+
+def test_reply_quotes_on_discord_but_not_on_web(env: Env) -> None:
+    signed_up(env)
+    original = make_row(1573319705849102409, channel_id=CHANNEL, content="<@43> 점심 *뭐* 먹어?")
+    env.client.portal.call(env.repo.upsert, original)
+    response = send(env, "김치찌개", reply_to=str(original["id"]))
+    assert response.status_code == 200
+    sent_text = env.messenger.sent[0][1].content
+    first_line, _, rest = sent_text.partition("\n")
+    assert first_line.startswith("> ↪ **모카**: @… 점심 뭐 먹어?")
+    assert f"/{GUILD}/{CHANNEL}/{original['id']}" in first_line
+    assert rest == "김치찌개"
+    message = response.json()
+    assert message["content"] == "김치찌개"  # ㅁㅇㅅ 화면에서는 인용 줄을 떼고
+    assert message["reference_id"] == str(original["id"])  # 일반 답장처럼
+
+    other = make_row(1573319705849109999, channel_id=SECRET, content="비밀")
+    env.client.portal.call(env.repo.upsert, other)
+    env.tick(2)
+    assert (
+        send(env, "x", reply_to=str(other["id"])).status_code == 404
+    )  # 다른 채널 글에는 답장 불가
+
+
+def test_cannot_send_where_not_allowed(env: Env) -> None:
+    signed_up(env, "latte")
+    assert send(env, channel=SECRET).status_code == 404  # 볼 수도 없는 채널
+    env.tick(2)
+    assert send(env, channel=FORUM).json()["detail"] == "cannot_send"
+
+    read_only = Overwrite(GUILD, True, 0, SEND_MESSAGES)
+    env.bot.channel_map[9100] = ChannelInfo(9100, GUILD, "공지", "text", 3, overwrites=(read_only,))
+    env.tick(2)
+    response = send(env, channel=9100)
+    assert response.status_code == 403
+    names = {
+        c["name"]: c["can_send"]
+        for c in env.client.get(f"/api/groups/{GUILD}/channels").json()["channels"]
+    }
+    assert names["공지"] is False
+
+
+def test_locked_thread_is_blocked_even_though_webhook_would_work(env: Env) -> None:
+    signed_up(env)
+    env.bot.channel_map[9200] = ChannelInfo(
+        9200, GUILD, "글", "thread", 0, parent_id=CHANNEL, thread_locked=True
+    )
+    assert send(env, channel=9200).json()["detail"] == "cannot_send"
+    env.bot.channel_map[9201] = ChannelInfo(9201, GUILD, "열린 글", "thread", 0, parent_id=CHANNEL)
+    env.tick(2)
+    assert send(env, channel=9201).status_code == 403  # 스레드 보내기 권한이 없으면 막힘
+
+    env.bot.guild_map[GUILD] = GuildInfo(
+        GUILD, "서버 A", None, 1, {GUILD: BASIC | (1 << 38), SECRET_ROLE: MENTION_EVERYONE}
+    )
+    env.tick(2)
+    assert send(env, channel=9201).status_code == 200
+    hook, outgoing = env.messenger.sent[-1]
+    assert outgoing.thread_id == 9201
+    assert env.messenger.hook_channel[hook.id] == CHANNEL  # 웹훅은 부모 채널 것
+
+
+def test_bad_input_is_rejected(env: Env) -> None:
+    signed_up(env)
+    assert send(env, "   ").json()["detail"] == "empty"
+    env.tick(2)
+    assert send(env, "x" * 2001).status_code == 422
+    bad = {"content": "a", "nonce": "../../x"}
+    assert (
+        env.client.post(f"/api/channels/{CHANNEL}/messages", json=bad, headers=POST).status_code
+        == 422
+    )
+    reply_long = make_row(1573319705849102409, channel_id=CHANNEL, content="원문")
+    env.client.portal.call(env.repo.upsert, reply_long)
+    env.tick(2)
+    assert send(env, "x" * 2000, reply_to=str(reply_long["id"])).json()["detail"] == "too_long"
+
+
+def test_send_rate_limit(env: Env) -> None:
+    signed_up(env)
+    codes = [send(env, f"{i}").status_code for i in range(3)]
+    assert codes[:2] == [200, 200]
+    assert codes[2] == 429
+
+
+def test_recreates_deleted_webhook_once(env: Env) -> None:
+    signed_up(env)
+    send(env)
+    env.messenger.gone_once = True
+    env.tick(2)
+    assert send(env, "다시").status_code == 200
+    assert env.messenger.created == [CHANNEL, CHANNEL]
+
+
+def test_edit_and_delete_only_my_messages(env: Env) -> None:
+    signed_up(env, "mocha")
+    original = make_row(1573319705849102409, channel_id=CHANNEL, content="원문")
+    env.client.portal.call(env.repo.upsert, original)
+    mine = send(env, "처음", reply_to=str(original["id"])).json()
+
+    signed_up(env, "latte")
+    assert (
+        env.client.patch(
+            f"/api/messages/{mine['id']}", json={"content": "남이 고침"}, headers=POST
+        ).status_code
+        == 404
+    )
+    env.tick(2)
+    assert env.client.delete(f"/api/messages/{mine['id']}", headers=POST).status_code == 404
+    env.tick(2)
+    assert env.client.delete(f"/api/messages/{original['id']}", headers=POST).status_code == 404
+
+    mocha_id = next(a["id"] for a in session(env)["accounts"] if a["name"] == "모카")
+    env.client.post("/api/session/switch", json={"account_id": mocha_id}, headers=POST)
+    env.tick(2)
+    edited = env.client.patch(f"/api/messages/{mine['id']}", json={"content": "고침"}, headers=POST)
+    assert edited.status_code == 200
+    assert edited.json()["content"] == "고침"
+    assert env.messenger.edited[0][1].content.startswith("> ↪ ")  # 답장 인용은 유지
+    env.tick(2)
+    assert env.client.delete(f"/api/messages/{mine['id']}", headers=POST).status_code == 204
+    assert env.messenger.deleted == [(int(mine["id"]), None)]
+    ids = [m["id"] for m in env.client.get(f"/api/channels/{CHANNEL}/messages").json()["messages"]]
+    assert mine["id"] not in ids
+
+
+def test_send_needs_unlocked_account_and_origin(env: Env) -> None:
+    assert send(env).status_code == 401
+    signed_up(env)
+    bad = env.client.post(
+        f"/api/channels/{CHANNEL}/messages",
+        json={"content": "x", "nonce": "abcdefgh1"},
+        headers={"origin": "https://evil.example"},
+    )
+    assert bad.status_code == 403

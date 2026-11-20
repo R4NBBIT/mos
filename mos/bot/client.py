@@ -8,9 +8,10 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import discord
+from discord import app_commands
 
 from mos.bot.backfill import backfill_channel, fetch_older_messages
 from mos.config import Settings
@@ -18,10 +19,18 @@ from mos.db.repo import MessageRepo
 from mos.services.directory import ChannelInfo, DirectoryError, GuildInfo, MemberInfo, Overwrite
 from mos.services.messages import message_to_row, row_to_api
 from mos.services.realtime import RealtimeHub
+from mos.services.sender import OutgoingMessage, SendError, Webhook, WebhookGoneError
+
+if TYPE_CHECKING:
+    from mos.services.sender import SenderService
 
 log = logging.getLogger(__name__)
 
 MemberChanged = Callable[[int, int | None], None]  # (서버 ID, 사용자 ID 또는 서버 전체)
+WEBHOOK_NAME = "ㅁㅇㅅ"
+DELETE_COMMAND_NAME = "ㅁㅇㅅ 메시지 삭제"
+UNKNOWN_WEBHOOK = 10015
+UNKNOWN_MESSAGE = 10008
 
 
 def build_intents() -> discord.Intents:
@@ -81,6 +90,7 @@ def channel_to_info(channel: Any) -> ChannelInfo | None:
             category_position=base.category_position,
             parent_id=parent.id,
             private_thread=channel.type == discord.ChannelType.private_thread,
+            thread_locked=bool(channel.locked),
             overwrites=base.overwrites,
             bot_can_read=base.bot_can_read,
         )
@@ -117,12 +127,22 @@ class MosBot(discord.Client):
         self.repo = repo
         self.hub = hub
         self.member_changed: MemberChanged | None = None
+        self.sender: SenderService | None = None  # main에서 연결(메시지 명령이 쓴다)
+        self.tree = app_commands.CommandTree(self)
         self._backfill_lock = asyncio.Lock()
         self._synced: set[int] = set()
         self._history_done: set[int] = set()
         self._sync_locks: dict[int, asyncio.Lock] = {}
 
     async def setup_hook(self) -> None:
+        self.tree.add_command(
+            app_commands.ContextMenu(name=DELETE_COMMAND_NAME, callback=self._delete_command)
+        )
+        try:
+            await self.tree.sync()  # 전역 명령. 바뀐 게 없으면 디스코드가 그대로 둔다
+        except discord.HTTPException:
+            log.exception("메시지 명령 등록 실패(웹 기능에는 영향 없음)")
+
         # 멤버 캐시를 끄면 discord.py가 역할 변경 이벤트(on_member_update)를 내보내지 않는다.
         # 원본 처리기는 그대로 두고, 권한 캐시만 지우도록 앞에 끼운다
         parsers = getattr(self._connection, "parsers", None)
@@ -280,12 +300,150 @@ class MosBot(discord.Client):
     async def on_guild_remove(self, guild: discord.Guild) -> None:
         self._notify_member(guild.id, None)
 
+    # ------------------------------------------------------------ 메시지 명령(SEND-12)
+
+    async def _delete_command(
+        self, interaction: discord.Interaction, message: discord.Message
+    ) -> None:
+        """디스코드 앱 › 메시지 › 앱 › ㅁㅇㅅ 메시지 삭제. 본인만 보이는 확인 버튼을 띄운다."""
+        sender = self.sender
+        owner = await sender.sender_of(message.id) if sender else None
+        if sender is None or owner != interaction.user.id:
+            await interaction.response.send_message(
+                "본인이 ㅁㅇㅅ에서 보낸 메시지만 지울 수 있어요.", ephemeral=True
+            )
+            return
+        view = DeleteConfirmView(sender, interaction.user.id, message.id)
+        await interaction.response.send_message("이 메시지를 지울까요?", view=view, ephemeral=True)
+
     # ------------------------------------------------------------ 공용
 
     async def store_and_publish(self, message: discord.Message, event_type: str) -> None:
-        row = message_to_row(message)
-        await self.repo.upsert(row)
-        await self.hub.publish(message.channel.id, event_type, row_to_api(row))
+        await self.repo.upsert(message_to_row(message))
+        # 웹에서 보낸 메시지면 보낸 사람·답장 정보를 붙여서 알린다
+        row = await self.repo.get(message.id)
+        if row is not None:
+            await self.hub.publish(message.channel.id, event_type, row_to_api(row))
+
+
+class DeleteConfirmView(discord.ui.View):
+    def __init__(self, sender: SenderService, owner_id: int, message_id: int) -> None:
+        super().__init__(timeout=60)
+        self.sender = sender
+        self.owner_id = owner_id
+        self.message_id = message_id
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return interaction.user.id == self.owner_id  # 누른 사람 다시 확인
+
+    @discord.ui.button(label="삭제", style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
+        try:
+            await self.sender.delete(self.owner_id, self.message_id)
+            text = "삭제했어요."
+        except SendError:
+            text = "이미 지워졌거나 지울 수 없는 메시지예요."
+        except Exception:
+            log.exception("메시지 명령 삭제 실패")
+            text = "삭제하지 못했어요. 잠시 후 다시 해 주세요."
+        await interaction.response.edit_message(content=text, view=None)
+        self.stop()
+
+    @discord.ui.button(label="취소", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
+        await interaction.response.edit_message(content="취소했어요.", view=None)
+        self.stop()
+
+
+def _webhook_error(error: discord.HTTPException) -> Exception:
+    if isinstance(error, discord.NotFound) and error.code == UNKNOWN_WEBHOOK:
+        return WebhookGoneError()
+    if isinstance(error, discord.Forbidden):
+        return SendError("bot_cannot_send", 403)
+    if error.status == 400:
+        return SendError("rejected", 400)
+    return DirectoryError(f"webhook failed: HTTP {error.status}")
+
+
+class BotMessenger:
+    """웹훅으로 보내기·고치기·지우기. 웹훅 토큰은 로그·오류 메시지에 넣지 않는다."""
+
+    def __init__(self, bot: MosBot) -> None:
+        self.bot = bot
+
+    def _hook(self, webhook: Webhook) -> discord.Webhook:
+        return discord.Webhook.partial(webhook.id, webhook.token, client=self.bot)
+
+    @staticmethod
+    def _mentions(message: OutgoingMessage) -> discord.AllowedMentions:
+        everyone = message.allow_everyone
+        return discord.AllowedMentions(everyone=everyone, roles=everyone, users=True)
+
+    async def create_webhook(self, channel_id: int) -> Webhook:
+        channel = self.bot.get_channel(channel_id)
+        if not isinstance(channel, discord.TextChannel | discord.ForumChannel):
+            raise SendError("not_found", 404)
+        try:
+            for hook in await channel.webhooks():
+                me = self.bot.user
+                if (
+                    hook.token
+                    and hook.user is not None
+                    and me is not None
+                    and hook.user.id == me.id
+                ):
+                    return Webhook(hook.id, hook.token)
+            hook = await channel.create_webhook(name=WEBHOOK_NAME, reason="ㅁㅇㅅ 웹에서 보내기")
+        except discord.HTTPException as error:
+            raise _webhook_error(error) from error
+        if not hook.token:
+            raise DirectoryError("webhook without token")
+        return Webhook(hook.id, hook.token)
+
+    async def send(self, webhook: Webhook, message: OutgoingMessage) -> dict[str, Any]:
+        thread = (
+            discord.Object(id=message.thread_id) if message.thread_id else discord.utils.MISSING
+        )
+        try:
+            sent = await self._hook(webhook).send(
+                content=message.content,
+                username=message.username,
+                avatar_url=message.avatar_url or discord.utils.MISSING,
+                allowed_mentions=self._mentions(message),
+                thread=thread,
+                wait=True,
+            )
+        except discord.HTTPException as error:
+            raise _webhook_error(error) from error
+        return message_to_row(sent)
+
+    async def edit(
+        self, webhook: Webhook, message_id: int, message: OutgoingMessage
+    ) -> dict[str, Any]:
+        thread = (
+            discord.Object(id=message.thread_id) if message.thread_id else discord.utils.MISSING
+        )
+        try:
+            edited = await self._hook(webhook).edit_message(
+                message_id,
+                content=message.content,
+                allowed_mentions=self._mentions(message),
+                thread=thread,
+            )
+        except discord.HTTPException as error:
+            if isinstance(error, discord.NotFound) and error.code == UNKNOWN_MESSAGE:
+                raise SendError("not_found", 404) from error
+            raise _webhook_error(error) from error
+        return message_to_row(edited)
+
+    async def delete(self, webhook: Webhook, message_id: int, thread_id: int | None) -> None:
+        thread = discord.Object(id=thread_id) if thread_id else discord.utils.MISSING
+        try:
+            await self._hook(webhook).delete_message(message_id, thread=thread)
+        except discord.HTTPException as error:
+            if isinstance(error, discord.NotFound) and error.code == UNKNOWN_MESSAGE:
+                return  # 이미 지워짐
+            raise _webhook_error(error) from error
 
 
 class BotDirectory:

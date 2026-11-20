@@ -1,4 +1,4 @@
-import type { ChannelInfo, Group, GroupChannels, MessagePage, SessionState } from "./types";
+import type { ChannelInfo, Group, GroupChannels, Message, MessagePage, SessionState } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -85,4 +85,29 @@ export async function fetchMessages(channelId: string, beforeId?: string): Promi
   }
   const path = `/api/channels/${encodeURIComponent(channelId)}/messages?${params.toString()}`;
   return (await request(path)).json() as Promise<MessagePage>;
+}
+
+export async function sendMessage(
+  channelId: string,
+  content: string,
+  nonce: string,
+  replyTo: string | null,
+): Promise<Message> {
+  const body: Record<string, string> = { content, nonce };
+  if (replyTo) body.reply_to = replyTo;
+  const response = await postJson(`/api/channels/${encodeURIComponent(channelId)}/messages`, body);
+  return response.json() as Promise<Message>;
+}
+
+export async function editMessage(messageId: string, content: string): Promise<Message> {
+  const response = await request(`/api/messages/${encodeURIComponent(messageId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+  return response.json() as Promise<Message>;
+}
+
+export async function deleteMessage(messageId: string): Promise<void> {
+  await request(`/api/messages/${encodeURIComponent(messageId)}`, { method: "DELETE" });
 }

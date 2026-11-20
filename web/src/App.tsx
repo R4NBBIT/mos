@@ -138,6 +138,7 @@ export default function App() {
       <ChatRoom
         key={`${active.id}:${route.channelId}`}
         channelId={route.channelId}
+        myUserId={active.user_id}
         onBack={() => go(`#/g/${route.groupId}`)}
         {...common}
       />

@@ -22,6 +22,8 @@ ADMINISTRATOR = 1 << 3
 VIEW_CHANNEL = 1 << 10
 SEND_MESSAGES = 1 << 11
 READ_MESSAGE_HISTORY = 1 << 16
+MENTION_EVERYONE = 1 << 17
+MANAGE_THREADS = 1 << 34
 SEND_MESSAGES_IN_THREADS = 1 << 38
 ALL_PERMISSIONS = (1 << 53) - 1
 
@@ -86,8 +88,18 @@ class ChannelAccess:
 
     @property
     def can_send(self) -> bool:
+        if self.channel.kind == "forum":
+            return False  # 포럼에는 글(스레드) 안에만 쓸 수 있다
+        if self.channel.kind == "thread" and self.channel.thread_locked:
+            if not self.permissions & MANAGE_THREADS:
+                return False  # 잠긴 글: 웹훅은 막히지 않으므로 여기서 막는다
         flag = SEND_MESSAGES_IN_THREADS if self.channel.kind == "thread" else SEND_MESSAGES
         return bool(self.permissions & flag) and self.can_read
+
+    @property
+    def can_mention_everyone(self) -> bool:
+        """웹훅은 @everyone 권한을 따지지 않아, 본인 권한이 있을 때만 허용한다."""
+        return bool(self.permissions & MENTION_EVERYONE)
 
 
 class PermissionService:

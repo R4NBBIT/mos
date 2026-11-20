@@ -87,12 +87,30 @@ def _load_mentions(raw: str | None) -> dict[str, dict[str, str]]:
     return {key: dict(data.get(key) or {}) for key in ("users", "roles", "channels")}
 
 
+# 웹에서 답장으로 보낸 메시지의 첫 줄(디스코드에 보이는 인용). ㅁㅇㅅ 화면에서는 떼고 보여 준다
+REPLY_QUOTE_MARK = "> ↪ "
+
+
+def strip_reply_quote(content: str) -> str:
+    if not content.startswith(REPLY_QUOTE_MARK):
+        return content
+    _quote, _newline, rest = content.partition("\n")
+    return rest
+
+
 def row_to_api(row: dict[str, Any]) -> dict[str, Any]:
     """DB 행을 웹 응답으로. ID는 문자열(자바스크립트 숫자 정밀도 문제)."""
 
     def snowflake(value: int | None) -> str | None:
         return str(value) if value is not None else None
 
+    web_sender = row.get("web_sender_id")
+    web_reply = row.get("web_reply_to_id")
+    content = row["content"]
+    reference = row["reference_id"]
+    if web_reply is not None:
+        content = strip_reply_quote(content)
+        reference = web_reply
     return {
         "id": str(row["id"]),
         "channel_id": str(row["channel_id"]),
@@ -104,11 +122,13 @@ def row_to_api(row: dict[str, Any]) -> dict[str, Any]:
             "bot": bool(row["author_is_bot"]),
             "webhook": row["webhook_id"] is not None,
         },
-        "content": row["content"],
+        "content": content,
+        # 웹(ㅁㅇㅅ)에서 보낸 메시지면 보낸 사람의 디스코드 ID. 본인 것만 수정·삭제 버튼을 보인다
+        "web_sender_id": snowflake(web_sender),
         "embeds": json.loads(row["embeds_json"]),
         "attachments": json.loads(row["attachments_json"]),
         "mentions": _load_mentions(row.get("mentions_json")),
-        "reference_id": snowflake(row["reference_id"]),
+        "reference_id": snowflake(reference),
         "created_at": row["created_at"],
         "edited_at": row["edited_at"],
     }

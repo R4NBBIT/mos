@@ -1,7 +1,8 @@
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ApiError, fetchChannel, fetchMessages } from "./api";
+import { ApiError, deleteMessage, editMessage, fetchChannel, fetchMessages, sendMessage } from "./api";
+import Composer from "./Composer";
 import { compareIds, dayKey, formatDay } from "./format";
-import MessageItem from "./MessageItem";
+import MessageItem, { type ReplyPreview } from "./MessageItem";
 import type { ChannelInfo, Message, RealtimeEvent } from "./types";
 import { useRealtime } from "./useRealtime";
 
@@ -10,6 +11,8 @@ const NEAR_BOTTOM_PX = 120;
 
 interface Props {
   channelId: string;
+  /** 지금 계정의 디스코드 사용자 ID(내 메시지 알아보기) */
+  myUserId: string;
   /** 채널 목록으로 */
   onBack: () => void;
   /** 오른쪽 위 계정 메뉴 */
@@ -29,7 +32,7 @@ function mergeMessages(current: Message[], incoming: Message[]): Message[] {
   return [...byId.values()].sort((a, b) => compareIds(a.id, b.id));
 }
 
-export default function ChatRoom({ channelId, onBack, menu, onAuthLost, notice, onNoticeClose }: Props) {
+export default function ChatRoom({ channelId, myUserId, onBack, menu, onAuthLost, notice, onNoticeClose }: Props) {
   const [channel, setChannel] = useState<ChannelInfo | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -37,6 +40,9 @@ export default function ChatRoom({ channelId, onBack, menu, onAuthLost, notice, 
   const [connected, setConnected] = useState(false);
   const [unseen, setUnseen] = useState(0);
   const [error, setError] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [editing, setEditing] = useState<Message | null>(null);
 
   const listRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
@@ -162,6 +168,34 @@ export default function ChatRoom({ channelId, onBack, menu, onAuthLost, notice, 
     if (list.scrollTop < 40 && hasMore && !loadingOlder) void loadOlder();
   };
 
+  const submit = async (text: string, nonce: string) => {
+    if (!channel) return;
+    if (editing) {
+      const saved = await editMessage(editing.id, text);
+      setMessages((current) => mergeMessages(current, [saved]));
+      setEditing(null);
+      return;
+    }
+    const sent = await sendMessage(channel.id, text, nonce, replyTo?.id ?? null);
+    stickToBottom.current = true;
+    setMessages((current) => mergeMessages(current, [sent]));
+    setReplyTo(null);
+  };
+
+  const remove = async (message: Message) => {
+    await deleteMessage(message.id);
+    setMessages((current) => current.filter((item) => item.id !== message.id));
+    setSelectedId(null);
+  };
+
+  const byId = new Map(messages.map((message) => [message.id, message]));
+  const replyPreview = (message: Message): ReplyPreview | null => {
+    const original = message.reference_id ? byId.get(message.reference_id) : undefined;
+    if (!original) return null;
+    const text = original.content.replace(/\s+/g, " ").slice(0, 40) || "(첨부)";
+    return { author: original.author.name, text };
+  };
+
   const scrollToBottom = () => {
     const list = listRef.current;
     if (!list) return;
@@ -212,7 +246,27 @@ export default function ChatRoom({ channelId, onBack, menu, onAuthLost, notice, 
           return (
             <div key={message.id}>
               {newDay && <div className="day-divider">{formatDay(message.created_at)}</div>}
-              <MessageItem message={message} grouped={grouped} />
+              <MessageItem
+                message={message}
+                grouped={grouped}
+                mine={message.web_sender_id === myUserId || message.author.id === myUserId}
+                manageable={message.web_sender_id === myUserId && Boolean(channel?.can_send)}
+                canReply={Boolean(channel?.can_send)}
+                reply={replyPreview(message)}
+                selected={selectedId === message.id}
+                onSelect={setSelectedId}
+                onReply={(target) => {
+                  setEditing(null);
+                  setReplyTo(target);
+                  setSelectedId(null);
+                }}
+                onEdit={(target) => {
+                  setReplyTo(null);
+                  setEditing(target);
+                  setSelectedId(null);
+                }}
+                onDelete={remove}
+              />
             </div>
           );
         })}
@@ -223,7 +277,18 @@ export default function ChatRoom({ channelId, onBack, menu, onAuthLost, notice, 
           새 메시지 {unseen}개 ↓
         </button>
       )}
-      <footer className="room-footer">읽기 전용 미리보기(보내기는 다음 단계)</footer>
+      {channel && (
+        <Composer
+          canSend={channel.can_send}
+          replyTo={replyTo}
+          editing={editing}
+          onCancel={() => {
+            setReplyTo(null);
+            setEditing(null);
+          }}
+          onSubmit={submit}
+        />
+      )}
     </div>
   );
 }

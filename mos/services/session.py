@@ -150,6 +150,8 @@ class SessionService:
             accounts.append(
                 {
                     "id": str(link["account_id"]),
+                    # 디스코드 사용자 ID: 화면이 '내가 웹에서 보낸 메시지'를 알아보는 데 쓴다
+                    "user_id": str(link["discord_user_id"]),
                     "name": link["name"],
                     "avatar_url": link["avatar_url"],
                     "password_set": bool(link["password_set"]),

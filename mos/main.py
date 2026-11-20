@@ -14,7 +14,7 @@ import discord
 import uvicorn
 
 from mos.api.app import create_app
-from mos.bot.client import BotDirectory, MosBot
+from mos.bot.client import BotDirectory, BotMessenger, MosBot
 from mos.config import ConfigError, load_settings
 from mos.db.database import Database
 from mos.db.repo import MessageRepo
@@ -52,7 +52,10 @@ async def run() -> int:
     directory = BotDirectory(bot)
     permissions = PermissionService(directory)
     bot.member_changed = permissions.forget_member  # 역할 변경·탈퇴 때 권한 캐시 지우기
-    app = create_app(settings, db, repo, hub, directory, permissions=permissions)
+    app = create_app(
+        settings, db, repo, hub, directory, permissions=permissions, messenger=BotMessenger(bot)
+    )
+    bot.sender = app.state.sender  # 디스코드 앱의 'ㅁㅇㅅ 메시지 삭제' 명령
     server = uvicorn.Server(
         uvicorn.Config(
             app,

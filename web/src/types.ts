@@ -39,6 +39,8 @@ export interface Message {
   guild_id: string | null;
   author: Author;
   content: string;
+  /** ㅁㅇㅅ 웹에서 보낸 메시지면 보낸 사람의 디스코드 ID */
+  web_sender_id: string | null;
   embeds: Embed[];
   attachments: Attachment[];
   mentions: Mentions;
@@ -86,6 +88,8 @@ export type RealtimeEvent =
 /** 이 브라우저에 저장된 계정 하나 */
 export interface SessionAccount {
   id: string;
+  /** 디스코드 사용자 ID. 내 메시지를 알아보는 데 쓴다 */
+  user_id: string;
   name: string;
   avatar_url: string | null;
   password_set: boolean;
