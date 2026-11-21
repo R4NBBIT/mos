@@ -12,12 +12,28 @@ import { isSystemMessage, systemText } from "./systemMessage";
 import MessageContent from "./MessageContent";
 
 // 스프레드시트 테마 대화방(화면명세서 SCR-11). 메시지 하나 = 행 하나.
-// A 시간 · B 보낸 사람 · C 내용 · D 반응, 맨 아래 입력 행, 시트 탭 = 같은 모임의 채널
+// A 시간, B 보낸 사람, C 내용, D 반응, 맨 아래 입력 행, 시트 탭 = 같은 모임의 채널
+// 휴대폰(폭 640px 이하)에서는 메시지 하나 = 행 둘: 위 행 A 시간, B 보낸 사람(반응은 오른쪽 끝),
+// 아래 행은 A:B를 합친 셀에 내용(엑셀의 병합 셀처럼)
 
 const RIBBON = ["붙여넣기", "가", "가", "가", "≡", "≡", "≡", "%", "조건부 서식", "표 서식", "Σ 자동 합계", "정렬"];
 const MENUS = ["파일", "홈", "삽입", "페이지 레이아웃", "수식", "데이터", "검토", "보기"];
 const TAB_REFRESH_MS = 20000;
 const TITLE_ROW = 1;
+const NARROW_QUERY = "(max-width: 640px)";
+
+/** 휴대폰 폭인지(두 줄 배치는 이때만) */
+function useNarrow(): boolean {
+  const [narrow, setNarrow] = useState(() => window.matchMedia(NARROW_QUERY).matches);
+  useEffect(() => {
+    const query = window.matchMedia(NARROW_QUERY);
+    const update = () => setNarrow(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  return narrow;
+}
 
 /** 셀에 맞게 짧은 24시간 표기(14:05) */
 function cellTime(iso: string): string {
@@ -135,6 +151,7 @@ export default function SheetView(props: Props) {
     setActionError("");
   }, [selectedId]);
 
+  const narrow = useNarrow();
   const canSend = Boolean(channel?.can_send);
   const manageable = selected !== null && selected.web_sender_id === myUserId && canSend;
 
@@ -149,6 +166,13 @@ export default function SheetView(props: Props) {
     if (!previous || dayKey(previous.created_at) !== dayKey(message.created_at)) {
       rowNumber += 1;
       body.push(
+        narrow ? (
+          <div className="sheet-row sheet-row-day sheet-row-top" key={`day-${message.id}`}>
+            <span className="sheet-rownum">{rowNumber}</span>
+            <span className="sheet-cell">{formatDay(message.created_at)}</span>
+            <span className="sheet-cell" />
+          </div>
+        ) : (
         <div className="sheet-row sheet-row-day" key={`day-${message.id}`}>
           <span className="sheet-rownum">{rowNumber}</span>
           <span className="sheet-cell">{formatDay(message.created_at)}</span>
@@ -157,13 +181,24 @@ export default function SheetView(props: Props) {
           <span className="sheet-cell sheet-wide" />
           <span className="sheet-cell sheet-wide" />
           <span className="sheet-cell sheet-wide" />
-        </div>,
+        </div>
+        ),
       );
     }
     rowNumber += 1;
     rowNumberOf.set(message.id, rowNumber);
     if (isSystemMessage(message)) {
-      // 입장·고정 같은 알림은 내용 칸에 회색 기울임 글자로
+      // 입장, 고정 같은 알림은 내용 칸에 회색 기울임 글자로
+      if (narrow) {
+        body.push(
+          <div className="sheet-row sheet-row-system sheet-row-top" key={message.id}>
+            <span className="sheet-rownum">{rowNumber}</span>
+            <span className="sheet-cell">{cellTime(message.created_at)}</span>
+            <span className="sheet-cell sheet-cell-c">{systemText(message)}</span>
+          </div>,
+        );
+        return;
+      }
       body.push(
         <div className="sheet-row sheet-row-system" key={message.id}>
           <span className="sheet-rownum">{rowNumber}</span>
@@ -188,72 +223,100 @@ export default function SheetView(props: Props) {
     const text = plainText(message);
     const pictures = message.attachments.filter(isPicture);
     const stickers = message.stickers ?? [];
+    const select = () => props.onSelect(isSelected ? null : message.id);
+    const author = (
+      <>
+        <Avatar url={message.author.avatar_url} name={message.author.name} />
+        {message.author.name}
+      </>
+    );
+    const contentClass = [
+      "sheet-cell sheet-cell-c",
+      message.reference_id ? "sheet-has-note" : "",
+      pictures.length + stickers.length > 0 ? "sheet-cell-pics" : "",
+    ].join(" ");
+    const replyTitle = reply ? `↪ ${reply.author}: ${reply.text}` : undefined;
+    const content = (
+      <>
+        {message.content && (
+          // 서식(굵게, 기울임, 링크, 스포일러 등)은 그대로, 여러 줄은 한 줄로 이어서
+          <span className="sheet-md">
+            <MessageContent content={message.content} mentions={message.mentions} />
+          </span>
+        )}
+        {message.embeds.length > 0 && !text ? `[${message.embeds[0]?.title || "링크 미리보기"}]` : ""}
+        {message.attachments
+          .filter((attachment) => !isPicture(attachment))
+          .map((attachment) => (
+            <span key={attachment.id}>
+              {" "}
+              <AttachmentText attachment={attachment} />
+            </span>
+          ))}
+        {pictures.length + stickers.length > 0 && (
+          // 셀 안에 삽입한 그림처럼(행이 그만큼 높아진다)
+          <span className="sheet-pics">
+            {stickers.map((sticker) => (
+              <StickerView key={sticker.id} sticker={sticker} />
+            ))}
+            {pictures.map((attachment) => (
+              <AttachmentView key={attachment.id} attachment={attachment} />
+            ))}
+          </span>
+        )}
+      </>
+    );
+    const extra = (
+      <>
+        <Reactions message={message} myUserId={myUserId} onReact={props.onReact} compact />
+        {isStarter ? "본문" : isThread ? "댓글" : ""}
+        {message.edited_at ? `${isThread ? " " : ""}(수정됨)` : ""}
+      </>
+    );
+    if (narrow) {
+      // 휴대폰: 위 행(시간, 보낸 사람, 반응) + 아래 행(A:B 병합 셀에 내용)
+      const topRow = rowNumber;
+      rowNumber += 1;
+      rowNumberOf.set(message.id, rowNumber);
+      body.push(
+        <div className={[...classes, "sheet-row-top"].join(" ")} key={`${message.id}-top`} onClick={select}>
+          <span className="sheet-rownum">{topRow}</span>
+          <span className="sheet-cell">{cellTime(message.created_at)}</span>
+          <span className="sheet-cell sheet-author sheet-author-line" title={message.author.name}>
+            <span className="sheet-author-name">{author}</span>
+            <span className="sheet-author-extra">{extra}</span>
+          </span>
+        </div>,
+        <div className={[...classes, "sheet-row-body"].join(" ")} key={message.id} onClick={select}>
+          <span className="sheet-rownum">{rowNumber}</span>
+          <span className={contentClass} title={replyTitle}>
+            {content}
+          </span>
+        </div>,
+      );
+      return;
+    }
     body.push(
-      <div
-        className={classes.join(" ")}
-        key={message.id}
-        onClick={() => props.onSelect(isSelected ? null : message.id)}
-      >
+      <div className={classes.join(" ")} key={message.id} onClick={select}>
         <span className="sheet-rownum">{rowNumber}</span>
         <span className="sheet-cell">{cellTime(message.created_at)}</span>
         <span className="sheet-cell sheet-author" title={message.author.name}>
-          <Avatar url={message.author.avatar_url} name={message.author.name} />
-          {message.author.name}
+          {author}
         </span>
-        <span
-          className={[
-            "sheet-cell sheet-cell-c",
-            message.reference_id ? "sheet-has-note" : "",
-            pictures.length + stickers.length > 0 ? "sheet-cell-pics" : "",
-          ].join(" ")}
-          title={reply ? `↪ ${reply.author}: ${reply.text}` : undefined}
-        >
-          {message.content && (
-            // 서식(굵게·기울임·링크·스포일러 등)은 그대로, 여러 줄은 한 줄로 이어서
-            <span className="sheet-md">
-              <MessageContent content={message.content} mentions={message.mentions} />
-            </span>
-          )}
-          {message.embeds.length > 0 && !text ? `[${message.embeds[0]?.title || "링크 미리보기"}]` : ""}
-          {message.attachments
-            .filter((attachment) => !isPicture(attachment))
-            .map((attachment) => (
-              <span key={attachment.id}>
-                {" "}
-                <AttachmentText attachment={attachment} />
-              </span>
-            ))}
-          {pictures.length + stickers.length > 0 && (
-            // 셀 안에 삽입한 그림처럼(행이 그만큼 높아진다)
-            <span className="sheet-pics">
-              {stickers.map((sticker) => (
-                <StickerView key={sticker.id} sticker={sticker} />
-              ))}
-              {pictures.map((attachment) => (
-                <AttachmentView key={attachment.id} attachment={attachment} />
-              ))}
-            </span>
-          )}
-          {/* 좁은 화면은 D열이 숨으니 반응과 (수정됨)을 내용 칸 끝에 */}
-          {((message.reactions?.length ?? 0) > 0 || message.edited_at) && (
-            <span className="sheet-d-inline">
-              <Reactions message={message} myUserId={myUserId} onReact={props.onReact} compact />
-              {message.edited_at ? "(수정됨)" : ""}
-            </span>
-          )}
+        <span className={contentClass} title={replyTitle}>
+          {content}
         </span>
-        <span className="sheet-cell sheet-cell-d">
-          <Reactions message={message} myUserId={myUserId} onReact={props.onReact} compact />
-          {isStarter ? "본문" : isThread ? "댓글" : ""}
-          {message.edited_at ? `${isThread ? " " : ""}(수정됨)` : ""}
-        </span>
+        <span className="sheet-cell sheet-cell-d">{extra}</span>
         <span className="sheet-cell sheet-wide" />
         <span className="sheet-cell sheet-wide" />
       </div>,
     );
   });
   const inputRow = rowNumber + 1;
-  const nameBox = selected ? `C${rowNumberOf.get(selected.id) ?? ""}` : `C${inputRow}`;
+  const contentColumn = narrow ? "A" : "C";
+  const nameBox = selected
+    ? `${contentColumn}${rowNumberOf.get(selected.id) ?? ""}`
+    : `${contentColumn}${inputRow}`;
   const selectedReply = selected ? props.replyPreview(selected) : null;
 
   const remove = async () => {
@@ -279,6 +342,7 @@ export default function SheetView(props: Props) {
 
   return (
     <SheetFrame
+      variant={narrow ? "twoline" : undefined}
       gridStyle={nameColumn}
       showBack={props.showBack}
       onBack={props.onBack}
@@ -386,15 +450,23 @@ export default function SheetView(props: Props) {
           </span>
         </div>
       )}
-      <div className="sheet-row sheet-head">
-        <span className="sheet-rownum">{headRow}</span>
-        <span className="sheet-cell">시간</span>
-        <span className="sheet-cell">보낸 사람</span>
-        <span className="sheet-cell">내용</span>
-        <span className="sheet-cell">{channel?.kind === "thread" ? "구분" : "반응"}</span>
-        <span className="sheet-cell sheet-wide" />
-        <span className="sheet-cell sheet-wide" />
-      </div>
+      {narrow ? (
+        <div className="sheet-row sheet-head sheet-row-top">
+          <span className="sheet-rownum">{headRow}</span>
+          <span className="sheet-cell">시간</span>
+          <span className="sheet-cell">보낸 사람, 내용</span>
+        </div>
+      ) : (
+        <div className="sheet-row sheet-head">
+          <span className="sheet-rownum">{headRow}</span>
+          <span className="sheet-cell">시간</span>
+          <span className="sheet-cell">보낸 사람</span>
+          <span className="sheet-cell">내용</span>
+          <span className="sheet-cell">{channel?.kind === "thread" ? "구분" : "반응"}</span>
+          <span className="sheet-cell sheet-wide" />
+          <span className="sheet-cell sheet-wide" />
+        </div>
+      )}
       {props.hasMore && (
         <button type="button" className="sheet-older" onClick={props.onLoadOlder} disabled={props.loadingOlder}>
           {props.loadingOlder ? "불러오는 중…" : "위 행 더 불러오기"}

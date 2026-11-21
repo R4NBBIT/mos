@@ -6009,23 +6009,56 @@ a.attachment-image.attachment-image-small img {
   white-space: normal;
 }
 
-/* 스프레드시트 좁은 화면: 숨은 D열 대신 내용 칸 끝에 반응과 (수정됨) */
-.sheet-d-inline {
-  display: none;
-}
-
+/* ------------------------------------------------------------ 스프레드시트 휴대폰: 메시지 하나 = 행 둘
+   위 행: A 시간, B 보낸 사람(반응은 오른쪽 끝) / 아래 행: A:B 병합 셀에 내용.
+   SheetView가 폭 640px 이하에서만 sheet-twoline을 붙이고, 여기서도 같은 폭으로 한 번 더 막는다 */
 @media (max-width: 640px) {
-  .sheet-d-inline {
+  .sheet-twoline .sheet-colhead,
+  .sheet-twoline .sheet-row-top {
+    grid-template-columns: 34px 52px minmax(0, 1fr);
+  }
+
+  .sheet-twoline .sheet-colhead > .sheet-cell:nth-child(n + 4) {
+    display: none;
+  }
+
+  .sheet-twoline .sheet-row-body {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .sheet-twoline .sheet-row-body .sheet-cell-c {
+    padding: 4px 8px 6px;
+  }
+
+  .sheet-twoline .sheet-author.sheet-author-line {
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .sheet-author-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+
+  .sheet-author-extra {
+    flex-shrink: 0;
+    display: flex;
     align-items: center;
     gap: 4px;
-    margin-top: 3px;
     color: #6b7280;
     font-size: 12px;
   }
 
-  .sheet-d-inline .reactions-compact {
+  .sheet-author-extra:empty {
+    display: none;
+  }
+
+  .sheet-author-extra .reactions-compact {
     margin: 0;
   }
 }
