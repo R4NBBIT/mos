@@ -112,3 +112,9 @@ export function cachedLook(): Settings {
   }
   return { ...DEFAULT_SETTINGS };
 }
+
+/** 잠금·연결 화면 제목: 설정한 탭 제목, 없으면 테마 기본값 */
+export function lookTitle(): string {
+  const look = cachedLook();
+  return look.tab_title || DEFAULT_TITLES[look.theme];
+}

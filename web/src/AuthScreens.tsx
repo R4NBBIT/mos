@@ -2,6 +2,7 @@ import { type FormEvent, type ReactNode, useState } from "react";
 import { ApiError, removeAccount, setPassword, startConnect, switchAccount, unlock } from "./api";
 import { authText } from "./authText";
 import { isDiscordMediaUrl } from "./format";
+import { lookTitle } from "./theme";
 import type { SessionAccount, SessionState } from "./types";
 
 function errorText(caught: unknown): string {
@@ -39,7 +40,7 @@ function Card({ title, hint, children }: { title: string; hint?: string; childre
 /** 이 브라우저에 계정이 하나도 없을 때 */
 export function ConnectScreen({ notice }: { notice: string }) {
   return (
-    <Card title="작업 메모" hint="처음 쓰는 브라우저예요. 계정을 연결해 주세요.">
+    <Card title={lookTitle()} hint="처음 쓰는 브라우저예요. 계정을 연결해 주세요.">
       {notice && <p className="login-error">{notice}</p>}
       <button type="button" className="primary-button" onClick={() => startConnect("connect")}>
         계정 연결하기
@@ -200,7 +201,7 @@ export function UnlockScreen({
   };
 
   return (
-    <Card title="작업 메모">
+    <Card title={lookTitle()}>
       <div className="account-row">
         <AccountFace account={account} />
         <strong>{account.name}</strong>
