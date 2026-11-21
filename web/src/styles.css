@@ -5995,3 +5995,16 @@ a.attachment-image.attachment-image-small img {
   color: var(--sub);
   font-size: 13px;
 }
+
+/* ------------------------------------------------------------ 스프레드시트: 내용 칸은 '텍스트 줄 바꿈'
+   한 줄로 자르면(…) 좁은 화면에서 글을 끝까지 읽을 수 없어서, 엑셀의 줄 바꿈 셀처럼 행이 길어진다 */
+.sheet-cell.sheet-cell-c {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
+
+.sheet-cell-c .sheet-md .msg-text,
+.sheet-cell-c .sheet-md .md-codeblock code {
+  white-space: normal;
+}
