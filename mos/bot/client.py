@@ -413,9 +413,33 @@ class MosBot(discord.Client):
             return
         await self.store_and_publish(payload.message, "message_update")
 
+    # ------------------------------------------------------------ 포럼 글·스레드 목록 실시간
+
+    async def threads_changed(self, parent_id: int | None) -> None:
+        """글이 생기거나 바뀌거나 새 댓글이 달리면, 그 목록을 보는 화면에 다시 받으라고 알린다."""
+        if parent_id is None:
+            return
+        await self.hub.publish(parent_id, "threads_changed", {"channel_id": str(parent_id)})
+
+    def _parent_of(self, channel_id: int) -> int | None:
+        channel = self.get_channel(channel_id)
+        return channel.parent_id if isinstance(channel, discord.Thread) else None
+
+    async def on_thread_create(self, thread: discord.Thread) -> None:
+        await self.threads_changed(thread.parent_id)
+
+    async def on_thread_update(self, before: discord.Thread, after: discord.Thread) -> None:
+        self._thread_cache.pop(after.id, None)  # 보관·잠금·이름이 바뀌었을 수 있다
+        await self.threads_changed(after.parent_id)
+
+    async def on_raw_thread_delete(self, payload: discord.RawThreadDeleteEvent) -> None:
+        self._thread_cache.pop(payload.thread_id, None)
+        await self.threads_changed(payload.parent_id)
+
     async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent) -> None:
         if payload.guild_id is None:
             return
+        await self.threads_changed(self._parent_of(payload.channel_id))
         await self.repo.delete_many([payload.message_id])
         await self.hub.publish(
             payload.channel_id,
@@ -470,6 +494,8 @@ class MosBot(discord.Client):
         if row is not None:
             await self.hub.publish(message.channel.id, event_type, row_to_api(row))
             if event_type == "message_create":
+                if isinstance(message.channel, discord.Thread):
+                    await self.threads_changed(message.channel.parent_id)  # 댓글 수·최근 활동
                 task = asyncio.create_task(self._notify(message.channel.id, row))
                 self._notify_tasks.add(task)
                 task.add_done_callback(self._notify_tasks.discard)

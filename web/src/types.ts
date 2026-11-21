@@ -149,7 +149,7 @@ export interface GroupChannels {
 export type RealtimeEvent =
   | { type: "message_create" | "message_update"; data: Message }
   | { type: "message_delete"; data: { channel_id: string; ids: string[] } }
-  | { type: "subscribed" | "subscribe_denied"; data: { channel_id: string } };
+  | { type: "subscribed" | "subscribe_denied" | "threads_changed"; data: { channel_id: string } };
 
 /** 이 브라우저에 저장된 계정 하나 */
 export interface SessionAccount {

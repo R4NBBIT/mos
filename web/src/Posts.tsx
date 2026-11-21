@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useEffect, useState } from "react";
+import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, createPost, fetchThreads } from "./api";
 import { sendErrorText } from "./Composer";
 import { formatDay, formatTime } from "./format";
@@ -6,6 +6,9 @@ import { formatBytes, prepareImage } from "./imageResize";
 import { SheetFrame } from "./SheetView";
 import type { Theme } from "./theme";
 import type { ChannelInfo, ForumTag, ThreadPage, ThreadSummary } from "./types";
+import { useRealtime } from "./useRealtime";
+
+const REFRESH_DELAY_MS = 1500; // 댓글이 몰려도 한 번만 다시 받는다
 
 const MAX_TAGS = 5;
 
@@ -210,11 +213,50 @@ export default function Posts({
     };
   }, [parentId, onAuthLost]);
 
+  // 실시간: 글이 생기거나 바뀌거나 댓글이 달리면 첫 쪽을 다시 받아 합친다(더 불러온 지난 글은 그대로)
+  const moreLoaded = useRef(false);
+  const connectedOnce = useRef(false);
+  const refreshTimer = useRef<number | undefined>(undefined);
+  const refresh = useCallback(() => {
+    window.clearTimeout(refreshTimer.current);
+    refreshTimer.current = window.setTimeout(() => {
+      fetchThreads(parentId, null)
+        .then((body) => {
+          const fresh = new Set(body.threads.map((thread) => thread.id));
+          setThreads((current) =>
+            moreLoaded.current
+              ? [...body.threads, ...current.filter((thread) => thread.archived && !fresh.has(thread.id))]
+              : body.threads,
+          );
+          setPage((current) =>
+            moreLoaded.current && current ? { ...body, has_more: current.has_more, next_before: current.next_before } : body,
+          );
+        })
+        .catch(() => {}); // 다음 변경 때 다시
+    }, REFRESH_DELAY_MS);
+  }, [parentId]);
+  useEffect(() => {
+    moreLoaded.current = false;
+    return () => window.clearTimeout(refreshTimer.current);
+  }, [parentId]);
+  useRealtime(parentId, {
+    onEvent: (event) => {
+      if (event.type === "threads_changed" && event.data.channel_id === parentId) refresh();
+    },
+    onConnected: () => {
+      if (connectedOnce.current) refresh(); // 끊긴 사이 바뀐 것
+      connectedOnce.current = true;
+    },
+    onStatus: () => {},
+    onRejected: onAuthLost,
+  });
+
   const loadMore = async () => {
     if (!page?.next_before || loadingMore) return;
     setLoadingMore(true);
     try {
       const next = await fetchThreads(parentId, page.next_before);
+      moreLoaded.current = true;
       setPage(next);
       setThreads((current) => [...current, ...next.threads.filter((t) => !current.some((c) => c.id === t.id))]);
     } catch {
