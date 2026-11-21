@@ -3,7 +3,7 @@
 // 잠긴 상태로 새로 열어도 위장 화면은 떠야 하므로, 마지막 목록도 이 브라우저에 기억한다.
 import { ApiError } from "../api";
 
-export type AssetKind = "sheet" | "image" | "text";
+export type AssetKind = "sheet" | "image" | "text" | "note" | "word";
 
 export interface AssetInfo {
   name: string;
@@ -158,4 +158,27 @@ export async function resetEdits(key: string): Promise<void> {
     // 무시
   }
   await call(`/api/boss/edits/${encodeURIComponent(key)}`, { method: "DELETE" });
+}
+
+/** 모두 처음으로: 계정에 올린 파일과 고친 내용을 전부 지우고, 이 브라우저 사본도 지운다 */
+export async function resetAll(): Promise<void> {
+  await call("/api/boss", { method: "DELETE" });
+  for (const timer of pending.values()) window.clearTimeout(timer);
+  pending.clear();
+  try {
+    const keys: string[] = [];
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (key?.startsWith("mos.boss.") && key !== "mos.boss.info.v1") keys.push(key);
+    }
+    for (const key of keys) window.localStorage.removeItem(key);
+  } catch {
+    // 무시
+  }
+  rememberInfo({});
+  try {
+    if ("caches" in window) await caches.delete(CACHE_NAME);
+  } catch {
+    // 무시
+  }
 }

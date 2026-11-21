@@ -160,7 +160,9 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
               </button>
             ))}
           </div>
-          <p className="settings-note">고르는 즉시 바뀌고, 이 계정에 기억돼요. 탭 제목과 아이콘도 테마에 맞춰 바뀌어요.</p>
+          <p className="settings-note">
+            고르는 즉시 바뀌고, 이 계정에 기억돼요. 탭 제목과 아이콘도 테마에 맞춰 바뀌어요.
+          </p>
         </section>
 
         <section className="settings-card">
@@ -180,23 +182,30 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
           <label className="settings-toggle">
             <span>
               <strong>반응</strong>
-              <small>작게 고르면 반응 수만 흐린 '+3'으로 보이고, 누르면 펼쳐져요</small>
+              <small>작게 고르면 반응 수만 흐린 '+n'(n은 반응 수)으로 보여요</small>
             </span>
             <select
               className="settings-select"
               aria-label="반응 표시"
               value={settings.reactions_view}
-              onChange={(event) => void save({ reactions_view: event.target.value as ReactionsView })}
+              onChange={(event) =>
+                void save({
+                  reactions_view: event.target.value as ReactionsView,
+                })
+              }
             >
               <option value="full">그대로</option>
-              <option value="compact">작게(+3)</option>
+              <option value="compact">작게(+n)</option>
               <option value="hidden">숨기기</option>
             </select>
           </label>
           <label className="settings-toggle">
             <span>
               <strong>스티커와 큰 이모지</strong>
-              <small>작게 고르면 스티커는 작은 그림, 이모지는 글자 크기로, 움직이는 이모지는 멈춰요. 숨기면 이름 글자로만 보여요</small>
+              <small>
+                작게 고르면 스티커는 작은 그림, 이모지는 글자 크기로, 움직이는 이모지는 멈춰요. 숨기면 이름 글자로만
+                보여요
+              </small>
             </span>
             <select
               className="settings-select"
@@ -232,135 +241,146 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
               }}
             />
           </form>
-          <p className="settings-note">비워 두면 테마 기본값({defaultTitle(settings.theme)})을 써요. 잠금 화면 제목도 같이 바뀌어요.</p>
-        </section>
-
-        <section className="settings-card">
-          <h2 className="settings-title">잠금</h2>
-          <label className="settings-toggle">
-            <span>
-              <strong>자동 잠금</strong>
-              <small>이 시간 동안 아무것도 안 하면 잠겨서 비밀번호를 다시 물어요</small>
-            </span>
-            <select
-              className="settings-select"
-              aria-label="자동 잠금 시간"
-              value={settings.lock_minutes}
-              onChange={(event) => void save({ lock_minutes: Number(event.target.value) })}
-            >
-              {LOCK_MINUTES.map((minutes) => (
-                <option key={minutes} value={minutes}>
-                  {lockLabel(minutes)}
-                </option>
-              ))}
-            </select>
-          </label>
           <p className="settings-note">
-            잠금 해제할 때 '로그인 유지'를 고르면 이 브라우저에서는 30일 동안 잠기지 않아요. 계정 메뉴 › 잠그기로 바로 잠글 수도
-            있어요.
+            비워 두면 테마 기본값({defaultTitle(settings.theme)})을 써요. 잠금 화면 제목도 같이 바뀌어요.
           </p>
         </section>
 
         <section className="settings-card">
+          <h2 className="settings-title">잠금</h2>
+          <div className="settings-item">
+            <label className="settings-toggle">
+              <span>
+                <strong>자동 잠금</strong>
+                <small>이 시간 동안 아무것도 안 하면 잠겨서 비밀번호를 다시 물어요</small>
+              </span>
+              <select
+                className="settings-select"
+                aria-label="자동 잠금 시간"
+                value={settings.lock_minutes}
+                onChange={(event) => void save({ lock_minutes: Number(event.target.value) })}
+              >
+                {LOCK_MINUTES.map((minutes) => (
+                  <option key={minutes} value={minutes}>
+                    {lockLabel(minutes)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="settings-item-note">
+              잠금 해제할 때 '로그인 유지'를 고르면 이 브라우저에서는 30일 동안 잠기지 않아요. 계정 메뉴 › 잠그기로 바로
+              잠글 수도 있어요.
+            </p>
+          </div>
+        </section>
+
+        <section className="settings-card">
           <h2 className="settings-title">알림</h2>
-          <label className="settings-toggle">
-            <span>
-              <strong>알림 받기</strong>
-              <small>새 알림이 오면 탭 제목 앞에 숫자를 붙이고, 다른 창을 보고 있으면 알림 창을 띄워요</small>
-            </span>
-            <input
-              type="checkbox"
-              className="switch"
-              checked={settings.notify}
-              onChange={(event) => void save({ notify: event.target.checked })}
-            />
-          </label>
-          {settings.notify && (
-            <>
-              <h3 className="settings-sub">알려 줄 메시지</h3>
-              <div className="boss-choices" role="radiogroup" aria-label="알려 줄 메시지">
-                <label className="boss-choice">
-                  <input
-                    type="radio"
-                    name="notify-scope"
-                    checked={settings.notify_scope === "pinned"}
-                    onChange={() => void save({ notify_scope: "pinned" })}
-                  />
-                  나를 부른 메시지 + 고정한 채널의 새 메시지
-                </label>
-                <label className="boss-choice">
-                  <input
-                    type="radio"
-                    name="notify-scope"
-                    checked={settings.notify_scope === "mentions"}
-                    onChange={() => void save({ notify_scope: "mentions" })}
-                  />
-                  나를 부른 메시지만
-                </label>
-                <label className="boss-choice">
-                  <input
-                    type="radio"
-                    name="notify-scope"
-                    checked={settings.notify_scope === "all"}
-                    onChange={() => void save({ notify_scope: "all" })}
-                  />
-                  모든 새 메시지(볼 수 있는 모든 채널)
-                </label>
-              </div>
-              <p className="settings-note">
-                나를 부른 메시지는 @내 이름이 들어간 글과 내 글에 단 답장이에요.
-                {settings.notify_scope === "all" && " 모든 새 메시지를 고르면 채널이 많을 때 알림이 아주 자주 올 수 있어요."}
-              </p>
-              <label className="settings-toggle">
-                <span>
-                  <strong>알림 창에 보낸 사람과 내용 보이기</strong>
-                  <small>끄면 탭 제목과 '새 알림 n건'만 보여서 옆에서 봐도 티가 덜 나요</small>
-                </span>
-                <input
-                  type="checkbox"
-                  className="switch"
-                  checked={settings.notify_preview}
-                  onChange={(event) => void save({ notify_preview: event.target.checked })}
-                />
-              </label>
-              <p className="settings-note">{POPUP_TEXT[popup]}</p>
-              {popup === "default" && (
-                <div className="settings-buttons">
-                  <button
-                    type="button"
-                    className="pill-button pill-button-strong"
-                    onClick={() => void askPopupPermission().then(setPopup)}
-                  >
-                    이 브라우저에서 알림 허용하기
-                  </button>
-                </div>
-              )}
-              {push !== "unsupported" && (
-                <label className="settings-toggle">
-                  <span>
-                    <strong>탭을 닫아도 알림 받기(이 브라우저)</strong>
-                    <small>
-                      {push === "denied"
-                        ? "브라우저에서 알림이 막혀 있어요. 주소창 왼쪽 자물쇠에서 알림을 허용해 주세요."
-                        : "브라우저만 켜져 있으면 이 탭을 닫아도 알려요. 휴대폰 크롬에서도 돼요."}
-                    </small>
-                  </span>
-                  <input
-                    type="checkbox"
-                    className="switch"
-                    checked={push === "on"}
-                    disabled={pushBusy || push === "denied"}
-                    onChange={(event) => void togglePush(event.target.checked)}
-                  />
-                </label>
-              )}
-              <p className="settings-note">
+          <div className="settings-item">
+            <label className="settings-toggle">
+              <span>
+                <strong>알림 받기</strong>
+                <small>새 알림이 오면 탭 제목 앞에 숫자를 붙이고, 다른 창을 보고 있으면 알림 창을 띄워요</small>
+              </span>
+              <input
+                type="checkbox"
+                className="switch"
+                checked={settings.notify}
+                onChange={(event) => void save({ notify: event.target.checked })}
+              />
+            </label>
+            {settings.notify && (
+              <p className="settings-item-note">
                 {push === "on"
                   ? "탭이 열려 있으면 탭에서, 닫혀 있으면 브라우저가 알려요."
                   : "이 화면이 탭으로 열려 있는 동안만 알려요."}{" "}
                 위장 화면 중에는 알림 창을 띄우지 않아요.
                 {push === "unsupported" && " 아이폰은 사파리에서 '홈 화면에 추가'한 뒤에만 알림을 받을 수 있어요."}
               </p>
+            )}
+          </div>
+          {settings.notify && (
+            <>
+              <div className="settings-item">
+                <h3 className="settings-sub">알려 줄 메시지</h3>
+                <div className="boss-choices" role="radiogroup" aria-label="알려 줄 메시지">
+                  <label className="boss-choice">
+                    <input
+                      type="radio"
+                      name="notify-scope"
+                      checked={settings.notify_scope === "pinned"}
+                      onChange={() => void save({ notify_scope: "pinned" })}
+                    />
+                    나를 부른 메시지 + 고정한 채널의 새 메시지
+                  </label>
+                  <label className="boss-choice">
+                    <input
+                      type="radio"
+                      name="notify-scope"
+                      checked={settings.notify_scope === "mentions"}
+                      onChange={() => void save({ notify_scope: "mentions" })}
+                    />
+                    나를 부른 메시지만
+                  </label>
+                  <label className="boss-choice">
+                    <input
+                      type="radio"
+                      name="notify-scope"
+                      checked={settings.notify_scope === "all"}
+                      onChange={() => void save({ notify_scope: "all" })}
+                    />
+                    모든 새 메시지(볼 수 있는 모든 채널)
+                  </label>
+                </div>
+                <p className="settings-item-note">나를 부른 메시지는 @내 이름이 들어간 글과 내 글에 단 답장이에요.</p>
+              </div>
+              <div className="settings-item">
+                <label className="settings-toggle">
+                  <span>
+                    <strong>알림 창에 보낸 사람과 내용 보이기</strong>
+                    <small>끄면 탭 제목과 '새 알림 n건'만 보여서 옆에서 봐도 티가 덜 나요</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    className="switch"
+                    checked={settings.notify_preview}
+                    onChange={(event) => void save({ notify_preview: event.target.checked })}
+                  />
+                </label>
+                <p className="settings-item-note">{POPUP_TEXT[popup]}</p>
+                {popup === "default" && (
+                  <div className="settings-buttons">
+                    <button
+                      type="button"
+                      className="pill-button pill-button-strong"
+                      onClick={() => void askPopupPermission().then(setPopup)}
+                    >
+                      이 브라우저에서 알림 허용하기
+                    </button>
+                  </div>
+                )}
+              </div>
+              {push !== "unsupported" && (
+                <div className="settings-item">
+                  <label className="settings-toggle">
+                    <span>
+                      <strong>탭을 닫아도 알림 받기(이 브라우저)</strong>
+                      <small>
+                        {push === "denied"
+                          ? "브라우저에서 알림이 막혀 있어요. 주소창 왼쪽 자물쇠에서 알림을 허용해 주세요."
+                          : "브라우저만 켜져 있으면 이 탭을 닫아도 알려요. 휴대폰 크롬에서도 돼요."}
+                      </small>
+                    </span>
+                    <input
+                      type="checkbox"
+                      className="switch"
+                      checked={push === "on"}
+                      disabled={pushBusy || push === "denied"}
+                      onChange={(event) => void togglePush(event.target.checked)}
+                    />
+                  </label>
+                </div>
+              )}
             </>
           )}
         </section>
@@ -375,15 +395,18 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
           )}
           {!touchOnly && (
             <p className="settings-note settings-lead">
-              어느 화면에서든 보스키({bossKeyLabel(parseBossKey(settings.boss_key))})를 누르면 업무 표로 바뀌고, 한 번 더
-              누르면 돌아와요. 화면 왼쪽 아래 모서리를 눌러도 돼요.
+              어느 화면에서든 보스키(
+              {bossKeyLabel(parseBossKey(settings.boss_key))})를 누르면 업무 화면으로 바뀌고, 한 번 더 누르면 돌아와요. 화면
+              왼쪽 아래 모서리를 눌러도 돼요.
             </p>
           )}
-          <BossKeyPicker value={settings.boss_key} onSave={(value) => void save({ boss_key: value })} />
+          <div className="settings-item">
+            <BossKeyPicker value={settings.boss_key} onSave={(value) => void save({ boss_key: value })} />
+          </div>
 
           <DisguiseSettings settings={settings} save={save} onFileChanged={onFileChanged} />
 
-          <h3 className="settings-sub">더 숨기기</h3>
+          <h3 className="settings-sub settings-sub-line">더 숨기기</h3>
           <label className="settings-toggle">
             <span>
               <strong>자동 위장</strong>

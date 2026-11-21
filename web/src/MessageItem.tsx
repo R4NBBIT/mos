@@ -339,6 +339,7 @@ function MessageItem({
           {message.reference_id && (
             <span className="line-time">↪ {reply ? `${reply.author}: ${reply.text} / ` : ""}</span>
           )}
+          <Avatar url={author.avatar_url} name={author.name} />
           <span className="line-name">{author.name}</span>
           {isApp && " [앱]"}: <MessageTextOnly message={message} pictures />
           {message.edited_at && <span className="line-time"> (수정됨)</span>}
@@ -367,6 +368,7 @@ function MessageItem({
         )}
         <div className="para-line">
           <span className="para-who" title={`${who} ${when}`}>
+            <Avatar url={author.avatar_url} name={author.name} />
             <span className="para-name">{who}</span>
             <span className="para-when">{when}</span>
           </span>

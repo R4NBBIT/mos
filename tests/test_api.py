@@ -565,6 +565,18 @@ def test_boss_files_saved_per_account_encrypted(env: Env, tmp_path: Path) -> Non
     assert env.client.get("/api/boss/edits/weekly").json() == {"edits": None}
     assert env.client.get("/api/boss/edits/../x").status_code == 404
 
+    # 노션, Word 글도 올릴 수 있고, 모두 처음으로 하면 파일과 고친 내용이 다 지워진다
+    for kind in ("note", "word"):
+        saved = env.client.put(
+            f"/api/boss/assets/{kind}?name=정리.md", content="# 업무 정리".encode(), headers=POST
+        )
+        assert saved.status_code == 200
+    env.client.put("/api/boss/edits/mos.boss.note.v1", json="고친 글", headers=POST)
+    assert set(env.client.get("/api/boss").json()["assets"]) == {"image", "note", "word"}
+    assert env.client.delete("/api/boss", headers=POST).status_code == 204
+    assert env.client.get("/api/boss").json()["assets"] == {}
+    assert env.client.get("/api/boss/edits/mos.boss.note.v1").json() == {"edits": None}
+
     # 다른 계정에서는 안 보인다
     signed_up(env, "latte")
     assert env.client.get("/api/boss").json()["assets"] == {}

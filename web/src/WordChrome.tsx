@@ -14,7 +14,8 @@ function Icon({ path, size = 16 }: { path: string; size?: number }) {
 
 const TABS = ["파일", "홈", "삽입", "레이아웃", "참조", "검토", "보기", "도움말"];
 
-export default function WordChrome() {
+/** name을 주면(위장 화면) 그 이름을 그대로 보여 주고, 없으면 탭 제목을 눌러서 고칠 수 있게 */
+export default function WordChrome({ name }: { name?: string }) {
   const { settings, save } = useLook();
   const fallback = defaultTitle("word");
   return (
@@ -28,14 +29,18 @@ export default function WordChrome() {
         <span className="word-app-name" aria-hidden="true">
           Word
         </span>
-        <EditableText
-          className="word-doc-name"
-          value={settings.tab_title || fallback}
-          fallback={fallback}
-          maxLength={40}
-          label="문서 이름(탭 제목)"
-          onSave={(text) => void save({ tab_title: text })}
-        />
+        {name ? (
+          <span className="word-doc-name">{name}</span>
+        ) : (
+          <EditableText
+            className="word-doc-name"
+            value={settings.tab_title || fallback}
+            fallback={fallback}
+            maxLength={40}
+            label="문서 이름(탭 제목)"
+            onSave={(text) => void save({ tab_title: text })}
+          />
+        )}
         <span className="word-saved" aria-hidden="true">
           저장됨
         </span>

@@ -88,7 +88,7 @@ interface ZipEntry {
   localOffset: number;
 }
 
-function readEntries(data: Uint8Array): ZipEntry[] {
+function readEntries(data: Uint8Array, notZip = "엑셀 파일(.xlsx)이 아니에요."): ZipEntry[] {
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   let eocd = -1;
   for (let i = data.length - 22; i >= Math.max(0, data.length - 65_557); i -= 1) {
@@ -97,7 +97,7 @@ function readEntries(data: Uint8Array): ZipEntry[] {
       break;
     }
   }
-  if (eocd < 0) throw new FileImportError("엑셀 파일(.xlsx)이 아니에요.");
+  if (eocd < 0) throw new FileImportError(notZip);
   const count = view.getUint16(eocd + 10, true);
   let offset = view.getUint32(eocd + 16, true);
   const decoder = new TextDecoder();
@@ -357,4 +357,47 @@ export async function importMyFile(file: File): Promise<StoredFile> {
   const stored: StoredFile = { ...workbook, stamp: String(Date.now()) };
   saveMyFile(stored);
   return stored;
+}
+
+// ------------------------------------------------------------------ docx(Word 위장 화면)
+
+const MAX_DOC_TEXT = 190_000;
+
+/**
+ * Word 파일(.docx)에서 글만 뽑는다: 제목은 '# ', '## ', '### ', 목록은 '- ', 나머지는 문단 한 줄.
+ * 원본 파일은 서버로 보내지 않는다(뽑은 글만 계정에 저장).
+ */
+export async function readDocx(file: File): Promise<string> {
+  if (file.size > MAX_FILE_BYTES) throw new FileImportError("5MB보다 작은 파일만 불러올 수 있어요.");
+  if (!/\.docx$/i.test(file.name)) throw new FileImportError("Word 파일(.docx)만 불러올 수 있어요. (.doc는 Word에서 .docx로 저장해 주세요)");
+  if (typeof DecompressionStream === "undefined") throw new FileImportError("이 브라우저에서는 Word 파일을 읽을 수 없어요.");
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const entry = readEntries(bytes, "Word 파일(.docx)이 아니에요.").find((item) => item.name === "word/document.xml");
+  if (!entry) throw new FileImportError("Word 파일(.docx)이 아니에요.");
+  const doc = xml(await readEntry(bytes, entry));
+  const lines: string[] = [];
+  for (const paragraph of all(doc, "p")) {
+    let text = "";
+    for (const node of Array.from(paragraph.getElementsByTagNameNS("*", "*"))) {
+      if (node.localName === "t") text += node.textContent ?? "";
+      else if (node.localName === "tab") text += " ";
+      else if (node.localName === "br") text += " ";
+    }
+    text = text.replace(/\s+/g, " ").trim();
+    if (!text) {
+      if (lines.length > 0 && lines[lines.length - 1] !== "") lines.push("");
+      continue;
+    }
+    const styleNode = all(paragraph, "pStyle")[0];
+    const style = styleNode ? (Array.from(styleNode.attributes).find((item) => item.localName === "val")?.value ?? "") : "";
+    // 문서 제목(Title)은 '# ', 제목 1은 '## ', 제목 2 이하는 '### '
+    const heading = Number(/(?:heading|제목)\s*([1-9])/i.exec(style)?.[1] ?? 0);
+    const level = /^(title|제목)$/i.test(style) ? 1 : heading > 0 ? Math.min(heading + 1, 3) : 0;
+    const listed = all(paragraph, "numPr").length > 0 || /list/i.test(style);
+    lines.push(level > 0 ? `${"#".repeat(level)} ${text}` : listed ? `- ${text}` : text);
+    if (lines.join("\n").length > MAX_DOC_TEXT) break;
+  }
+  const result = lines.join("\n").trim().slice(0, MAX_DOC_TEXT);
+  if (!result) throw new FileImportError("문서에서 글을 찾지 못했어요.");
+  return result;
 }

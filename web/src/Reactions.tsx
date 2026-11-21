@@ -41,24 +41,15 @@ interface Props {
 
 export default function Reactions({ message, myUserId, onReact, compact = false }: Props) {
   const view = useLook().settings.reactions_view;
-  const [opened, setOpened] = useState(false);
   const list = message.reactions ?? [];
   if (list.length === 0 || view === "hidden") return null;
-  if (view === "compact" && !opened) {
-    // 설정 '작게': 반응 수만 흐린 '+3'으로, 누르면 펼쳐 본다
+  if (view === "compact") {
+    // 설정 '작게': 반응 수만 흐린 '+n'으로(눌러도 펼치지 않는다. 반응 달기는 메시지를 눌러 '반응')
     const total = list.reduce((sum, reaction) => sum + reaction.count, 0);
     return (
-      <button
-        type="button"
-        className="reactions-mini"
-        aria-label={`반응 ${total}개, 눌러서 보기`}
-        onClick={(event) => {
-          event.stopPropagation();
-          setOpened(true);
-        }}
-      >
+      <span className="reactions-mini" role="note" aria-label={`반응 ${total}개`}>
         +{total}
-      </button>
+      </span>
     );
   }
   return (

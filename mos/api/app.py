@@ -1057,6 +1057,11 @@ def create_app(
         account = await require_account(request)
         return {"assets": await boss_files.info(account.account_id)}
 
+    @app.delete("/api/boss", status_code=204)
+    async def boss_reset(request: Request) -> None:
+        account = await require_account(request)
+        await boss_files.reset(account.account_id)
+
     @app.get("/api/boss/assets/{kind}")
     async def boss_asset(kind: str, request: Request) -> Response:
         account = await require_account(request)

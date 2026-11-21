@@ -6,7 +6,7 @@ import { defaultTitle } from "./theme";
 import { type ReactNode, type RefObject, useEffect, useState } from "react";
 import { fetchGroupChannels } from "./api";
 import { dayKey, formatDay } from "./format";
-import { AttachmentText, AttachmentView, isPicture, MessageTextOnly, StickerView, type ReplyPreview } from "./MessageItem";
+import { AttachmentText, AttachmentView, Avatar, isPicture, MessageTextOnly, StickerView, type ReplyPreview } from "./MessageItem";
 import type { ChannelInfo, Message } from "./types";
 import { isSystemMessage, systemText } from "./systemMessage";
 import MessageContent from "./MessageContent";
@@ -196,7 +196,10 @@ export default function SheetView(props: Props) {
       >
         <span className="sheet-rownum">{rowNumber}</span>
         <span className="sheet-cell">{cellTime(message.created_at)}</span>
-        <span className="sheet-cell">{message.author.name}</span>
+        <span className="sheet-cell sheet-author">
+          <Avatar url={message.author.avatar_url} name={message.author.name} />
+          {message.author.name}
+        </span>
         <span
           className={[
             "sheet-cell sheet-cell-c",

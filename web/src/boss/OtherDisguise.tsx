@@ -1,4 +1,4 @@
-// 표가 아닌 위장 화면: 내 스크린샷 사진, 메모장 같은 글 문서.
+// 표가 아닌 위장 화면: 내 스크린샷 사진, 메모장 같은 글 문서(노션, Word는 DocDisguise.tsx).
 import { useEffect, useRef, useState } from "react";
 import { localEdits, pullEdits, pushEdits } from "./bossStore";
 
@@ -54,15 +54,23 @@ export function ImageDisguise({ url, fit }: { url: string | null; fit: "cover" |
   );
 }
 
-/** 메모장처럼 보이는 글 문서. 쓴 내용은 계정에 저장(처음 내용은 올린 .txt 또는 빈 문서) */
-export function TextDisguise({ original, active }: { original: string; active: boolean }) {
-  const [text, setText] = useState(() => localEdits<string>(TEXT_KEY) ?? original);
+/** 메모장처럼 보이는 글 문서. 쓴 내용은 계정에 저장(처음 내용은 예시 글, 올린 .txt 또는 빈 문서) */
+export function TextDisguise({
+  original,
+  active,
+  editKey = TEXT_KEY,
+}: {
+  original: string;
+  active: boolean;
+  editKey?: string;
+}) {
+  const [text, setText] = useState(() => localEdits<string>(editKey) ?? original);
   const areaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     let stopped = false;
-    setText(localEdits<string>(TEXT_KEY) ?? original);
-    pullEdits<string>(TEXT_KEY)
+    setText(localEdits<string>(editKey) ?? original);
+    pullEdits<string>(editKey)
       .then((saved) => {
         if (!stopped && typeof saved === "string") setText(saved);
       })
@@ -70,7 +78,7 @@ export function TextDisguise({ original, active }: { original: string; active: b
     return () => {
       stopped = true;
     };
-  }, [original]);
+  }, [original, editKey]);
 
   useEffect(() => {
     if (active) areaRef.current?.focus({ preventScroll: true });
@@ -92,7 +100,7 @@ export function TextDisguise({ original, active }: { original: string; active: b
         onChange={(event) => {
           const next = event.target.value.slice(0, MAX_TEXT);
           setText(next);
-          pushEdits(TEXT_KEY, next);
+          pushEdits(editKey, next);
         }}
       />
       <div className="boss-text-status" aria-hidden="true">
@@ -106,3 +114,13 @@ export function TextDisguise({ original, active }: { original: string; active: b
 }
 
 export const TEXT_EDIT_KEY = TEXT_KEY;
+
+/** 예시와 내 파일마다 고친 내용을 따로 기억하는 열쇠 */
+export const EDIT_KEYS = {
+  memo: "mos.boss.memo.v1",
+  text: TEXT_KEY,
+  note: "mos.boss.note.v1",
+  notefile: "mos.boss.notefile.v1",
+  word: "mos.boss.word.v1",
+  wordfile: "mos.boss.wordfile.v1",
+} as const;

@@ -212,18 +212,18 @@ function buildCards(
     title: "누가 오면, 위장 화면",
     body: touchOnly ? (
       <ul>
-        <li>화면 왼쪽 아래 모서리를 누르면 업무 표로 바뀌고, 한 번 더 누르면 보던 화면으로 돌아와요.</li>
+        <li>화면 왼쪽 아래 모서리를 누르면 업무 화면으로 바뀌고, 한 번 더 누르면 보던 화면으로 돌아와요.</li>
         <li>휴대폰과 태블릿에는 키보드가 없어 보스키는 쓸 수 없어요(컴퓨터에서는 {bossKeyLabel(parseBossKey(settings.boss_key))}).</li>
-        <li>보여 줄 표는 설정 › 위장 화면에서 바꿀 수 있어요.</li>
+        <li>보여 줄 화면(스프레드시트, 메모장, 노션, Word 등)은 설정 › 위장 화면에서 바꿀 수 있어요.</li>
       </ul>
     ) : (
       <ul>
         <li>
-          어느 화면에서든 보스키(<strong>{bossKeyLabel(parseBossKey(settings.boss_key))}</strong>)를 누르면 업무 표로 바뀌고,
+          어느 화면에서든 보스키(<strong>{bossKeyLabel(parseBossKey(settings.boss_key))}</strong>)를 누르면 업무 화면으로 바뀌고,
           한 번 더 누르면 보던 화면 그대로 돌아와요.
         </li>
         <li>화면 왼쪽 아래 모서리를 눌러도 돼요.</li>
-        <li>보스키, 보여 줄 표, 자동 위장은 설정 › 위장 화면에서 바꿔요.</li>
+        <li>보스키, 보여 줄 화면, 자동 위장은 설정 › 위장 화면에서 바꿔요.</li>
       </ul>
     ),
   });

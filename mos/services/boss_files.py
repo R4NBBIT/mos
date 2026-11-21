@@ -2,7 +2,9 @@
 
 - sheet: 브라우저가 읽은 표(JSON). 원본 .xlsx는 서버로 보내지 않는다.
 - image: 업무 화면 스크린샷(PNG·JPEG·WebP·GIF). 실제 파일 머리를 보고 형식을 정한다.
-- text: 글 문서 원본(UTF-8).
+- text: 메모장 글 원본(UTF-8).
+- note: 노션 페이지 글(.md, .txt, UTF-8).
+- word: Word 문서에서 브라우저가 뽑은 글(제목, 목록 표시만 남긴 UTF-8). 원본 .docx는 보내지 않는다.
 """
 
 from __future__ import annotations
@@ -17,8 +19,14 @@ from typing import Any
 from mos.db.database import Database
 from mos.services.crypto import BytesCipher
 
-KINDS = ("sheet", "image", "text")
-MAX_BYTES = {"sheet": 2 * 1024 * 1024, "image": 4 * 1024 * 1024, "text": 200 * 1024}
+KINDS = ("sheet", "image", "text", "note", "word")
+MAX_BYTES = {
+    "sheet": 2 * 1024 * 1024,
+    "image": 4 * 1024 * 1024,
+    "text": 200 * 1024,
+    "note": 200 * 1024,
+    "word": 200 * 1024,
+}
 MAX_EDITS_BYTES = 300 * 1024
 MAX_NAME = 80
 EDIT_KEY_RE = re.compile(r"[a-z0-9:._-]{1,80}")
@@ -145,6 +153,12 @@ class BossFiles:
             await conn.execute(
                 "DELETE FROM boss_asset WHERE account_id = ? AND kind = ?", (account_id, kind)
             )
+
+    async def reset(self, account_id: int) -> None:
+        """모두 처음으로: 올린 파일과 고친 내용을 전부 지운다."""
+        async with self.db.writing() as conn:
+            await conn.execute("DELETE FROM boss_asset WHERE account_id = ?", (account_id,))
+            await conn.execute("DELETE FROM boss_edit WHERE account_id = ?", (account_id,))
 
     # ------------------------------------------------------------ 고친 내용
 

@@ -16,7 +16,25 @@ THEMES = ("moon", "night", "sheet", "memo", "note", "word")
 MAX_TAB_TITLE = 40
 # 위장 화면(SCR-12) 템플릿: 주간 업무 보고 · 매출 요약 · 프로젝트 일정표 · 예산 집행 현황 · 내 파일
 # 내 파일 내용은 서버로 보내지 않는다(브라우저에만). 여기에는 '내 파일을 쓴다'는 선택만 남는다
-BOSS_TEMPLATES = ("weekly", "sales", "schedule", "budget", "myfile", "image", "text", "url")
+# 예시: weekly(스프레드시트), memo(메모장), note(노션), word(Word)
+# 내 파일: myfile(스프레드시트), text(메모장), notefile(노션), wordfile(Word)
+# 그 밖에: image(내 화면 사진), url(다른 사이트).
+# sales, schedule, budget은 예전 표 예시(그대로 받음)
+BOSS_TEMPLATES = (
+    "weekly",
+    "memo",
+    "note",
+    "word",
+    "myfile",
+    "text",
+    "notefile",
+    "wordfile",
+    "image",
+    "url",
+    "sales",
+    "schedule",
+    "budget",
+)
 BOSS_FITS = ("cover", "contain")  # 사진: 화면에 꽉 채우기(가장자리 잘림) · 다 보이게
 MAX_BOSS_URL = 300
 # 반응: 그대로, 작게('+2'), 숨기기

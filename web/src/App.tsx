@@ -5,7 +5,8 @@ import { DOUBLE_PRESS_MS, keyFromEvent, parseBossKey, sameKey } from "./boss/bos
 import { type AssetList, cachedInfo, fetchBossInfo, loadAsset, uploadAsset } from "./boss/bossStore";
 import { isCapturingKey, isDisguised, setDisguised } from "./boss/bossState";
 import { loadMyFile, type StoredFile } from "./boss/myFile";
-import { ImageDisguise, TextDisguise } from "./boss/OtherDisguise";
+import { docTitle, memoExample, NoteDisguise, noteExample, WordDisguise, wordExample } from "./boss/DocDisguise";
+import { EDIT_KEYS, ImageDisguise, TextDisguise } from "./boss/OtherDisguise";
 import { buildTemplate, type TemplateId, type Workbook } from "./boss/templates";
 import { fetchSession, fetchSettings, lock, type SettingsChanges, updateSettings } from "./api";
 import { ConnectScreen, PasswordSetup, ReconnectScreen, UnlockScreen } from "./AuthScreens";
@@ -460,7 +461,11 @@ interface BossFilesState {
   sheet: StoredFile | null;
   image: { url: string; name: string } | null;
   text: { name: string; body: string } | null;
+  note: { name: string; body: string } | null;
+  word: { name: string; body: string } | null;
 }
+
+const EMPTY_FILES: BossFilesState = { sheet: null, image: null, text: null, note: null, word: null };
 
 /** 계정에 저장된 위장 파일을 받는다(잠겨 있어 못 받으면 이 브라우저에 보관된 것). 예전에 이 브라우저에만 있던 표 파일은 계정으로 옮긴다 */
 async function loadBossFiles(): Promise<BossFilesState> {
@@ -472,7 +477,7 @@ async function loadBossFiles(): Promise<BossFilesState> {
     info = cachedInfo();
     online = false;
   }
-  const result: BossFilesState = { sheet: null, image: null, text: null };
+  const result: BossFilesState = { ...EMPTY_FILES };
   const sheetInfo = info.sheet;
   if (sheetInfo) {
     try {
@@ -499,12 +504,13 @@ async function loadBossFiles(): Promise<BossFilesState> {
       // 없으면 안내 화면
     }
   }
-  const textInfo = info.text;
-  if (textInfo) {
+  for (const kind of ["text", "note", "word"] as const) {
+    const found = info[kind];
+    if (!found) continue;
     try {
-      result.text = { name: textInfo.name, body: await (await loadAsset("text", textInfo)).text() };
+      result[kind] = { name: found.name, body: await (await loadAsset(kind, found)).text() };
     } catch {
-      // 없으면 빈 문서
+      // 없으면 예시나 빈 문서
     }
   }
   return result;
@@ -517,7 +523,7 @@ export default function App() {
   const [fileVersion, setFileVersion] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
   const [accountKey, setAccountKey] = useState<string | undefined>(undefined);
-  const [files, setFiles] = useState<BossFilesState>({ sheet: null, image: null, text: null });
+  const [files, setFiles] = useState<BossFilesState>(EMPTY_FILES);
   const day = new Date().toDateString();
   const mode = look.boss_template;
 
@@ -544,13 +550,30 @@ export default function App() {
     [mode, day, files.sheet, fileVersion], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
+  // 노션, Word, 메모장 위장 화면의 처음 글과 이름(예시 또는 올린 파일)
+  const doc = useMemo(() => {
+    const strip = (name: string) => name.replace(/\.[^.]+$/, "");
+    if (mode === "memo") return { body: memoExample(), name: "업무 메모" };
+    if (mode === "text") return { body: files.text?.body ?? "", name: strip(files.text?.name ?? "제목 없음") };
+    if (mode === "note") return { body: noteExample(), name: "업무 정리" };
+    if (mode === "notefile") {
+      const body = files.note?.body ?? noteExample();
+      return { body, name: docTitle(body, strip(files.note?.name ?? "업무 정리")) };
+    }
+    if (mode === "word") return { body: wordExample(), name: "주간 업무 보고.docx" };
+    if (mode === "wordfile") return { body: files.word?.body ?? wordExample(), name: files.word?.name ?? "주간 업무 보고.docx" };
+    return null;
+  }, [mode, files.text, files.note, files.word, day]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     setDisguised(bossOn);
     if (!bossOn) applyLook(look);
-    else if (mode === "text") applyDisguise(`${(files.text?.name ?? "제목 없음").replace(/\.txt$/i, "")} - 메모장`, "memo");
+    else if (mode === "memo" || mode === "text") applyDisguise(`${doc?.name ?? "제목 없음"} - 메모장`, "memo");
+    else if (mode === "note" || mode === "notefile") applyDisguise(doc?.name ?? "업무 정리", "note");
+    else if (mode === "word" || mode === "wordfile") applyDisguise(doc?.name ?? "문서.docx", "word");
     else if (mode === "image") applyLook(look); // 사진은 평소 탭 제목 그대로(그 화면을 찍은 것이므로)
     else applyDisguise(workbook.fileName);
-  }, [bossOn, look, mode, workbook.fileName, files.text?.name]);
+  }, [bossOn, look, mode, workbook.fileName, doc?.name]);
 
   const relock = look.boss_relock;
   const fullscreen = look.boss_fullscreen;
@@ -649,10 +672,14 @@ export default function App() {
       <div className="boss-layer" hidden={!bossOn}>
         {mode === "image" ? (
           <ImageDisguise url={files.image?.url ?? null} fit={look.boss_fit} />
-        ) : mode === "text" ? (
-          <TextDisguise key={fileVersion} original={files.text?.body ?? ""} active={bossOn} />
+        ) : (mode === "memo" || mode === "text") && doc ? (
+          <TextDisguise key={`${mode}:${fileVersion}`} original={doc.body} active={bossOn} editKey={EDIT_KEYS[mode]} />
+        ) : (mode === "note" || mode === "notefile") && doc ? (
+          <NoteDisguise key={`${mode}:${fileVersion}`} original={doc.body} editKey={EDIT_KEYS[mode]} fallbackTitle={doc.name} />
+        ) : (mode === "word" || mode === "wordfile") && doc ? (
+          <WordDisguise key={`${mode}:${fileVersion}`} original={doc.body} editKey={EDIT_KEYS[mode]} name={doc.name} />
         ) : (
-          <BossScreen workbook={workbook} storageKey={storageKey} active={bossOn} />
+          <BossScreen key={fileVersion} workbook={workbook} storageKey={storageKey} active={bossOn} />
         )}
       </div>
       <button

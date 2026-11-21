@@ -4,7 +4,25 @@ import { isDisguised } from "./boss/bossState";
 
 export type Theme = "moon" | "night" | "sheet" | "memo" | "note" | "word";
 
-export type BossTemplate = "weekly" | "sales" | "schedule" | "budget" | "myfile" | "image" | "text" | "url";
+/**
+ * 위장 화면. 예시: weekly(스프레드시트), memo(메모장), note(노션), word(Word)
+ * 내 파일: myfile(스프레드시트), text(메모장), notefile(노션), wordfile(Word). 그 밖에: image, url.
+ * sales, schedule, budget은 예전 표 예시(스프레드시트 예시로 보여 줌)
+ */
+export type BossTemplate =
+  | "weekly"
+  | "memo"
+  | "note"
+  | "word"
+  | "myfile"
+  | "text"
+  | "notefile"
+  | "wordfile"
+  | "image"
+  | "url"
+  | "sales"
+  | "schedule"
+  | "budget";
 
 export interface Settings {
   theme: Theme;
@@ -50,7 +68,21 @@ export function lockLabel(minutes: number): string {
 
 export type NotifyScope = "mentions" | "pinned" | "all";
 
-const BOSS_TEMPLATES: BossTemplate[] = ["weekly", "sales", "schedule", "budget", "myfile", "image", "text", "url"];
+const BOSS_TEMPLATES: BossTemplate[] = [
+  "weekly",
+  "memo",
+  "note",
+  "word",
+  "myfile",
+  "text",
+  "notefile",
+  "wordfile",
+  "image",
+  "url",
+  "sales",
+  "schedule",
+  "budget",
+];
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: "moon",
