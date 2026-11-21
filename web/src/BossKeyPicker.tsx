@@ -108,7 +108,7 @@ export default function BossKeyPicker({ value, onSave }: Props) {
       <div className="settings-row boss-key-row">
         <span>보스키</span>
         <strong className="boss-key-current">{bossKeyLabel(current)}</strong>
-        <button type="button" className="text-button" onClick={() => setOpen(true)}>
+        <button type="button" className="pill-button" onClick={() => setOpen(true)}>
           바꾸기
         </button>
       </div>
@@ -185,7 +185,7 @@ export default function BossKeyPicker({ value, onSave }: Props) {
       <div className="settings-buttons">
         <button
           type="button"
-          className="text-button"
+          className="pill-button pill-button-strong"
           disabled={!changed}
           onClick={() => {
             setListening(false);
@@ -197,7 +197,7 @@ export default function BossKeyPicker({ value, onSave }: Props) {
         </button>
         <button
           type="button"
-          className="text-button"
+          className="pill-button"
           onClick={() => {
             setListening(false);
             setDraft(parseBossKey("Escape*2"));
@@ -207,7 +207,7 @@ export default function BossKeyPicker({ value, onSave }: Props) {
         </button>
         <button
           type="button"
-          className="text-button"
+          className="pill-button"
           onClick={() => {
             setListening(false);
             setDraft(current);

@@ -13,10 +13,19 @@ interface Props {
 function nitroText(account: SessionAccount): string {
   if (account.nitro === "verified" && account.nitro_until) {
     const until = new Date(account.nitro_until * 1000);
-    return `확인됨 · ${until.getMonth() + 1}/${until.getDate()}까지`;
+    return `확인됨 (${until.getMonth() + 1}/${until.getDate()}까지)`;
   }
   if (account.nitro === "pending") return "확인 기다리는 중";
   return "";
+}
+
+/** 니트로 인증 방법 안내(메뉴 안 작은 글씨) */
+function nitroHelp(account: SessionAccount): string {
+  if (account.nitro === "verified") return "니트로 이모지를 쓸 때마다 그날부터 7일로 늘어나요.";
+  if (account.nitro === "pending") {
+    return "디스코드 앱에서 움직이는 이모지나 다른 서버 이모지를 메시지나 반응으로 한 번 쓰면 확인돼요.";
+  }
+  return "니트로가 있으면 켜 주세요. 켠 뒤 디스코드 앱에서 니트로 이모지를 한 번 쓰면 확인돼요.";
 }
 
 /** 채팅방 오른쪽 위: 잠그기, 니트로, 계정 바꾸기·추가·빼기 */
@@ -83,19 +92,20 @@ export default function AccountMenu({ session, account, onChanged, onOpenSetting
           <button
             type="button"
             role="menuitemcheckbox"
+            className="menu-toggle"
             aria-checked={account.nitro !== "none"}
             onClick={() => void run(() => setNitroClaim(account.nitro === "none"))}
           >
-            <span className="menu-check">{account.nitro !== "none" ? "✓" : ""}</span>
-            니트로 있어요
-            <span className="account-state">{nitroText(account)}</span>
+            <span className="menu-toggle-text">
+              <span className="menu-toggle-title">
+                니트로 있어요
+                {nitroText(account) && <span className="account-state">{nitroText(account)}</span>}
+              </span>
+              <span className="menu-help">{nitroHelp(account)}</span>
+            </span>
+            <span className={account.nitro !== "none" ? "switch-look switch-look-on" : "switch-look"} aria-hidden="true" />
           </button>
-          {others.map((item) => (
-            <button key={item.id} type="button" role="menuitem" onClick={() => void run(() => switchAccount(item.id))}>
-              <AccountFace account={item} size={22} />
-              {item.name}로 바꾸기
-            </button>
-          ))}
+          <div className="menu-divider" role="separator" />
           {session.accounts.length < session.max_accounts && (
             <button type="button" role="menuitem" onClick={() => startConnect("add")}>
               다른 계정 추가
@@ -109,6 +119,25 @@ export default function AccountMenu({ session, account, onChanged, onOpenSetting
           >
             이 브라우저에서 이 계정 빼기
           </button>
+          {others.length > 0 && (
+            <>
+              <div className="menu-divider" role="separator" />
+              <div className="menu-section-title">다른 계정으로 바꾸기</div>
+              {others.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="menuitem"
+                  className="menu-account"
+                  onClick={() => void run(() => switchAccount(item.id))}
+                >
+                  <AccountFace account={item} size={24} />
+                  <span className="menu-account-name">{item.name}</span>
+                  {item.locked && <span className="account-state">잠김</span>}
+                </button>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>

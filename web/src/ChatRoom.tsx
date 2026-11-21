@@ -17,6 +17,7 @@ import SheetView from "./SheetView";
 import type { Theme } from "./theme";
 import type { ChannelInfo, Message, RealtimeEvent } from "./types";
 import { useRealtime } from "./useRealtime";
+import { isHiddenMessage, isSystemMessage } from "./systemMessage";
 
 const GROUP_GAP_MS = 5 * 60 * 1000;
 const NEAR_BOTTOM_PX = 120;
@@ -231,7 +232,9 @@ export default function ChatRoom({
   const isForumPost = isThread && channel?.parent_kind === "forum";
   // 글 ID = 첫 메시지 ID. 일반 채널 스레드는 시작 메시지가 부모 채널에 있다
   const starter = isThread ? (channel?.starter ?? byId.get(channel?.id ?? "") ?? null) : null;
-  const shownMessages = isThread ? messages.filter((message) => message.id !== channel?.id) : messages;
+  const shownMessages = (isThread ? messages.filter((message) => message.id !== channel?.id) : messages).filter(
+    (message) => !isHiddenMessage(message),
+  );
   const replyPreview = (message: Message): ReplyPreview | null => {
     const original = message.reference_id ? byId.get(message.reference_id) : undefined;
     if (!original) return null;
@@ -452,6 +455,7 @@ export default function ChatRoom({
           const grouped =
             !newDay &&
             previous !== undefined &&
+            !isSystemMessage(previous) &&
             previous.author.id === message.author.id &&
             previous.author.name === message.author.name &&
             new Date(message.created_at).getTime() - new Date(previous.created_at).getTime() <

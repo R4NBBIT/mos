@@ -88,3 +88,11 @@ def test_old_rows_without_mentions() -> None:
     row = message_to_row(fake_message())
     del row["mentions_json"]
     assert row_to_api(row)["mentions"] == {"users": {}, "roles": {}, "channels": {}}
+
+
+def test_message_kind_kept() -> None:
+    # 입장 알림 같은 시스템 메시지는 종류를 그대로 남긴다(본문이 비어 있다)
+    joined = message_to_row(fake_message(type=SimpleNamespace(value=7), content=""))
+    assert joined["kind"] == 7
+    assert row_to_api(joined)["kind"] == 7
+    assert message_to_row(fake_message())["kind"] == 0

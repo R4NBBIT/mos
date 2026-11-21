@@ -988,7 +988,12 @@ def test_unread_counts_and_mentions(env: Env) -> None:
     mention["mentions_json"] = '{"users": {"43": "라떼"}, "roles": {}, "channels": {}}'
     mine = make_row(1573319705849102601, channel_id=CHANNEL)
     mine["author_id"] = 43  # 내가 디스코드에서 쓴 것은 세지 않는다
-    env.client.portal.call(env.repo.upsert_many, [mention, mine])
+    joined = make_row(1573319705849102602, channel_id=CHANNEL)
+    joined["kind"] = 7  # 입장 알림 같은 시스템 메시지도 세지 않는다
+    joined["content"] = ""
+    env.client.portal.call(env.repo.upsert_many, [mention, mine, joined])
+    listed = env.client.get(f"/api/channels/{CHANNEL}/messages").json()["messages"]
+    assert [item["kind"] for item in listed if item["id"] == str(joined["id"])] == [7]
 
     channel = env.client.get(f"/api/groups/{GUILD}/channels").json()["channels"][0]
     assert (channel["unread"], channel["mentions"]) == (3, 1)

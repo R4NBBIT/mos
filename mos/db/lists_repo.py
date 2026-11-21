@@ -80,6 +80,7 @@ class ListsRepo:
             " LEFT JOIN web_sent ws ON ws.message_id = m.id"
             f" WHERE m.channel_id IN ({_marks(len(ids))}) AND m.id > r.last_read_id"
             " AND m.author_id != ? AND (ws.account_id IS NULL OR ws.account_id != ?)"
+            " AND m.kind IN (0, 19, 20, 23)"  # 입장·고정 같은 시스템 알림은 세지 않는다
             " GROUP BY m.channel_id"
         )
         params = [f'%"{user_id}"%', account_id, *ids, user_id, account_id]

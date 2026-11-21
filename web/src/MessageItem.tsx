@@ -2,6 +2,7 @@ import { memo, useState } from "react";
 import MessageContent from "./MessageContent";
 import { formatSize, formatTime, isDiscordMediaUrl, thumbnailUrl } from "./format";
 import type { Attachment, Message } from "./types";
+import { isEmptyMessage, isSystemMessage, systemText } from "./systemMessage";
 
 /** 댓글 시간: 오늘이면 시각만, 아니면 월/일도 */
 function commentTime(iso: string): string {
@@ -39,6 +40,7 @@ interface Props {
 export function MessageBody({ message }: { message: Message }) {
   return (
     <>
+      {isEmptyMessage(message) && <span className="msg-empty">(여기서는 보여 줄 수 없는 내용이에요)</span>}
       {message.content && <MessageContent content={message.content} mentions={message.mentions} />}
       {message.embeds.map((embed, index) => (
         <div className="embed" key={index}>
@@ -152,6 +154,21 @@ function MessageItem({
   if (grouped && !message.reference_id) classes.push("msg-grouped");
   if (mine) classes.push("msg-mine");
   const hasActions = canReply || manageable;
+
+  if (isSystemMessage(message)) {
+    // 입장·고정 같은 알림: 디스코드처럼 가운데 작은 글씨
+    return layout === "line" ? (
+      <div className="line-msg line-system">
+        <span className="line-time">{formatTime(message.created_at)}</span>
+        <span>-- {systemText(message)} --</span>
+      </div>
+    ) : (
+      <div className="system-msg">
+        <span>{systemText(message)}</span>
+        <span className="system-msg-time">{formatTime(message.created_at)}</span>
+      </div>
+    );
+  }
 
   const remove = async () => {
     setDeleteError("");

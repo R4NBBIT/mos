@@ -21,6 +21,7 @@ MESSAGE_COLUMNS = (
     "attachments_json",
     "components_json",
     "mentions_json",
+    "kind",
     "reference_id",
     "flags",
     "created_at",
@@ -51,7 +52,11 @@ class MessageRepo:
         self.db = db
 
     async def upsert_many(self, rows: Iterable[dict[str, Any]]) -> int:
-        values = [tuple(row[column] for column in MESSAGE_COLUMNS) for row in rows]
+        # kind는 나중에 생긴 열이라, 직접 만든 행(웹에서 보낸 메시지 등)에 없으면 보통 메시지(0)
+        values = [
+            tuple(row.get(col, 0) if col == "kind" else row[col] for col in MESSAGE_COLUMNS)
+            for row in rows
+        ]
         if not values:
             return 0
         async with self.db.writing() as conn:

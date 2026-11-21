@@ -85,12 +85,17 @@ export default function Composer({
     if (replyTo) inputRef.current?.focus();
   }, [replyTo]);
 
-  // 내용 길이에 맞춰 높이 조절(최대 높이는 CSS)
+  // 내용 길이에 맞춰 높이 조절. 테두리까지 더해야 한 줄일 때 스크롤바(위아래 화살표)가 안 생긴다.
+  // 최대 높이(CSS max-height)를 넘을 때만 안에서 스크롤
   useEffect(() => {
     const input = inputRef.current;
     if (!input) return;
     input.style.height = "auto";
-    input.style.height = `${input.scrollHeight}px`;
+    const border = input.offsetHeight - input.clientHeight;
+    const maxHeight = Number.parseFloat(window.getComputedStyle(input).maxHeight) || Number.POSITIVE_INFINITY;
+    const wanted = input.scrollHeight + border;
+    input.style.height = `${Math.min(wanted, maxHeight)}px`;
+    input.style.overflowY = wanted > maxHeight ? "auto" : "hidden";
   }, [text]);
 
   if (!canSend) {
@@ -260,7 +265,7 @@ export default function Composer({
               title="사진·파일 붙이기"
               disabled={preparing}
             >
-              {preparing ? "…" : "＋"}
+              {preparing ? "…" : <IconPlus />}
             </button>
             <input ref={fileInputRef} type="file" multiple hidden onChange={(event) => void addFiles(event)} />
           </>
@@ -272,7 +277,7 @@ export default function Composer({
           aria-label="이모지"
           title="이모지"
         >
-          ☺
+          <IconSmile />
         </button>
         <textarea
           ref={inputRef}
@@ -303,5 +308,26 @@ export default function Composer({
         </p>
       )}
     </form>
+  );
+}
+
+function IconPlus() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+      <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconSmile() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+      <g fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M8.5 14.5c.9 1.2 2.1 1.8 3.5 1.8s2.6-.6 3.5-1.8" />
+      </g>
+      <circle cx="9" cy="10" r="1.2" fill="currentColor" />
+      <circle cx="15" cy="10" r="1.2" fill="currentColor" />
+    </svg>
   );
 }

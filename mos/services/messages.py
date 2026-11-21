@@ -73,6 +73,7 @@ def message_to_row(message: Any) -> dict[str, Any]:
         ),
         "components_json": "[]",
         "mentions_json": json.dumps(mentions_to_dict(message), ensure_ascii=False),
+        "kind": int(getattr(getattr(message, "type", None), "value", 0) or 0),
         "reference_id": int(reference.message_id)
         if reference is not None and reference.message_id
         else None,
@@ -123,6 +124,8 @@ def row_to_api(row: dict[str, Any]) -> dict[str, Any]:
             "webhook": row["webhook_id"] is not None,
         },
         "content": content,
+        # 디스코드 메시지 종류. 0·19(답장)·20·23(명령 응답) 말고는 입장·고정 같은 시스템 알림
+        "kind": int(row.get("kind") or 0),
         # 웹(ㅁㅇㅅ)에서 보낸 메시지면 보낸 사람의 디스코드 ID. 본인 것만 수정·삭제 버튼을 보인다
         "web_sender_id": snowflake(web_sender),
         "embeds": json.loads(row["embeds_json"]),

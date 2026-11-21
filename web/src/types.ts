@@ -39,6 +39,8 @@ export interface Message {
   guild_id: string | null;
   author: Author;
   content: string;
+  /** 디스코드 메시지 종류(0 보통, 19 답장, 7 입장, 6 고정 알림 …) */
+  kind: number;
   /** ㅁㅇㅅ 웹에서 보낸 메시지면 보낸 사람의 디스코드 ID */
   web_sender_id: string | null;
   embeds: Embed[];

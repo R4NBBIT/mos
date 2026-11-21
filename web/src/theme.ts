@@ -30,8 +30,8 @@ export const DEFAULT_SETTINGS: Settings = {
 const BOSS_KEY_RE = /^(?:(?:Ctrl|Alt|Shift|Meta)\+){0,4}[A-Za-z][A-Za-z0-9]{0,24}(?:\*2)?$/;
 
 export const THEMES: { id: Theme; name: string }[] = [
-  { id: "moon", name: "달빛(기본)" },
-  { id: "night", name: "밤하늘" },
+  { id: "moon", name: "기본" },
+  { id: "night", name: "다크" },
   { id: "sheet", name: "스프레드시트" },
   { id: "memo", name: "메모장" },
 ];

@@ -3,6 +3,7 @@ import { fetchGroupChannels } from "./api";
 import { dayKey, formatDay } from "./format";
 import { AttachmentText, AttachmentView, isPicture, MessageTextOnly, type ReplyPreview } from "./MessageItem";
 import type { ChannelInfo, Message } from "./types";
+import { isSystemMessage, systemText } from "./systemMessage";
 
 // 스프레드시트 테마 대화방(화면명세서 SCR-11). 메시지 하나 = 행 하나.
 // A 시간 · B 보낸 사람 · C 내용 · D 반응, 맨 아래 입력 행, 시트 탭 = 같은 모임의 채널
@@ -152,6 +153,21 @@ export default function SheetView(props: Props) {
     }
     rowNumber += 1;
     rowNumberOf.set(message.id, rowNumber);
+    if (isSystemMessage(message)) {
+      // 입장·고정 같은 알림은 내용 칸에 회색 기울임 글자로
+      body.push(
+        <div className="sheet-row sheet-row-system" key={message.id}>
+          <span className="sheet-rownum">{rowNumber}</span>
+          <span className="sheet-cell">{cellTime(message.created_at)}</span>
+          <span className="sheet-cell" />
+          <span className="sheet-cell sheet-cell-c">{systemText(message)}</span>
+          <span className="sheet-cell" />
+          <span className="sheet-cell sheet-wide" />
+          <span className="sheet-cell sheet-wide" />
+        </div>,
+      );
+      return;
+    }
     const mine = message.web_sender_id === myUserId || message.author.id === myUserId;
     const reply = message.reference_id ? props.replyPreview(message) : null;
     const isSelected = message.id === selectedId;
