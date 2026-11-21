@@ -121,6 +121,7 @@ class PermissionService:
         self.directory = directory
         self.clock = clock
         self._members: OrderedDict[tuple[int, int], tuple[float, MemberInfo | None]] = OrderedDict()
+        self._thread_members: OrderedDict[tuple[int, int], tuple[float, bool]] = OrderedDict()
 
     # ------------------------------------------------------------ 멤버 캐시
 
@@ -148,6 +149,26 @@ class PermissionService:
         for key in [key for key in self._members if key[0] == guild_id]:
             del self._members[key]
 
+    async def thread_member(self, thread_id: int, user_id: int) -> bool:
+        """비공개 스레드 참여 여부. 멤버 캐시처럼 2분 기억, 들어오고 나가는 이벤트로 지운다."""
+        key = (thread_id, user_id)
+        now = self.clock()
+        cached = self._thread_members.get(key)
+        if cached is not None and now - cached[0] < MEMBER_TTL_SEC:
+            return cached[1]
+        value = await self.directory.is_thread_member(thread_id, user_id)
+        self._thread_members[key] = (now, value)
+        while len(self._thread_members) > MEMBER_CACHE_MAX:
+            self._thread_members.popitem(last=False)
+        return value
+
+    def forget_thread_member(self, thread_id: int, user_id: int | None = None) -> None:
+        if user_id is not None:
+            self._thread_members.pop((thread_id, user_id), None)
+            return
+        for key in [key for key in self._thread_members if key[0] == thread_id]:
+            del self._thread_members[key]
+
     # ------------------------------------------------------------ 판단
 
     async def channel_access(self, user_id: int, channel_id: int) -> ChannelAccess | None:
@@ -155,8 +176,8 @@ class PermissionService:
         channel = self.directory.channel(channel_id)
         if channel is None:
             channel = await self.directory.fetch_channel(channel_id)  # 보관된 스레드 등
-        if channel is None or channel.private_thread:
-            return None  # 비공개 스레드는 참여 여부를 알 수 없어 1차에서는 막는다
+        if channel is None:
+            return None
         guild = self.directory.guild(channel.guild_id)
         if guild is None:
             return None
@@ -164,7 +185,13 @@ class PermissionService:
         if member is None:
             return None
         access = ChannelAccess(channel, compute_permissions(guild, member, channel))
-        return access if access.can_read else None
+        if not access.can_read:
+            return None
+        if channel.private_thread and not access.permissions & MANAGE_THREADS:
+            # 비공개 스레드: 스레드 관리 권한이 없으면 그 스레드에 들어가 있는 사람만
+            if not await self.thread_member(channel.id, user_id):
+                return None
+        return access
 
     async def can_read(self, user_id: int, channel_id: int) -> bool:
         return await self.channel_access(user_id, channel_id) is not None

@@ -121,6 +121,10 @@ class Directory(Protocol):
         """캐시에 없는 채널(주로 보관된 스레드)을 디스코드에서 찾아 본다."""
         ...
 
+    async def is_thread_member(self, thread_id: int, user_id: int) -> bool:
+        """비공개 스레드에 그 사람이 들어가 있는지(디스코드에 물어본다)."""
+        ...
+
     async def list_threads(
         self, parent_id: int, before: float | None, limit: int
     ) -> tuple[list[ChannelInfo], bool]:

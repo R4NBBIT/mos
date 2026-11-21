@@ -53,6 +53,7 @@ async def run() -> int:
     directory = BotDirectory(bot)
     permissions = PermissionService(directory)
     bot.member_changed = permissions.forget_member  # 역할 변경·탈퇴 때 권한 캐시 지우기
+    bot.thread_member_changed = permissions.forget_thread_member  # 비공개 스레드 참여 변경
     app = create_app(
         settings,
         db,

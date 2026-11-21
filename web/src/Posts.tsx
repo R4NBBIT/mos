@@ -374,7 +374,9 @@ export default function Posts({
             <span className="sheet-cell sheet-cell-c">{thread.preview ?? ""}</span>
             <span className="sheet-cell sheet-num">{thread.message_count}</span>
             <span className="sheet-cell sheet-wide">{cellWhen(thread.last_message_at)}</span>
-            <span className="sheet-cell sheet-wide">{thread.archived ? "보관됨" : thread.locked ? "잠김" : ""}</span>
+            <span className="sheet-cell sheet-wide">
+              {[thread.private && "비공개", thread.archived ? "보관됨" : thread.locked && "잠김"].filter(Boolean).join(", ")}
+            </span>
           </div>
         ))}
         {page?.has_more && (
@@ -445,6 +447,7 @@ export default function Posts({
             <span className="post-meta">
               <span>💬 {thread.message_count}</span>
               <span>{when(thread.last_message_at)}</span>
+              {thread.private && <span className="post-archived">비공개</span>}
               {thread.archived && <span className="post-archived">보관됨</span>}
             </span>
           </button>

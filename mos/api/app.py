@@ -94,6 +94,7 @@ def thread_to_api(thread: ChannelInfo, preview: str | None) -> dict[str, Any]:
         "tag_ids": [str(tag) for tag in thread.applied_tag_ids],
         "archived": thread.archived,
         "locked": thread.thread_locked,
+        "private": thread.private_thread,
         "message_count": thread.message_count,
         "created_at": snowflake_time(thread.id),
         "last_message_at": snowflake_time(thread.last_message_id or thread.id),
@@ -129,6 +130,7 @@ def channel_to_api(access: ChannelAccess, group_name: str | None = None) -> dict
         data["parent_id"] = str(channel.parent_id) if channel.parent_id else None
         data["locked"] = channel.thread_locked
         data["archived"] = channel.archived
+        data["private"] = channel.private_thread
     if group_name is not None:
         data["group_name"] = group_name
     return data
@@ -602,8 +604,10 @@ def create_app(
         threads, has_more = await directory.list_threads(channel_id, before, THREAD_PAGE)
         items = []
         for thread in threads:
-            if thread.private_thread:
-                continue  # 1차에서는 비공개 스레드를 보여 주지 않는다
+            if thread.private_thread and not await perms.can_read(
+                account.discord_user_id, thread.id
+            ):
+                continue  # 비공개 스레드는 들어가 있는 사람(또는 스레드 관리 권한)만
             preview = None
             if access.channel.kind == "forum":
                 starter = await repo.get(thread.id)  # 포럼 글 ID = 첫 메시지 ID

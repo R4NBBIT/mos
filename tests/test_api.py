@@ -55,6 +55,8 @@ class FakeDirectory:
 
     def __init__(self) -> None:
         self.ready = True
+        self.thread_lookups = 0
+        self.thread_members: set[tuple[int, int]] = set()  # 비공개 스레드 참여자
         self.guild_map = {
             GUILD: GuildInfo(
                 GUILD,
@@ -125,6 +127,10 @@ class FakeDirectory:
 
     async def fetch_channel(self, channel_id: int) -> ChannelInfo | None:
         return self.archived_map.get(channel_id)  # 캐시에 없는 보관 스레드
+
+    async def is_thread_member(self, thread_id: int, user_id: int) -> bool:
+        self.thread_lookups += 1
+        return (thread_id, user_id) in self.thread_members
 
     async def list_threads(
         self, parent_id: int, before: float | None, limit: int
@@ -1364,6 +1370,29 @@ def test_text_channel_threads_follow_parent_permissions(env: Env) -> None:
     assert env.client.get(f"/api/channels/{SECRET}/threads").status_code == 404
     assert env.client.get(f"/api/channels/{secret_thread}/messages").status_code == 404
     assert env.client.get(f"/api/channels/{thread}/threads").status_code == 404
+
+
+def test_private_threads_only_for_members(env: Env) -> None:
+    private = 1573319705849300003
+    signed_up(env, "latte")  # 라떼(43): 스레드 관리 권한 없음
+    env.bot.channel_map[private] = ChannelInfo(
+        private, GUILD, "둘만의 스레드", "thread", 0, parent_id=CHANNEL, private_thread=True
+    )
+    names = lambda: [  # noqa: E731
+        t["name"] for t in env.client.get(f"/api/channels/{CHANNEL}/threads").json()["threads"]
+    ]
+    assert names() == []
+    assert env.client.get(f"/api/channels/{private}/messages").status_code == 404
+
+    # 스레드에 들어가면(캐시가 지워진 뒤) 보이고 열 수 있다
+    env.bot.thread_members.add((private, 43))
+    env.permissions.forget_thread_member(private, 43)
+    assert names() == ["둘만의 스레드"]
+    assert env.client.get(f"/api/channels/{private}").status_code == 200
+    # 2분 동안은 다시 묻지 않는다
+    before = env.bot.thread_lookups
+    names()
+    assert env.bot.thread_lookups == before
 
 
 def post(env: Env, title: str = "새 글", content: str = "내용", tags: str = "901", **extra: Any):

@@ -110,6 +110,7 @@ export interface ChannelInfo {
   parent_id?: string | null;
   locked?: boolean;
   archived?: boolean;
+  private?: boolean;
   /** 채널 하나를 따로 물을 때만(스레드): 부모 이름·종류, 붙은 태그, 첫 메시지 */
   parent_name?: string;
   parent_kind?: ChannelKind;
@@ -132,6 +133,8 @@ export interface ThreadSummary {
   tag_ids: string[];
   archived: boolean;
   locked: boolean;
+  /** 비공개 스레드(들어가 있는 사람만 보임) */
+  private?: boolean;
   message_count: number;
   created_at: string;
   last_message_at: string;

@@ -166,6 +166,7 @@ class MosBot(discord.Client):
         self.repo = repo
         self.hub = hub
         self.member_changed: MemberChanged | None = None
+        self.thread_member_changed: MemberChanged | None = None
         self.sender: SenderService | None = None  # main에서 연결(메시지 명령이 쓴다)
         self.nitro_seen: NitroSeen | None = None  # main에서 연결(니트로 확인)
         self.tree = app_commands.CommandTree(self)
@@ -275,6 +276,24 @@ class MosBot(discord.Client):
         if info is not None:
             self._remember_thread(info)
         return info
+
+    async def is_thread_member(self, thread_id: int, user_id: int) -> bool:
+        thread: Any = None
+        for guild in self.guilds:
+            thread = guild.get_thread(thread_id)
+            if thread is not None:
+                break
+        try:
+            if thread is None:
+                thread = await self.fetch_channel(thread_id)
+            if not isinstance(thread, discord.Thread):
+                return False
+            await thread.fetch_member(user_id)
+        except (discord.NotFound, discord.Forbidden):
+            return False
+        except discord.HTTPException as error:
+            raise DirectoryError(f"thread member lookup failed: HTTP {error.status}") from error
+        return True
 
     async def list_threads(
         self, parent_id: int, before: float | None, limit: int
@@ -523,6 +542,17 @@ class MosBot(discord.Client):
             },
         )
 
+    # 비공개 스레드에 사람이 들어오고 나가면 참여 여부 캐시를 지운다
+    def _notify_thread_member(self, thread_id: int, user_id: int | None) -> None:
+        if self.thread_member_changed is not None:
+            self.thread_member_changed(thread_id, user_id)
+
+    async def on_raw_thread_member_remove(self, payload: discord.RawThreadMembersUpdate) -> None:
+        self._notify_thread_member(payload.thread_id, None)
+
+    async def on_thread_member_join(self, member: discord.ThreadMember) -> None:
+        self._notify_thread_member(member.thread_id, member.id)
+
     async def on_member_join(self, member: discord.Member) -> None:
         self._notify_member(member.guild.id, member.id)  # '서버에 없음' 캐시를 지운다
 
@@ -769,6 +799,9 @@ class BotDirectory:
 
     async def fetch_channel(self, channel_id: int) -> ChannelInfo | None:
         return await self.bot.fetch_channel_info(channel_id)
+
+    async def is_thread_member(self, thread_id: int, user_id: int) -> bool:
+        return await self.bot.is_thread_member(thread_id, user_id)
 
     async def list_threads(
         self, parent_id: int, before: float | None, limit: int
