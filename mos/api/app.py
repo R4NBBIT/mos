@@ -235,7 +235,6 @@ def create_app(
         }
 
     hub.set_notify_rule(notify_rule)
-    settings_store = SettingsStore(db, clock=clock)
     egress = EgressMeter(lists, settings.egress_limit_bytes, notify=notify_operator, clock=clock)
     sender = (
         SenderService(
@@ -252,6 +251,7 @@ def create_app(
         if messenger is not None
         else None
     )
+    settings_store = SettingsStore(db, clock=clock)
     sessions = SessionService(
         AuthRepo(db),
         cipher,
@@ -263,6 +263,7 @@ def create_app(
         ),
         bot_guild_ids=directory.guild_ids,
         clock=clock,
+        lock_seconds=settings_store.lock_seconds,
     )
     connect_limiter = RateLimiter(limit=20, window_sec=600)
     send_limiter = RateLimiter(limit=2, window_sec=1, clock=clock)  # 계정당 1초 2번(설계서 11장)
@@ -463,9 +464,13 @@ def create_app(
         if not isinstance(body, dict) or len(body) > 10:
             raise HTTPException(status_code=400, detail="bad_json")
         try:
-            return await settings_store.update(account.account_id, body)
+            saved = await settings_store.update(account.account_id, body)
         except SettingsError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
+        if "lock_minutes" in body:
+            # 지금 열려 있는 이 기기의 잠금 시간도 새 기준으로 바로 맞춘다
+            await sessions.require_active(await current_device(request))
+        return saved
 
     @app.post("/api/session/lock", status_code=204)
     async def lock(request: Request) -> None:

@@ -3198,3 +3198,15 @@ button.tag-chip:disabled {
 :root[data-theme="memo"] .room-header {
   min-height: 49px;
 }
+
+.settings-select {
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}

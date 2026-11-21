@@ -21,6 +21,14 @@ export interface Settings {
   notify_preview: boolean;
   /** 처음 사용 안내를 봤는지 */
   guide_done: boolean;
+  /** 아무것도 안 하면 잠기는 시간(분) */
+  lock_minutes: number;
+}
+
+export const LOCK_MINUTES = [5, 10, 15, 30, 60, 120, 240, 480];
+
+export function lockLabel(minutes: number): string {
+  return minutes >= 60 ? `${minutes / 60}시간` : `${minutes}분`;
 }
 
 export type NotifyScope = "mentions" | "pinned";
@@ -38,6 +46,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notify_scope: "pinned",
   notify_preview: false,
   guide_done: false,
+  lock_minutes: 30,
 };
 
 const BOSS_KEY_RE = /^(?:(?:Ctrl|Alt|Shift|Meta)\+){0,4}[A-Za-z][A-Za-z0-9]{0,24}(?:\*2)?$/;
@@ -147,6 +156,8 @@ export function cachedLook(): Settings {
           notify_scope: value.notify_scope === "mentions" ? "mentions" : "pinned",
           notify_preview: value.notify_preview === true,
           guide_done: value.guide_done === true,
+          lock_minutes:
+            typeof value.lock_minutes === "number" && LOCK_MINUTES.includes(value.lock_minutes) ? value.lock_minutes : 30,
         };
       }
     }

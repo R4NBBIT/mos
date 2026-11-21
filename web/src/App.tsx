@@ -17,8 +17,7 @@ import { applyDisguise, applyLook, type BossTemplate, cachedLook, type Settings 
 import type { ChannelInfo, SessionAccount, SessionState } from "./types";
 import { useNotifications } from "./useNotifications";
 
-// 서버의 자동 잠금(30분)과 같게. 조작이 없으면 화면도 잠금으로 간다
-const AUTO_LOCK_MS = 30 * 60 * 1000;
+// 서버의 자동 잠금(계정 설정, 기본 30분)과 같게. 조작이 없으면 화면도 잠금으로 간다
 const IDLE_CHECK_MS = 30 * 1000;
 const ACTIVITY_EVENTS = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
 
@@ -115,7 +114,7 @@ function pickActive(session: SessionState): SessionAccount | null {
   );
 }
 
-function useIdleLock(enabled: boolean, onLocked: () => void) {
+function useIdleLock(enabled: boolean, lockMinutes: number, onLocked: () => void) {
   const lastActive = useRef(Date.now());
   useEffect(() => {
     if (!enabled) return;
@@ -125,7 +124,7 @@ function useIdleLock(enabled: boolean, onLocked: () => void) {
     };
     for (const name of ACTIVITY_EVENTS) window.addEventListener(name, mark, { passive: true });
     const timer = window.setInterval(() => {
-      if (Date.now() - lastActive.current >= AUTO_LOCK_MS) {
+      if (Date.now() - lastActive.current >= lockMinutes * 60 * 1000) {
         void lock().finally(onLocked);
       }
     }, IDLE_CHECK_MS);
@@ -133,7 +132,7 @@ function useIdleLock(enabled: boolean, onLocked: () => void) {
       for (const name of ACTIVITY_EVENTS) window.removeEventListener(name, mark);
       window.clearInterval(timer);
     };
-  }, [enabled, onLocked]);
+  }, [enabled, lockMinutes, onLocked]);
 }
 
 interface ScreensProps {
@@ -200,7 +199,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged }: ScreensProps) {
       stopped = true;
     };
   }, [openAccountId]);
-  useIdleLock(open && !active?.kept, changed);
+  useIdleLock(open && !active?.kept, look.lock_minutes, changed);
   const closeGuide = useCallback(() => {
     setShowGuide(false);
     if (look.guide_done) return;

@@ -19,6 +19,8 @@ BOSS_TEMPLATES = ("weekly", "sales", "schedule", "budget", "myfile")
 BOOL_KEYS = ("boss_auto", "boss_relock", "notify", "notify_preview", "guide_done")
 # 알림 범위: 나를 부른 것만 · 나를 부른 것 + 고정한 채널의 새 메시지
 NOTIFY_SCOPES = ("mentions", "pinned")
+# 자동 잠금(분). 너무 길면 자리를 비운 사이 위험해서 8시간까지만
+LOCK_MINUTES = (5, 10, 15, 30, 60, 120, 240, 480)
 # 보스키: 보조키 + 키 위치 이름(KeyboardEvent.code), '*2'면 빠르게 두 번.
 # 예: Escape*2, Ctrl+Shift+KeyK
 BOSS_KEY_RE = re.compile(r"(?:(?:Ctrl|Alt|Shift|Meta)\+){0,4}[A-Za-z][A-Za-z0-9]{0,24}(?:\*2)?")
@@ -33,6 +35,7 @@ DEFAULTS: dict[str, Any] = {
     "notify_scope": "pinned",
     "notify_preview": False,
     "guide_done": False,
+    "lock_minutes": 30,
 }
 
 
@@ -59,6 +62,10 @@ def clean(update: dict[str, Any]) -> dict[str, Any]:
             if value not in BOSS_TEMPLATES:
                 raise SettingsError("bad_boss_template")
             result[key] = value
+        elif key == "lock_minutes":
+            if isinstance(value, bool) or value not in LOCK_MINUTES:
+                raise SettingsError("bad_lock_minutes")
+            result[key] = value
         elif key == "notify_scope":
             if value not in NOTIFY_SCOPES:
                 raise SettingsError("bad_notify_scope")
@@ -80,6 +87,14 @@ class SettingsStore:
     def __init__(self, db: Database, clock: Callable[[], float] = time.time) -> None:
         self.db = db
         self.clock = clock
+        self._lock_cache: dict[int, int] = {}  # 계정 → 자동 잠금 초(요청마다 DB를 읽지 않게)
+
+    async def lock_seconds(self, account_id: int) -> int:
+        cached = self._lock_cache.get(account_id)
+        if cached is None:
+            cached = int((await self.get(account_id))["lock_minutes"]) * 60
+            self._lock_cache[account_id] = cached
+        return cached
 
     async def get(self, account_id: int) -> dict[str, Any]:
         row = await self.db.fetch_one(
@@ -104,4 +119,5 @@ class SettingsStore:
                 " settings_json = excluded.settings_json, updated_at = excluded.updated_at",
                 (account_id, json.dumps(current, ensure_ascii=False), int(self.clock())),
             )
+        self._lock_cache[account_id] = int(current["lock_minutes"]) * 60
         return current

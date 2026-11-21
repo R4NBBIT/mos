@@ -5,7 +5,7 @@ import { bossKeyLabel, parseBossKey } from "./boss/bossKey";
 import { clearMyFile, FileImportError, importMyFile, loadMyFile } from "./boss/myFile";
 import { TEMPLATE_NAMES } from "./boss/templates";
 import { isTouchOnly } from "./device";
-import { defaultTitle, type Settings, THEMES, type Theme } from "./theme";
+import { defaultTitle, LOCK_MINUTES, lockLabel, type Settings, THEMES, type Theme } from "./theme";
 import { askPopupPermission, popupSupport, type PopupSupport } from "./useNotifications";
 
 const POPUP_TEXT: Record<PopupSupport, string> = {
@@ -152,6 +152,32 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
             />
           </form>
           <p className="settings-note">비워 두면 테마 기본값({defaultTitle(settings.theme)})을 써요. 잠금 화면 제목도 같이 바뀌어요.</p>
+        </section>
+
+        <section className="settings-card">
+          <h2 className="settings-title">잠금</h2>
+          <label className="settings-toggle">
+            <span>
+              <strong>자동 잠금</strong>
+              <small>이 시간 동안 아무것도 안 하면 잠겨서 비밀번호를 다시 물어요</small>
+            </span>
+            <select
+              className="settings-select"
+              aria-label="자동 잠금 시간"
+              value={settings.lock_minutes}
+              onChange={(event) => void save({ lock_minutes: Number(event.target.value) })}
+            >
+              {LOCK_MINUTES.map((minutes) => (
+                <option key={minutes} value={minutes}>
+                  {lockLabel(minutes)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="settings-note">
+            잠금 해제할 때 '로그인 유지'를 고르면 이 브라우저에서는 30일 동안 잠기지 않아요. 계정 메뉴 › 잠그기로 바로 잠글 수도
+            있어요.
+          </p>
         </section>
 
         <section className="settings-card">

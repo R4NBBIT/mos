@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -58,6 +58,10 @@ class SessionError(Exception):
         self.retry_after = retry_after
 
 
+async def _default_lock_seconds(_account_id: int) -> int:
+    return AUTO_LOCK_SEC
+
+
 @dataclass(frozen=True)
 class Device:
     id: int
@@ -93,8 +97,11 @@ class SessionService:
         oauth: OAuthClient,
         bot_guild_ids: Callable[[], set[int]],
         clock: Callable[[], float] = time.time,
+        lock_seconds: Callable[[int], Awaitable[int]] | None = None,
     ) -> None:
         self.repo = repo
+        # 계정마다 정한 자동 잠금 시간(설정). 없으면 기본 30분
+        self.lock_seconds = lock_seconds or _default_lock_seconds
         self.cipher = cipher
         self.oauth = oauth
         self.bot_guild_ids = bot_guild_ids
@@ -204,8 +211,10 @@ class SessionService:
             raise SessionError("account_disconnected", status=401)
         if not self._is_unlocked(link, now):
             raise SessionError("locked", status=401)
-        new_until = now + AUTO_LOCK_SEC
-        if touch and new_until - (link.get("unlocked_until") or 0) >= SLIDE_MIN_STEP_SEC:
+        new_until = now + await self.lock_seconds(device.active_account_id)
+        old_until = link.get("unlocked_until") or 0
+        # 늦추는 건 1분에 한 번만 쓰고, 잠금 시간을 줄였으면 바로 줄인다
+        if touch and (new_until - old_until >= SLIDE_MIN_STEP_SEC or old_until > new_until):
             await self.repo.update_device_account(
                 device.id, device.active_account_id, unlocked_until=new_until
             )
@@ -293,7 +302,7 @@ class SessionService:
         else:
             # 디스코드 로그인으로 본인 확인을 마쳤으므로 잠금을 푼다
             await self.repo.update_device_account(
-                device.id, account_id, unlocked_until=now + AUTO_LOCK_SEC
+                device.id, account_id, unlocked_until=now + await self.lock_seconds(account_id)
             )
         return account_id
 
@@ -319,7 +328,7 @@ class SessionService:
             device.id,
             account_id,
             password_setup_until=None,
-            unlocked_until=now + AUTO_LOCK_SEC,
+            unlocked_until=now + await self.lock_seconds(account_id),
         )
 
     async def unlock(
@@ -354,7 +363,7 @@ class SessionService:
         await self.repo.update_device_account(
             device.id,
             account_id,
-            unlocked_until=now + AUTO_LOCK_SEC,
+            unlocked_until=now + await self.lock_seconds(account_id),
             keep_until=now + KEEP_SIGNED_IN_SEC if keep else None,
         )
         await self.repo.set_active_account(device.id, account_id)

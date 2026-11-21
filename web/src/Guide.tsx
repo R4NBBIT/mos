@@ -5,7 +5,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { fetchGroupChannels, fetchGroups } from "./api";
 import { bossKeyLabel, parseBossKey } from "./boss/bossKey";
 import { isTouchOnly } from "./device";
-import type { Settings } from "./theme";
+import { lockLabel, type Settings } from "./theme";
 import type { ChannelInfo } from "./types";
 import { askPopupPermission, popupSupport, type PopupSupport } from "./useNotifications";
 
@@ -259,7 +259,10 @@ function buildCards(
     body: (
       <ul>
         <li>설정에서 테마(기본·다크·스프레드시트·메모장)와 탭 제목을 바꿀 수 있어요.</li>
-        <li>30분 동안 아무것도 안 하면 저절로 잠겨요. 잠금 해제는 처음 정한 비밀번호로 해요.</li>
+        <li>
+          {lockLabel(settings.lock_minutes)} 동안 아무것도 안 하면 저절로 잠겨요(설정 › 잠금에서 바꿀 수 있어요). 잠금 해제는
+          처음 정한 비밀번호로 해요.
+        </li>
         <li>한 브라우저에 계정을 5개까지 넣고 계정 메뉴에서 바꿀 수 있어요.</li>
         <li>이 안내는 계정 메뉴 › '사용 방법'에서 다시 볼 수 있어요.</li>
       </ul>

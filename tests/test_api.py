@@ -489,6 +489,26 @@ def test_auto_lock_and_keep_signed_in(env: Env) -> None:
     assert messages_status(env) == 401
 
 
+def test_lock_minutes_setting(env: Env) -> None:
+    account_id = signed_up(env)
+    # 5분으로 줄이면 바로(다음 요청부터) 5분 기준
+    changed = env.client.patch("/api/settings", json={"lock_minutes": 5}, headers=POST)
+    assert changed.json()["lock_minutes"] == 5
+    env.tick(4 * 60)
+    assert messages_status(env) == 200
+    env.tick(5 * 60 + 1)
+    assert messages_status(env) == 401
+
+    # 2시간으로 늘리면 잠금 해제 뒤 2시간까지 열림
+    assert unlock(env, account_id).status_code == 204
+    env.client.patch("/api/settings", json={"lock_minutes": 120}, headers=POST)
+    env.tick(100 * 60)
+    assert messages_status(env) == 200
+    for bad in (0, 7, 1000, True, "30"):
+        response = env.client.patch("/api/settings", json={"lock_minutes": bad}, headers=POST)
+        assert response.status_code == 400
+
+
 def test_unsafe_requests_need_our_origin(env: Env) -> None:
     account_id = signed_up(env)
     for origin in ("https://evil.example", ""):
@@ -1356,6 +1376,7 @@ def test_settings_per_account(env: Env) -> None:
         "notify_scope": "pinned",
         "notify_preview": False,
         "guide_done": False,
+        "lock_minutes": 30,
     }
     assert env.client.get("/api/settings").json() == defaults
     changed = env.client.patch(
