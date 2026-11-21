@@ -21,7 +21,7 @@ function nitroText(account: SessionAccount): string {
 
 /** 니트로 인증 방법 안내(메뉴 안 작은 글씨) */
 function nitroHelp(account: SessionAccount): string {
-  if (account.nitro === "verified") return "니트로 이모지를 쓸 때마다 그날부터 7일로 늘어나요.";
+  if (account.nitro === "verified") return "니트로 이모지를 쓸 때마다 7일씩 갱신돼요.";
   if (account.nitro === "pending") {
     return "디스코드 앱에서 움직이는 이모지나 다른 서버 이모지를 메시지나 반응으로 한 번 쓰면 확인돼요.";
   }

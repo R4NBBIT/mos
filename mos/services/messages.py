@@ -29,6 +29,16 @@ def attachment_to_dict(attachment: Any) -> dict[str, Any]:
     return data
 
 
+def sticker_to_dict(sticker: Any) -> dict[str, Any]:
+    """스티커는 id·이름·형식(1 PNG, 2 APNG, 3 Lottie, 4 GIF)만 둔다."""
+    kind = getattr(sticker, "format", None)
+    return {
+        "id": str(sticker.id),
+        "name": str(getattr(sticker, "name", "") or ""),
+        "format": int(getattr(kind, "value", kind) or 1),
+    }
+
+
 def _display_name(item: Any) -> str:
     return str(getattr(item, "display_name", None) or getattr(item, "name", None) or "")
 
@@ -74,6 +84,10 @@ def message_to_row(message: Any) -> dict[str, Any]:
         "components_json": "[]",
         "mentions_json": json.dumps(mentions_to_dict(message), ensure_ascii=False),
         "kind": int(getattr(getattr(message, "type", None), "value", 0) or 0),
+        "stickers_json": json.dumps(
+            [sticker_to_dict(item) for item in getattr(message, "stickers", None) or []],
+            ensure_ascii=False,
+        ),
         "reference_id": int(reference.message_id)
         if reference is not None and reference.message_id
         else None,
@@ -131,6 +145,7 @@ def row_to_api(row: dict[str, Any]) -> dict[str, Any]:
         "embeds": json.loads(row["embeds_json"]),
         "attachments": json.loads(row["attachments_json"]),
         "mentions": _load_mentions(row.get("mentions_json")),
+        "stickers": json.loads(row.get("stickers_json") or "[]"),
         "reference_id": snowflake(reference),
         "created_at": row["created_at"],
         "edited_at": row["edited_at"],

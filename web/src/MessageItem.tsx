@@ -1,7 +1,7 @@
 import { memo, useState } from "react";
 import MessageContent from "./MessageContent";
 import { formatSize, formatTime, isDiscordMediaUrl, thumbnailUrl } from "./format";
-import type { Attachment, Message } from "./types";
+import type { Attachment, Message, Sticker } from "./types";
 import { isEmptyMessage, isSystemMessage, systemText } from "./systemMessage";
 
 /** 댓글 시간: 오늘이면 시각만, 아니면 월/일도 */
@@ -42,6 +42,11 @@ export function MessageBody({ message }: { message: Message }) {
     <>
       {isEmptyMessage(message) && <span className="msg-empty">(여기서는 보여 줄 수 없는 내용이에요)</span>}
       {message.content && <MessageContent content={message.content} mentions={message.mentions} />}
+      {(message.stickers ?? []).map((sticker) => (
+        <div className="msg-sticker" key={sticker.id}>
+          <StickerView sticker={sticker} />
+        </div>
+      ))}
       {message.embeds.map((embed, index) => (
         <div className="embed" key={index}>
           {embed.title && <strong>{embed.title}</strong>}
@@ -53,6 +58,24 @@ export function MessageBody({ message }: { message: Message }) {
       ))}
     </>
   );
+}
+
+const LOTTIE_STICKER = 3;
+const GIF_STICKER = 4;
+
+/** 스티커 그림 주소. Lottie(벡터 애니메이션)는 그림 파일이 없어 null */
+function stickerUrl(sticker: Sticker): string | null {
+  if (!/^\d{15,21}$/.test(sticker.id) || sticker.format === LOTTIE_STICKER) return null;
+  // PNG·APNG는 .png(APNG면 그대로 움직인다), GIF 스티커는 .gif
+  const extension = sticker.format === GIF_STICKER ? "gif" : "png";
+  return `https://media.discordapp.net/stickers/${sticker.id}.${extension}?size=160`;
+}
+
+/** 스티커: 그림으로, 그림이 없는 형식이면 이름만 */
+export function StickerView({ sticker }: { sticker: Sticker }) {
+  const src = stickerUrl(sticker);
+  if (!src) return <span className="sticker-text">[스티커] {sticker.name}</span>;
+  return <img className="sticker" src={src} alt={`[스티커] ${sticker.name}`} title={sticker.name} loading="lazy" referrerPolicy="no-referrer" />;
 }
 
 /** 글자만 보이는 테마(메모장·시트): "[사진] 파일명" 링크 */
@@ -89,8 +112,11 @@ export function MessageTextOnly({ message, pictures = false }: { message: Messag
           <AttachmentText attachment={attachment} />
         </span>
       ))}
-      {shownPictures.length > 0 && (
+      {(shownPictures.length > 0 || (message.stickers?.length ?? 0) > 0) && (
         <span className="inline-pics">
+          {(message.stickers ?? []).map((sticker) => (
+            <StickerView key={sticker.id} sticker={sticker} />
+          ))}
           {shownPictures.map((attachment) => (
             <AttachmentView key={attachment.id} attachment={attachment} />
           ))}

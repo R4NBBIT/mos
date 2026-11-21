@@ -1,7 +1,7 @@
 import { type ReactNode, type RefObject, useEffect, useState } from "react";
 import { fetchGroupChannels } from "./api";
 import { dayKey, formatDay } from "./format";
-import { AttachmentText, AttachmentView, isPicture, MessageTextOnly, type ReplyPreview } from "./MessageItem";
+import { AttachmentText, AttachmentView, isPicture, MessageTextOnly, StickerView, type ReplyPreview } from "./MessageItem";
 import type { ChannelInfo, Message } from "./types";
 import { isSystemMessage, systemText } from "./systemMessage";
 import MessageContent from "./MessageContent";
@@ -179,6 +179,7 @@ export default function SheetView(props: Props) {
     if (isStarter) classes.push("sheet-row-starter");
     const text = plainText(message);
     const pictures = message.attachments.filter(isPicture);
+    const stickers = message.stickers ?? [];
     body.push(
       <div
         className={classes.join(" ")}
@@ -192,7 +193,7 @@ export default function SheetView(props: Props) {
           className={[
             "sheet-cell sheet-cell-c",
             message.reference_id ? "sheet-has-note" : "",
-            pictures.length > 0 ? "sheet-cell-pics" : "",
+            pictures.length + stickers.length > 0 ? "sheet-cell-pics" : "",
           ].join(" ")}
           title={reply ? `↪ ${reply.author}: ${reply.text}` : undefined}
         >
@@ -211,9 +212,12 @@ export default function SheetView(props: Props) {
                 <AttachmentText attachment={attachment} />
               </span>
             ))}
-          {pictures.length > 0 && (
+          {pictures.length + stickers.length > 0 && (
             // 셀 안에 삽입한 그림처럼(행이 그만큼 높아진다)
             <span className="sheet-pics">
+              {stickers.map((sticker) => (
+                <StickerView key={sticker.id} sticker={sticker} />
+              ))}
               {pictures.map((attachment) => (
                 <AttachmentView key={attachment.id} attachment={attachment} />
               ))}

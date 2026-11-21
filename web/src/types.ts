@@ -33,6 +33,13 @@ export interface Mentions {
   channels: Record<string, string>;
 }
 
+/** 스티커 형식: 1 PNG, 2 APNG(움직임), 3 Lottie(벡터 애니메이션), 4 GIF */
+export interface Sticker {
+  id: string;
+  name: string;
+  format: number;
+}
+
 export interface Message {
   id: string;
   channel_id: string;
@@ -46,6 +53,8 @@ export interface Message {
   embeds: Embed[];
   attachments: Attachment[];
   mentions: Mentions;
+  /** 디스코드 스티커(예전 메시지·웹에서 보낸 메시지는 없을 수 있다) */
+  stickers?: Sticker[];
   reference_id: string | null;
   created_at: string;
   edited_at: string | null;

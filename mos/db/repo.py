@@ -22,12 +22,15 @@ MESSAGE_COLUMNS = (
     "components_json",
     "mentions_json",
     "kind",
+    "stickers_json",
     "reference_id",
     "flags",
     "created_at",
     "edited_at",
 )
 MAX_PAGE_SIZE = 100
+# 나중에 생긴 열의 기본값(보통 메시지, 스티커 없음)
+_LATE_DEFAULTS: dict[str, Any] = {"kind": 0, "stickers_json": "[]"}
 
 # 열 이름은 위의 고정 상수에서만 오고, 값은 모두 ? 바인딩이다
 _insert_sql = (
@@ -52,9 +55,12 @@ class MessageRepo:
         self.db = db
 
     async def upsert_many(self, rows: Iterable[dict[str, Any]]) -> int:
-        # kind는 나중에 생긴 열이라, 직접 만든 행(웹에서 보낸 메시지 등)에 없으면 보통 메시지(0)
+        # 나중에 생긴 열은 직접 만든 행(웹에서 보낸 메시지 등)에 없을 수 있어 기본값을 쓴다
         values = [
-            tuple(row.get(col, 0) if col == "kind" else row[col] for col in MESSAGE_COLUMNS)
+            tuple(
+                row.get(col, _LATE_DEFAULTS[col]) if col in _LATE_DEFAULTS else row[col]
+                for col in MESSAGE_COLUMNS
+            )
             for row in rows
         ]
         if not values:

@@ -481,6 +481,25 @@ button {
   min-width: 0;
 }
 
+/* 왼쪽 목록 접기·펼치기: 목록과 본문 사이 얇은 띠 */
+.split-toggle {
+  flex: 0 0 14px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--bg);
+  color: var(--sub);
+  cursor: pointer;
+}
+
+.split-toggle:hover {
+  background: var(--tint);
+  color: var(--ink);
+}
+
 .split .room {
   max-width: none;
 }
@@ -3019,4 +3038,37 @@ button.tag-chip:disabled {
 /* 수식 입력줄: 전체 글을 서식 그대로(여러 줄) */
 .sheet-formula-text .msg-text {
   white-space: pre-wrap;
+}
+
+/* ------------------------------------------------------------ 스티커 */
+.sticker {
+  display: block;
+  width: 160px;
+  height: 160px;
+  object-fit: contain;
+}
+
+.msg-sticker {
+  margin-top: 4px;
+}
+
+.inline-pics .sticker {
+  width: 80px;
+  height: 80px;
+}
+
+.sheet-pics .sticker {
+  width: 72px;
+  height: 72px;
+}
+
+.sticker-text {
+  color: var(--sub);
+}
+
+@media (max-width: 480px) {
+  .sticker {
+    width: 128px;
+    height: 128px;
+  }
 }

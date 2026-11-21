@@ -53,5 +53,10 @@ export function systemText(message: Message): string {
 
 /** 보통 메시지인데 보여 줄 게 하나도 없을 때(스티커·투표 등 아직 못 그리는 것) */
 export function isEmptyMessage(message: Message): boolean {
-  return !message.content.trim() && message.attachments.length === 0 && message.embeds.length === 0;
+  return (
+    !message.content.trim() &&
+    message.attachments.length === 0 &&
+    message.embeds.length === 0 &&
+    (message.stickers?.length ?? 0) === 0
+  );
 }

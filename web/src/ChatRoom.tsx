@@ -13,7 +13,7 @@ import { isDisguised } from "./boss/bossState";
 import Composer from "./Composer";
 import { compareIds, dayKey, formatDay, formatTime } from "./format";
 import MessageItem, { Avatar, MessageBody, type ReplyPreview } from "./MessageItem";
-import SheetView from "./SheetView";
+import SheetView, { plainText } from "./SheetView";
 import type { Theme } from "./theme";
 import type { ChannelInfo, Message, RealtimeEvent } from "./types";
 import { useRealtime } from "./useRealtime";
@@ -238,7 +238,9 @@ export default function ChatRoom({
   const replyPreview = (message: Message): ReplyPreview | null => {
     const original = message.reference_id ? byId.get(message.reference_id) : undefined;
     if (!original) return null;
-    const text = original.content.replace(/\s+/g, " ").slice(0, 40) || "(첨부)";
+    const sticker = original.stickers?.[0];
+    const text =
+      plainText(original).slice(0, 40) || (sticker ? `[스티커] ${sticker.name}` : "(첨부)");
     return { author: original.author.name, text };
   };
 

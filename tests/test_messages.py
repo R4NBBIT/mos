@@ -96,3 +96,15 @@ def test_message_kind_kept() -> None:
     assert joined["kind"] == 7
     assert row_to_api(joined)["kind"] == 7
     assert message_to_row(fake_message())["kind"] == 0
+
+
+def test_stickers_kept() -> None:
+    # 스티커만 보낸 메시지도 id·이름·형식을 남겨 웹에서 그림으로 보여 준다
+    sticker = SimpleNamespace(id=1234567890123456789, name="빙글", format=SimpleNamespace(value=4))
+    row = message_to_row(fake_message(content="", stickers=[sticker]))
+    assert row_to_api(row)["stickers"] == [
+        {"id": "1234567890123456789", "name": "빙글", "format": 4}
+    ]
+    old = message_to_row(fake_message())
+    del old["stickers_json"]
+    assert row_to_api(old)["stickers"] == []

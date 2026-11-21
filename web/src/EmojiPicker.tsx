@@ -27,7 +27,7 @@ const UNICODE_GROUPS: { name: string; emojis: string[] }[] = [
 
 function emojiImage(emoji: ChannelEmoji): string {
   // ID는 숫자만 온다(서버가 만든 값)
-  return `https://cdn.discordapp.com/emojis/${emoji.id}.${emoji.animated ? "gif" : "webp"}?size=48`;
+  return `https://cdn.discordapp.com/emojis/${emoji.id}.webp?size=48${emoji.animated ? "&animated=true" : ""}`;
 }
 
 export function emojiCode(emoji: ChannelEmoji): string {

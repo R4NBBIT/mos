@@ -64,8 +64,9 @@ function formatTimestamp(seconds: number, style: string): string {
   ).format(date);
 }
 
+// 디스코드 권장 주소: 모두 webp, 움직이는 이모지는 animated=true(.gif는 요즘 올린 것에서 안 나올 수 있다)
 function emojiUrl(id: string, animated: boolean): string {
-  return `https://cdn.discordapp.com/emojis/${id}.${animated ? "gif" : "webp"}?size=96`;
+  return `https://cdn.discordapp.com/emojis/${id}.webp?size=96${animated ? "&animated=true" : ""}`;
 }
 
 function isEmojiOnly(content: string): boolean {

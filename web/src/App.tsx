@@ -83,6 +83,28 @@ function useWide(): boolean {
   return wide;
 }
 
+const LIST_OPEN_KEY = "mos.splitList.v1";
+
+/** 넓은 창 왼쪽 목록을 펼쳐 둘지(이 브라우저에만 기억, 저장이 안 되면 펼친 채로) */
+function useListOpen(): [boolean, (open: boolean) => void] {
+  const [open, setOpen] = useState(() => {
+    try {
+      return window.localStorage.getItem(LIST_OPEN_KEY) !== "closed";
+    } catch {
+      return true;
+    }
+  });
+  const change = useCallback((next: boolean) => {
+    setOpen(next);
+    try {
+      window.localStorage.setItem(LIST_OPEN_KEY, next ? "open" : "closed");
+    } catch {
+      // 저장소를 못 쓰면 이번 화면에서만
+    }
+  }, []);
+  return [open, change];
+}
+
 function pickActive(session: SessionState): SessionAccount | null {
   return (
     session.accounts.find((account) => account.id === session.active_account_id) ??
@@ -127,6 +149,7 @@ function Screens({ look, setLook, refreshKey, onShowBoss, onFileChanged }: Scree
   const [notice, setNotice] = useState(takeConnectError);
   const [route, go] = useHashRoute();
   const wide = useWide();
+  const [listOpen, setListOpen] = useListOpen();
 
   const refresh = useCallback(async () => {
     try {
@@ -272,39 +295,62 @@ function Screens({ look, setLook, refreshKey, onShowBoss, onFileChanged }: Scree
     );
   }
 
-  // 시트 테마의 대화방·글 목록은 화면 전체가 문서 한 장이다(채널은 아래 시트 탭으로)
-  const sheetRoom =
-    look.theme === "sheet" && (route.view === "chat" || route.view === "thread" || route.view === "posts");
-  if (wide && !sheetRoom) {
+  // 목록 없이 한 화면(좁은 창, 또는 넓은 창에서 목록을 접었을 때)
+  const single = () => {
+    if (route.view === "chat") return chatRoom(route.groupId, route.channelId, false);
+    if (route.view === "posts") return posts(route.groupId, route.parentId, false);
+    if (route.view === "thread") return chatRoom(route.groupId, route.threadId, false, route.parentId);
+    if (route.view === "channels") return channelList(route.groupId);
+    return groupList;
+  };
+  if (!wide) return single();
+
+  const toggle = (
+    <button
+      type="button"
+      className="split-toggle"
+      aria-expanded={listOpen}
+      aria-label={listOpen ? "왼쪽 목록 접기" : "왼쪽 목록 펼치기"}
+      title={listOpen ? "목록 접기" : "목록 펼치기"}
+      onClick={() => setListOpen(!listOpen)}
+    >
+      <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+        <path d={listOpen ? "M10 3 5 8l5 5" : "m6 3 5 5-5 5"} fill="none" stroke="currentColor" strokeWidth="1.8" />
+      </svg>
+    </button>
+  );
+  if (!listOpen) {
     return (
-      <div className="split">
-        <aside className="split-list">
-          {route.view === "groups"
-            ? groupList
-            : channelList(
-                route.groupId,
-                route.view === "chat" ? route.channelId : route.view === "channels" ? undefined : route.parentId,
-              )}
-        </aside>
-        <main className="split-main">
-          {route.view === "chat" ? (
-            chatRoom(route.groupId, route.channelId, true)
-          ) : route.view === "posts" ? (
-            posts(route.groupId, route.parentId, true)
-          ) : route.view === "thread" ? (
-            chatRoom(route.groupId, route.threadId, true, route.parentId)
-          ) : (
-            <div className="split-empty">왼쪽에서 {route.view === "groups" ? "모임" : "채널"}을 골라 주세요.</div>
-          )}
-        </main>
+      <div className="split split-closed">
+        {toggle}
+        <main className="split-main">{single()}</main>
       </div>
     );
   }
-  if (route.view === "chat") return chatRoom(route.groupId, route.channelId, false);
-  if (route.view === "posts") return posts(route.groupId, route.parentId, false);
-  if (route.view === "thread") return chatRoom(route.groupId, route.threadId, false, route.parentId);
-  if (route.view === "channels") return channelList(route.groupId);
-  return groupList;
+  return (
+    <div className="split">
+      <aside className="split-list">
+        {route.view === "groups"
+          ? groupList
+          : channelList(
+              route.groupId,
+              route.view === "chat" ? route.channelId : route.view === "channels" ? undefined : route.parentId,
+            )}
+      </aside>
+      {toggle}
+      <main className="split-main">
+        {route.view === "chat" ? (
+          chatRoom(route.groupId, route.channelId, true)
+        ) : route.view === "posts" ? (
+          posts(route.groupId, route.parentId, true)
+        ) : route.view === "thread" ? (
+          chatRoom(route.groupId, route.threadId, true, route.parentId)
+        ) : (
+          <div className="split-empty">왼쪽에서 {route.view === "groups" ? "모임" : "채널"}을 골라 주세요.</div>
+        )}
+      </main>
+    </div>
+  );
 }
 
 /** 위장 화면에 쓸 표: 고른 템플릿(날짜는 오늘 기준) 또는 불러온 내 파일 */
