@@ -45,7 +45,7 @@ from mos.services.discord_oauth import DiscordOAuth, OAuthClient
 from mos.services.egress import EgressMeter
 from mos.services.emojis import EmojiService
 from mos.services.messages import row_to_api
-from mos.services.permissions import ADD_REACTIONS, ChannelAccess, PermissionService
+from mos.services.permissions import ADD_REACTIONS, ChannelAccess, PermissionService, is_private
 from mos.services.push import PushError, PushService
 from mos.services.realtime import RealtimeHub, Subscriber
 from mos.services.sender import (
@@ -118,7 +118,9 @@ def thread_to_api(thread: ChannelInfo, preview: str | None) -> dict[str, Any]:
     }
 
 
-def channel_to_api(access: ChannelAccess, group_name: str | None = None) -> dict[str, Any]:
+def channel_to_api(
+    access: ChannelAccess, group_name: str | None = None, guild: GuildInfo | None = None
+) -> dict[str, Any]:
     channel = access.channel
     data: dict[str, Any] = {
         "id": str(channel.id),
@@ -147,6 +149,8 @@ def channel_to_api(access: ChannelAccess, group_name: str | None = None) -> dict
         data["locked"] = channel.thread_locked
         data["archived"] = channel.archived
         data["private"] = channel.private_thread
+    elif guild is not None:
+        data["private"] = is_private(guild, channel)
     if group_name is not None:
         data["group_name"] = group_name
     return data
@@ -610,7 +614,7 @@ def create_app(
                 continue  # 권한이 사라진 고정은 숨긴다(지우지는 않음)
             guild = directory.guild(access.channel.guild_id)
             counts = await unread_for(account, [access])
-            data = channel_to_api(access, group_name=guild.name if guild else "")
+            data = channel_to_api(access, group_name=guild.name if guild else "", guild=guild)
             pinned_channels.append(with_unread(data, counts.get(access.channel.id)))
         return {"groups": groups, "pinned_channels": pinned_channels}
 
@@ -629,7 +633,7 @@ def create_app(
         group["pinned"] = any(p["kind"] == "group" and p["target_id"] == group_id for p in pins)
         channels = []
         for access in accesses:
-            data = with_unread(channel_to_api(access), counts.get(access.channel.id))
+            data = with_unread(channel_to_api(access, guild=guild), counts.get(access.channel.id))
             data["pinned"] = access.channel.id in pinned
             channels.append(data)
         return {"group": group, "channels": channels}
@@ -718,7 +722,7 @@ def create_app(
         archived = [t.archive_ts for t in threads if t.archived and t.archive_ts]
         guild = directory.guild(access.channel.guild_id)
         return {
-            "parent": channel_to_api(access, group_name=guild.name if guild else ""),
+            "parent": channel_to_api(access, group_name=guild.name if guild else "", guild=guild),
             "threads": items,
             "has_more": has_more,
             "next_before": min(archived) if has_more and archived else None,
@@ -759,7 +763,7 @@ def create_app(
         require_ready()
         access = await require_channel(account, channel_id)
         guild = directory.guild(access.channel.guild_id)
-        data = channel_to_api(access, group_name=guild.name if guild else "")
+        data = channel_to_api(access, group_name=guild.name if guild else "", guild=guild)
         channel = access.channel
         if channel.kind == "thread" and channel.parent_id:
             # 글·스레드 화면: 부모 이름, 붙은 태그, 첫 메시지(글 ID = 첫 메시지 ID)

@@ -974,6 +974,11 @@ def test_groups_and_channels_follow_permissions(env: Env) -> None:
     ]
     body = env.client.get(f"/api/groups/{GUILD}/channels").json()
     assert [c["name"] for c in body["channels"]] == ["일반", "비밀", "포럼"]
+    assert [c["private"] for c in body["channels"]] == [
+        False,
+        True,
+        False,
+    ]  # @everyone이 못 보면 비공개
     assert body["channels"][0]["can_send"] is True
     assert env.client.get(f"/api/groups/{OTHER_GUILD}/channels").status_code == 404
 

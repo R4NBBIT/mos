@@ -78,6 +78,19 @@ def compute_permissions(
     return permissions
 
 
+def is_private(guild: GuildInfo, channel: ChannelInfo) -> bool:
+    """비공개 채널: 역할 없는 사람(@everyone)은 볼 수 없는 채널. 비공개 스레드도."""
+    if channel.kind == "thread":
+        return channel.private_thread
+    base = guild.role_permissions.get(guild.id, 0)
+    if base & ADMINISTRATOR:
+        return False
+    for overwrite in channel.overwrites:
+        if overwrite.is_role and overwrite.target_id == guild.id:
+            base = (base & ~overwrite.deny) | overwrite.allow
+    return not base & VIEW_CHANNEL
+
+
 @dataclass(frozen=True)
 class ChannelAccess:
     channel: ChannelInfo

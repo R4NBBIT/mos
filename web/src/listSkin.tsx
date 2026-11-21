@@ -38,10 +38,19 @@ const memoStack = (
   </Svg>
 );
 
-const lock = (
+/** 비공개 채널(모든 테마) */
+export const lockIcon = (
   <Svg size={13}>
     <rect x="5" y="9" width="10" height="8" rx="1.5" fill="currentColor" />
     <path d="M7 9V7a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+  </Svg>
+);
+
+/** 글을 쓸 수 없음(기본, 다크): 보기만 하는 눈 */
+const noWrite = (
+  <Svg size={15}>
+    <path d="M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5z" fill="none" stroke="currentColor" strokeWidth="1.4" />
+    <circle cx="10" cy="10" r="2.2" fill="currentColor" />
   </Svg>
 );
 
@@ -180,7 +189,7 @@ export function listSkin(theme: Theme): ListSkin {
         channelExt: () => "",
         readOnly: (
           <span className="skin-ro skin-lock" role="img" aria-label="읽기 전용" title="읽기 전용">
-            {lock}
+            {noWrite}
           </span>
         ),
         channelsTitle: (name) => name,

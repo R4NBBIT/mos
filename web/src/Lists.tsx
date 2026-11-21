@@ -1,7 +1,7 @@
 import SplitToggle from "./SplitToggle";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, fetchGroupChannels, fetchGroupMembers, fetchGroups, setPinned } from "./api";
-import { type ListSkin, listSkin } from "./listSkin";
+import { type ListSkin, listSkin, lockIcon } from "./listSkin";
 import { useLook } from "./lookContext";
 import { Avatar } from "./MessageItem";
 import type { ChannelInfo, Group, GroupChannels, GroupList as GroupListData, GroupMembers } from "./types";
@@ -265,9 +265,14 @@ function ChannelRow({
         {ext && <span className="skin-ext">{ext}</span>}
         {sub && <span className="list-sub">{sub}</span>}
       </span>
-      {viewers !== undefined && (
-        <span className="list-people" title={`${viewers}명만 볼 수 있어요`} aria-label={`${viewers}명만 볼 수 있음`}>
-          {viewers}명
+      {(channel.private || viewers !== undefined) && (
+        <span
+          className="list-people"
+          title={viewers !== undefined ? `비공개: ${viewers}명만 볼 수 있어요` : "비공개"}
+          aria-label={viewers !== undefined ? `비공개, ${viewers}명만 볼 수 있음` : "비공개"}
+        >
+          {channel.private && lockIcon}
+          {viewers !== undefined && `${viewers}명`}
         </span>
       )}
       {!channel.can_send && channel.kind !== "forum" && skin.readOnly}
