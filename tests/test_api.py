@@ -802,6 +802,67 @@ def test_reactions_toggle_through_bot(env: Env) -> None:
     )
 
 
+def test_web_push_when_no_tab_is_open(env: Env) -> None:
+    import base64 as b64
+
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
+
+    signed_up(env, "latte")  # 라떼(43)
+    push = env.app.state.push
+    posted: list[tuple[str, dict]] = []
+
+    async def fake_post(endpoint: str, headers: dict) -> int:
+        posted.append((endpoint, headers))
+        return 201
+
+    push._post = fake_post
+    bad = env.client.post(
+        "/api/push/subscribe", json={"endpoint": "https://evil.example/push"}, headers=POST
+    )
+    assert bad.status_code == 400  # 브라우저 회사 푸시 서버만
+    endpoint = "https://fcm.googleapis.com/fcm/send/abc123"
+    sub = env.client.post("/api/push/subscribe", json={"endpoint": endpoint}, headers=POST)
+    assert sub.status_code == 204
+    assert env.client.post("/api/push/status", json={"endpoint": endpoint}, headers=POST).json()[
+        "subscribed"
+    ]
+
+    # 탭이 없을 때 나를 부른 글 → 빈 푸시 하나, 서명은 서버 공개 열쇠로 확인된다
+    env.client.portal.call(env.hub.notify, CHANNEL, notify_message(9, mention=43))
+    assert len(posted) == 1 and posted[0][0] == endpoint
+    auth = posted[0][1]["Authorization"]
+    token = auth.split("t=")[1].split(",")[0]
+    head, body, sig = token.split(".")
+    pad = lambda text: text + "=" * (-len(text) % 4)  # noqa: E731
+    raw = b64.urlsafe_b64decode(pad(sig))
+    key = env.client.get("/api/push/key").json()["key"]
+    public = ec.EllipticCurvePublicKey.from_encoded_point(
+        ec.SECP256R1(), b64.urlsafe_b64decode(pad(key))
+    )
+    der = encode_dss_signature(int.from_bytes(raw[:32], "big"), int.from_bytes(raw[32:], "big"))
+    public.verify(der, f"{head}.{body}".encode(), ec.ECDSA(hashes.SHA256()))
+
+    # 서비스 워커가 받아 가는 글: 기본은 내용 없이, 누르면 그 채널로
+    latest = env.client.get("/api/push/latest").json()
+    assert latest["body"] == "새 알림이 있어요" and latest["url"].endswith(f"/c/{CHANNEL}")
+    env.client.patch("/api/settings", json={"notify_preview": True}, headers=POST)
+    assert "점심" in env.client.get("/api/push/latest").json()["body"]
+
+    # 탭(알림 연결)이 열려 있으면 푸시는 보내지 않는다
+    env.tick(60)
+    with env.client.websocket_connect(
+        "/ws", headers={"origin": ORIGIN, "cookie": ws_cookie(env)}
+    ) as ws:
+        ws.send_text('{"type": "notify", "scope": "mentions"}')
+        ws.send_text("ping")
+        assert ws.receive_text() == "pong"
+        env.client.portal.call(env.hub.notify, CHANNEL, notify_message(10, mention=43))
+        assert ws.receive_json()["type"] == "notify"
+    assert len(posted) == 1
+
+
 def test_open_websocket_is_closed_after_lock(env: Env, monkeypatch: pytest.MonkeyPatch) -> None:
     import mos.api.app as app_module
 

@@ -6,6 +6,7 @@ import DisguiseSettings from "./boss/DisguiseSettings";
 import { isTouchOnly } from "./device";
 import { defaultTitle, LOCK_MINUTES, lockLabel, type Settings, THEMES, type Theme } from "./theme";
 import { askPopupPermission, popupSupport, type PopupSupport } from "./useNotifications";
+import { disablePush, enablePush, pushState, type PushState } from "./webPush";
 
 const POPUP_TEXT: Record<PopupSupport, string> = {
   granted: "이 브라우저에서 알림 창을 띄울 수 있어요.",
@@ -57,6 +58,25 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
   const [title, setTitle] = useState(settings.tab_title ?? "");
   const [error, setError] = useState("");
   const [popup, setPopup] = useState<PopupSupport>(popupSupport);
+  const [push, setPush] = useState<PushState>("off");
+  const [pushBusy, setPushBusy] = useState(false);
+  useEffect(() => {
+    pushState()
+      .then(setPush)
+      .catch(() => setPush("unsupported"));
+  }, []);
+  const togglePush = async (on: boolean) => {
+    setPushBusy(true);
+    setError("");
+    try {
+      setPush(on ? await enablePush() : await disablePush());
+      setPopup(popupSupport());
+    } catch {
+      setError("웹 푸시를 바꾸지 못했어요. 잠시 후 다시 해 주세요.");
+    } finally {
+      setPushBusy(false);
+    }
+  };
   const touchOnly = isTouchOnly();
 
   useEffect(() => setTitle(settings.tab_title ?? ""), [settings.tab_title]);
@@ -220,9 +240,31 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
                   </button>
                 </div>
               )}
+              {push !== "unsupported" && (
+                <label className="settings-toggle">
+                  <span>
+                    <strong>탭을 닫아도 알림 받기(이 브라우저)</strong>
+                    <small>
+                      {push === "denied"
+                        ? "브라우저에서 알림이 막혀 있어요. 주소창 왼쪽 자물쇠에서 알림을 허용해 주세요."
+                        : "브라우저만 켜져 있으면 이 탭을 닫아도 알려요. 휴대폰 크롬에서도 돼요."}
+                    </small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    className="switch"
+                    checked={push === "on"}
+                    disabled={pushBusy || push === "denied"}
+                    onChange={(event) => void togglePush(event.target.checked)}
+                  />
+                </label>
+              )}
               <p className="settings-note">
-                이 화면이 탭으로 열려 있는 동안만 알려요(탭을 닫으면 알림이 오지 않아요). 위장 화면 중에는 알림 창을
-                띄우지 않아요.
+                {push === "on"
+                  ? "탭이 열려 있으면 탭에서, 닫혀 있으면 브라우저가 알려요."
+                  : "이 화면이 탭으로 열려 있는 동안만 알려요."}{" "}
+                위장 화면 중에는 알림 창을 띄우지 않아요.
+                {push === "unsupported" && " 아이폰은 사파리에서 '홈 화면에 추가'한 뒤에만 알림을 받을 수 있어요."}
               </p>
             </>
           )}

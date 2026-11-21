@@ -235,7 +235,7 @@ function buildCards(
         <ul>
           <li>나를 부른 글(@내 이름, 내 글에 답장)과 고정한 채널의 새 글이 오면 탭 제목 앞에 숫자가 붙어요.</li>
           <li>다른 창을 보고 있으면 알림 창도 떠요. 내용은 보이지 않고 '새 알림 n건'만 나와요.</li>
-          <li>이 탭이 열려 있을 때만 알려요. 끄거나 바꾸려면 설정 › 알림.</li>
+          <li>탭을 닫아도 받고 싶으면 설정 › 알림에서 '탭을 닫아도 알림 받기'를 켜 주세요.</li>
         </ul>
         {popup === "default" && (
           <button type="button" className="pill-button pill-button-strong" onClick={onAskPopup}>

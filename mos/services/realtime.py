@@ -36,6 +36,15 @@ class Subscriber:
 NotifyRule = Callable[[Subscriber, int, dict[str, Any]], Awaitable[dict[str, Any] | None]]
 
 
+# 알림 뒤: (채널 ID, 메시지, 알림 연결이 열려 있는 계정들).
+# 탭이 없는 계정에 웹 푸시를 보내는 데 쓴다
+AfterNotify = Callable[[int, dict[str, Any], set[int]], Awaitable[None]]
+
+
+async def _after_nothing(_channel_id: int, _message: dict[str, Any], _open: set[int]) -> None:
+    return None
+
+
 async def _notify_nothing(
     _subscriber: Subscriber, _channel_id: int, _message: dict[str, Any]
 ) -> dict[str, Any] | None:
@@ -51,12 +60,16 @@ class RealtimeHub:
         self._sockets: dict[JsonSocket, Subscriber] = {}
         self._access_check: AccessCheck = _allow_nothing
         self._notify_rule: NotifyRule = _notify_nothing
+        self._after_notify: AfterNotify = _after_nothing
 
     def set_access_check(self, check: AccessCheck) -> None:
         self._access_check = check
 
     def set_notify_rule(self, rule: NotifyRule) -> None:
         self._notify_rule = rule
+
+    def set_after_notify(self, after: AfterNotify) -> None:
+        self._after_notify = after
 
     @property
     def count(self) -> int:
@@ -104,6 +117,12 @@ class RealtimeHub:
             for socket, subscriber in list(self._sockets.items())
             if subscriber.notify_scope is not None
         ]
+        try:
+            await self._after_notify(
+                channel_id, message, {subscriber.account_id for _, subscriber in targets}
+            )
+        except Exception:
+            log.exception("웹 푸시 처리 실패")
         if not targets:
             return
 

@@ -46,6 +46,7 @@ from mos.services.egress import EgressMeter
 from mos.services.emojis import EmojiService
 from mos.services.messages import row_to_api
 from mos.services.permissions import ADD_REACTIONS, ChannelAccess, PermissionService
+from mos.services.push import PushError, PushService
 from mos.services.realtime import RealtimeHub, Subscriber
 from mos.services.sender import (
     MAX_FILES,
@@ -74,6 +75,13 @@ MAX_PINNED_CHANNELS = 10
 NONCE_PATTERN = r"^[A-Za-z0-9-]{8,64}$"
 NOTIFY_KINDS = {0, 19, 20, 23}  # 보통·답장·명령 응답(입장·고정 같은 시스템 알림은 알리지 않음)
 NOTIFY_TEXT_LIMIT = 300  # 알림에 보내는 본문 앞부분
+# 테마별 탭 제목(웹 theme.ts와 같게). 웹 푸시 알림 제목에 쓴다
+DEFAULT_TITLES = {
+    "moon": "작업 메모",
+    "night": "작업 메모",
+    "sheet": "통합 문서1",
+    "memo": "제목 없음 - 메모장",
+}
 SNOWFLAKE_PATTERN = r"^[0-9]{15,21}$"
 UPLOAD_CHUNK = 64 * 1024
 THREAD_PAGE = 25
@@ -161,6 +169,10 @@ class SendBody(BaseModel):
     reply_to: str | None = Field(default=None, pattern=r"^[0-9]{15,21}$")
 
 
+class PushBody(BaseModel):
+    endpoint: str = Field(min_length=10, max_length=1000)
+
+
 class ReactionBody(BaseModel):
     emoji: str = Field(min_length=1, max_length=80)
 
@@ -193,6 +205,7 @@ def create_app(
     permissions: PermissionService | None = None,
     messenger: Messenger | None = None,
     notify_operator: Callable[[str], Awaitable[None]] | None = None,
+    push_service: PushService | None = None,
 ) -> FastAPI:
     perms = permissions or PermissionService(directory)
     hub.set_access_check(perms.can_read)
@@ -247,6 +260,38 @@ def create_app(
         }
 
     hub.set_notify_rule(notify_rule)
+
+    # ------------------------------------------------------------ 웹 푸시(탭이 닫힌 계정)
+
+    push = push_service or PushService(db, cipher, subject=settings.public_origin, clock=clock)
+    last_push: dict[int, dict[str, Any]] = {}  # 계정 → 마지막 알림 내용(서비스 워커가 받아 감)
+
+    async def push_after_notify(
+        channel_id: int, message: dict[str, Any], open_accounts: set[int]
+    ) -> None:
+        for account_id in await push.accounts():
+            if account_id in open_accounts:
+                continue  # 탭이 열려 있으면 그 탭이 알린다
+            account = await sessions.repo.account(account_id)
+            if account is None or account.get("status") != "active":
+                continue
+            prefs = await settings_store.get(account_id)
+            if not prefs["notify"]:
+                continue
+            target = Subscriber(
+                user_id=int(account["discord_user_id"]),
+                account_id=account_id,
+                notify_scope=prefs["notify_scope"],
+            )
+            if not await perms.can_read(target.user_id, channel_id):
+                continue
+            payload = await notify_rule(target, channel_id, message)
+            if payload is None:
+                continue
+            last_push[account_id] = {**payload, "at": clock()}
+            await push.send(account_id)
+
+    hub.set_after_notify(push_after_notify)
     egress = EgressMeter(lists, settings.egress_limit_bytes, notify=notify_operator, clock=clock)
     sender = (
         SenderService(
@@ -295,6 +340,7 @@ def create_app(
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.sender = sender  # 디스코드 앱 메시지 명령(봇)도 같은 서비스를 쓴다
     app.state.sessions = sessions  # 봇이 니트로 증거를 보면 알려 준다
+    app.state.push = push
 
     # ------------------------------------------------------------ 공통 보호
 
@@ -495,7 +541,10 @@ def create_app(
 
     @app.delete("/api/session/accounts/{account_id}", status_code=204)
     async def remove_account(account_id: int, request: Request, response: Response) -> None:
-        if await sessions.remove_account(await current_device(request), account_id):
+        device = await current_device(request)
+        if device is not None:
+            await push.forget_device_account(device.id, account_id)
+        if await sessions.remove_account(device, account_id):
             clear_device_cookie(response)
 
     # ------------------------------------------------------------ 모임·채널 목록
@@ -862,6 +911,66 @@ def create_app(
                 await repo.change_reaction(message_id, emoji, 1, by_bot=True)
             await repo.set_reaction_user(message_id, key, user, "web", True)
         return {"reactions": await publish_reactions(channel_id, message_id)}
+
+    # ------------------------------------------------------------ 웹 푸시
+
+    @app.get("/api/push/key")
+    async def push_key(request: Request) -> dict[str, Any]:
+        await require_account(request)
+        return {"key": await push.public_key()}
+
+    @app.post("/api/push/subscribe", status_code=204)
+    async def push_subscribe(body: PushBody, request: Request) -> None:
+        account = await require_account(request)
+        try:
+            await push.subscribe(account.device_id, account.account_id, body.endpoint)
+        except PushError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    @app.post("/api/push/unsubscribe", status_code=204)
+    async def push_unsubscribe(body: PushBody, request: Request) -> None:
+        device = await current_device(request)
+        if device is not None:
+            await push.unsubscribe(body.endpoint, device.id)
+
+    @app.post("/api/push/status")
+    async def push_status(body: PushBody, request: Request) -> dict[str, Any]:
+        account = await require_account(request)
+        return {
+            "subscribed": await push.subscribed(
+                body.endpoint, account.device_id, account.account_id
+            )
+        }
+
+    @app.get("/api/push/latest")
+    async def push_latest(request: Request) -> dict[str, Any]:
+        """서비스 워커가 푸시를 받으면 보여 줄 글. 잠겨 있거나 내용 보이기를 껐으면 내용 없이."""
+        device = await current_device(request)
+        if device is None or device.active_account_id is None:
+            raise HTTPException(status_code=404, detail="not found")
+        account_id = device.active_account_id
+        prefs = await settings_store.get(account_id)
+        title = prefs["tab_title"] or DEFAULT_TITLES.get(prefs["theme"], "작업 메모")
+        latest = last_push.get(account_id)
+        result: dict[str, Any] = {"title": title, "body": "새 알림이 있어요", "url": "/"}
+        if latest is None:
+            return result
+        route = (
+            f"#/g/{latest['group_id']}/p/{latest['parent_id']}/t/{latest['channel_id']}"
+            if latest.get("parent_id")
+            else f"#/g/{latest['group_id']}/c/{latest['channel_id']}"
+        )
+        result["url"] = "/" + route
+        unlocked = True
+        try:
+            await sessions.require_active(device, touch=False)
+        except SessionError:
+            unlocked = False
+        if prefs["notify_preview"] and unlocked:
+            text = " ".join(str(latest["content"]).split())[:80] or latest.get("extra") or ""
+            result["title"] = f"{latest['author_name']} · #{latest['channel_name']}"
+            result["body"] = text or "새 메시지"
+        return result
 
     # ------------------------------------------------------------ 위장 화면 파일(계정에 저장)
 

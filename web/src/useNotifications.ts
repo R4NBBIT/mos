@@ -25,9 +25,9 @@ export interface NotifyEvent {
 
 export type PopupSupport = "granted" | "default" | "denied" | "unsupported";
 
-/** 이 브라우저가 알림 창을 띄울 수 있는지. 안드로이드 크롬·아이폰 사파리(홈 화면 앱이 아닐 때)는 못 띄운다 */
+/** 이 브라우저가 알림 창을 띄울 수 있는지. 아이폰 사파리(홈 화면 앱이 아닐 때)는 못 띄운다 */
 export function popupSupport(): PopupSupport {
-  if (!("Notification" in window) || /Android/i.test(navigator.userAgent)) return "unsupported";
+  if (!("Notification" in window)) return "unsupported";
   return Notification.permission as PopupSupport;
 }
 
@@ -118,7 +118,16 @@ export function useNotifications({ enabled, scope, preview, accountId, currentCh
       };
       popupRef.current = popup;
     } catch {
-      // 알림 창을 못 만드는 브라우저(모바일 등)면 탭 제목 숫자만
+      // 휴대폰 크롬은 페이지에서 바로 못 띄워 서비스 워커로(누르면 서비스 워커가 그 채널을 연다)
+      void navigator.serviceWorker?.ready
+        .then((registration) =>
+          registration.showNotification(title, {
+            body,
+            tag: "mos-notify",
+            data: { url: `/${notifyRoute(event)}` },
+          }),
+        )
+        .catch(() => {});
     }
   }, []);
 

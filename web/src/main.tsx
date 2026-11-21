@@ -2,6 +2,9 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./styles.css";
+import { registerWorker } from "./webPush";
+
+registerWorker();
 
 const root = document.getElementById("root");
 if (root) {
