@@ -3750,3 +3750,11 @@ button.tag-chip:disabled {
   border-radius: 2px;
   background: #d3d1cb;
 }
+
+.sticker-note {
+  margin: 0 4px 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--tint);
+  line-height: 1.5;
+}

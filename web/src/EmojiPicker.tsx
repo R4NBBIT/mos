@@ -227,7 +227,11 @@ export default function EmojiPicker({ channelId, onPick, onClose, onPickSticker 
             )}
             {stickers.length > 0 && onPickSticker && (
               <section data-section="stickers">
-                <h3>스티커(사진으로 보내져요)</h3>
+                <h3>스티커</h3>
+                <p className="emoji-note sticker-note">
+                  누르면 바로 보내져요. 디스코드에서는 스티커가 아니라 <strong>사진</strong>으로 보여요(디스코드가
+                  다른 앱에서 진짜 스티커를 보내지 못하게 막아 두었어요). 움직이는 스티커는 움직이는 사진으로 가요.
+                </p>
                 <div className="sticker-grid">
                   {stickers.map((sticker) => (
                     <button
