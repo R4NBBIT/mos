@@ -3289,3 +3289,104 @@ button.tag-chip:disabled {
   color: var(--sub);
   font-size: 13px;
 }
+
+/* ------------------------------------------------------------ 반응 */
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.msg-mine .reactions {
+  justify-content: flex-end;
+}
+
+.reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.reaction:hover:not(:disabled) {
+  border-color: var(--sub);
+}
+
+.reaction-mine {
+  border-color: var(--honey);
+  background: var(--honey-soft);
+}
+
+.reaction:disabled {
+  cursor: default;
+}
+
+.reaction-img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.reaction-char {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.reaction-count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 글자 위주 테마(메모장, 시트 D열): 작고 납작하게 */
+.reactions-compact {
+  display: inline-flex;
+  margin: 0 0 0 6px;
+  vertical-align: middle;
+}
+
+.reactions-compact .reaction {
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.reactions-compact .reaction-img {
+  width: 14px;
+  height: 14px;
+}
+
+.reactions-compact .reaction-char {
+  font-size: 13px;
+}
+
+.sheet-cell-d .reactions-compact {
+  margin: 0 4px 0 0;
+}
+
+.msg-actions,
+.sheet-actions {
+  position: relative;
+}
+
+.reaction-picker {
+  position: fixed;
+  z-index: 30;
+  width: min(360px, calc(100vw - 16px));
+  color: var(--ink);
+  text-align: left;
+}
+
+.reaction-picker .emoji-picker {
+  margin: 0;
+  box-shadow: var(--shadow);
+}
+

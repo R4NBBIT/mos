@@ -9,6 +9,7 @@ import {
   markRead,
   sendFiles,
   sendMessage,
+  toggleReaction,
 } from "./api";
 import { isDisguised } from "./boss/bossState";
 import Composer from "./Composer";
@@ -52,6 +53,18 @@ function mergeMessages(current: Message[], incoming: Message[]): Message[] {
     byId.set(message.id, message);
   }
   return [...byId.values()].sort((a, b) => compareIds(a.id, b.id));
+}
+
+const reactionErrors: Record<string, string> = {
+  reacted_in_discord: "디스코드 앱에서 단 반응은 디스코드에서 빼 주세요.",
+  emoji_not_allowed: "이 이모지는 반응으로 쓸 수 없어요(움직이는 이모지와 다른 모임 이모지는 니트로가 필요해요).",
+  no_permission: "이 채널에서는 반응을 달 수 없어요.",
+  bad_emoji: "디스코드에서 쓸 수 없는 이모지예요.",
+  rate_limited: "너무 빨리 눌렀어요. 잠깐 뒤에 다시 해 주세요.",
+};
+
+function reactionErrorText(caught: unknown): string {
+  return (caught instanceof ApiError && reactionErrors[caught.code]) || "반응을 달지 못했어요. 잠시 후 다시 해 주세요.";
 }
 
 export default function ChatRoom({
@@ -186,6 +199,14 @@ export default function ChatRoom({
         setMessages((current) => current.filter((message) => !removed.has(message.id)));
         return;
       }
+      if (event.type === "reactions_update") {
+        if (event.data.channel_id !== channel.id) return;
+        const { message_id: messageId, reactions } = event.data;
+        setMessages((current) =>
+          current.map((message) => (message.id === messageId ? { ...message, reactions } : message)),
+        );
+        return;
+      }
       if (event.type !== "message_create" && event.type !== "message_update") return;
       const incoming = event.data;
       if (incoming.channel_id !== channel.id) return;
@@ -253,6 +274,21 @@ export default function ChatRoom({
     setMessages((current) => mergeMessages(current, [sent]));
     setReplyTo(null);
   };
+
+  // 반응: 누르면 바로 서버에 보내고 돌아온 목록으로 바꾼다(실시간 이벤트로도 온다)
+  const [reactError, setReactError] = useState("");
+  useEffect(() => {
+    if (!reactError) return;
+    const timer = window.setTimeout(() => setReactError(""), 4000);
+    return () => window.clearTimeout(timer);
+  }, [reactError]);
+  const react = useCallback((message: Message, emoji: string) => {
+    toggleReaction(message.id, emoji)
+      .then((reactions) =>
+        setMessages((current) => current.map((item) => (item.id === message.id ? { ...item, reactions } : item))),
+      )
+      .catch((caught: unknown) => setReactError(reactionErrorText(caught)));
+  }, []);
 
   const remove = async (message: Message) => {
     await deleteMessage(message.id);
@@ -373,6 +409,8 @@ export default function ChatRoom({
           setSelectedId(null);
         }}
         onDelete={remove}
+        onReact={react}
+        reactError={reactError}
         composer={composer}
         showBack={Boolean(showBack)}
         onBack={onBack}
@@ -411,6 +449,11 @@ export default function ChatRoom({
         )}
         {menu}
       </header>
+      {reactError && (
+        <div className="room-notice room-notice-quiet" role="status">
+          <span>{reactError}</span>
+        </div>
+      )}
       {lostLong && (
         <div className="room-notice room-notice-quiet" role="status">
           <span>연결이 끊겨 다시 연결하는 중이에요. 그동안 새 글이 늦게 보일 수 있어요.</span>
@@ -523,6 +566,9 @@ export default function ChatRoom({
                   setSelectedId(null);
                 }}
                 onDelete={remove}
+                onReact={react}
+                myUserId={myUserId}
+                channelId={channel?.id}
                 layout={theme === "memo" ? "line" : isThread ? "comment" : "bubble"}
               />
             </div>

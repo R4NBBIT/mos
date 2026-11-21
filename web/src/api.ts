@@ -4,6 +4,7 @@ import type {
   GroupList,
   Message,
   MessagePage,
+  Reaction,
   SessionState,
   ThreadPage,
 } from "./types";
@@ -125,6 +126,15 @@ export async function editMessage(messageId: string, content: string): Promise<M
     body: JSON.stringify({ content }),
   });
   return response.json() as Promise<Message>;
+}
+
+export async function toggleReaction(messageId: string, emoji: string): Promise<Reaction[]> {
+  const response = await request(`/api/messages/${encodeURIComponent(messageId)}/reactions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ emoji }),
+  });
+  return ((await response.json()) as { reactions: Reaction[] }).reactions;
 }
 
 export async function deleteMessage(messageId: string): Promise<void> {

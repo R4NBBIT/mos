@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from mos.services.directory import ChannelInfo, Directory, GuildInfo, MemberInfo
 
 ADMINISTRATOR = 1 << 3
+ADD_REACTIONS = 1 << 6
 VIEW_CHANNEL = 1 << 10
 SEND_MESSAGES = 1 << 11
 READ_MESSAGE_HISTORY = 1 << 16

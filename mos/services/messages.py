@@ -6,6 +6,8 @@ import json
 import re
 from typing import Any
 
+from mos.services import reactions
+
 # 웹에 넘기는 첨부 정보(필요한 것만)
 _ATTACHMENT_FIELDS = (
     "id",
@@ -85,6 +87,7 @@ def message_to_row(message: Any) -> dict[str, Any]:
         "components_json": "[]",
         "mentions_json": json.dumps(mentions_to_dict(message), ensure_ascii=False),
         "kind": int(getattr(getattr(message, "type", None), "value", 0) or 0),
+        "reactions_json": reactions.reactions_to_json(getattr(message, "reactions", None) or []),
         "stickers_json": json.dumps(
             [sticker_to_dict(item) for item in getattr(message, "stickers", None) or []],
             ensure_ascii=False,
@@ -166,6 +169,7 @@ def row_to_api(row: dict[str, Any]) -> dict[str, Any]:
         "attachments": json.loads(row["attachments_json"]),
         "mentions": _load_mentions(row.get("mentions_json")),
         "stickers": json.loads(row.get("stickers_json") or "[]"),
+        "reactions": reactions.build(row.get("reactions_json"), row.get("reaction_users") or []),
         "reference_id": snowflake(reference),
         "created_at": row["created_at"],
         "edited_at": row["edited_at"],

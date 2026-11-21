@@ -20,6 +20,7 @@ from discord import app_commands
 from mos.bot.backfill import backfill_channel, fetch_older_messages
 from mos.config import Settings
 from mos.db.repo import MessageRepo
+from mos.services import reactions
 from mos.services.directory import (
     ChannelInfo,
     DirectoryError,
@@ -174,6 +175,7 @@ class MosBot(discord.Client):
         self._sync_locks: dict[int, asyncio.Lock] = {}
         self._thread_cache: dict[int, tuple[float, ChannelInfo]] = {}
         self._notify_tasks: set[asyncio.Task[None]] = set()
+        self._own_reactions: set[tuple[int, str, int]] = set()
 
     async def setup_hook(self) -> None:
         self.tree.add_command(
@@ -382,7 +384,68 @@ class MosBot(discord.Client):
                     await self._record_nitro(message.author.id)
                     break
 
+    # ------------------------------------------------------------ 반응
+
+    def expect_own_reaction(self, message_id: int, key: str, delta: int) -> None:
+        """웹에서 누른 반응을 봇이 달거나 뺄 때. 그 이벤트는 이미 반영했으니 한 번 건너뛴다."""
+        self._own_reactions.add((message_id, key, delta))
+
+    def forget_own_reaction(self, message_id: int, key: str, delta: int) -> None:
+        self._own_reactions.discard((message_id, key, delta))
+
+    async def _reaction_changed(self, payload: discord.RawReactionActionEvent, delta: int) -> None:
+        if payload.guild_id is None:
+            return
+        emoji = reactions.from_partial(payload.emoji)
+        key = reactions.emoji_key(emoji["id"], emoji["name"])
+        mine = self.user is not None and payload.user_id == self.user.id
+        if mine and (payload.message_id, key, delta) in self._own_reactions:
+            self._own_reactions.discard((payload.message_id, key, delta))
+            return
+        if not await self.repo.change_reaction(payload.message_id, emoji, delta, by_bot=mine):
+            return  # 받아 두지 않은 메시지
+        if not mine:
+            await self.repo.set_reaction_user(
+                payload.message_id, key, payload.user_id, "discord", delta > 0
+            )
+        await self.publish_reactions(payload.channel_id, payload.message_id)
+
+    async def publish_reactions(self, channel_id: int, message_id: int) -> None:
+        row = await self.repo.get(message_id)
+        if row is None:
+            return
+        await self.hub.publish(
+            channel_id,
+            "reactions_update",
+            {
+                "channel_id": str(channel_id),
+                "message_id": str(message_id),
+                "reactions": row_to_api(row)["reactions"],
+            },
+        )
+
+    async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent) -> None:
+        await self._reaction_changed(payload, -1)
+
+    async def on_raw_reaction_clear(self, payload: discord.RawReactionClearEvent) -> None:
+        if payload.guild_id is None:
+            return
+        await self.repo.clear_reactions(payload.message_id)
+        await self.publish_reactions(payload.channel_id, payload.message_id)
+
+    async def on_raw_reaction_clear_emoji(
+        self, payload: discord.RawReactionClearEmojiEvent
+    ) -> None:
+        if payload.guild_id is None:
+            return
+        emoji = reactions.from_partial(payload.emoji)
+        await self.repo.clear_reactions(
+            payload.message_id, reactions.emoji_key(emoji["id"], emoji["name"])
+        )
+        await self.publish_reactions(payload.channel_id, payload.message_id)
+
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
+        await self._reaction_changed(payload, 1)
         emoji = payload.emoji
         if payload.guild_id is None or emoji.id is None:
             return
@@ -638,6 +701,43 @@ class BotMessenger:
             if isinstance(error, discord.NotFound) and error.code == UNKNOWN_MESSAGE:
                 return  # 이미 지워짐
             raise _webhook_error(error) from error
+
+    @staticmethod
+    def _reaction_text(emoji: dict[str, Any]) -> str:
+        if emoji["id"]:
+            return f"<{'a' if emoji['animated'] else ''}:{emoji['name']}:{emoji['id']}>"
+        return str(emoji["name"])
+
+    async def add_reaction(self, channel_id: int, message_id: int, emoji: dict[str, Any]) -> None:
+        key = reactions.emoji_key(emoji["id"], emoji["name"])
+        self.bot.expect_own_reaction(message_id, key, 1)
+        message = self.bot.get_partial_messageable(channel_id).get_partial_message(message_id)
+        try:
+            await message.add_reaction(self._reaction_text(emoji))
+        except discord.HTTPException as error:
+            self.bot.forget_own_reaction(message_id, key, 1)
+            if error.status == 400:
+                raise SendError("bad_emoji", 400) from error
+            if error.status in (403, 404):
+                raise SendError("no_permission", 403) from error
+            raise SendError("upstream_unavailable", 503) from error
+
+    async def remove_reaction(
+        self, channel_id: int, message_id: int, emoji: dict[str, Any]
+    ) -> None:
+        key = reactions.emoji_key(emoji["id"], emoji["name"])
+        self.bot.expect_own_reaction(message_id, key, -1)
+        message = self.bot.get_partial_messageable(channel_id).get_partial_message(message_id)
+        try:
+            me = self.bot.user
+            if me is None:
+                raise SendError("upstream_unavailable", 503)
+            await message.remove_reaction(self._reaction_text(emoji), me)
+        except discord.NotFound:
+            self.bot.forget_own_reaction(message_id, key, -1)
+        except discord.HTTPException as error:
+            self.bot.forget_own_reaction(message_id, key, -1)
+            raise SendError("upstream_unavailable", 503) from error
 
 
 class BotDirectory:

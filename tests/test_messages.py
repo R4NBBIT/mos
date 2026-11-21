@@ -123,3 +123,26 @@ def test_old_web_reply_quote_hidden() -> None:
     # 사람이 직접 쓴 같은 모양의 글은 그대로 둔다
     plain = row_to_api(message_to_row(fake_message(content=content, reference=None)))
     assert plain["content"] == content
+
+
+def test_reaction_counts_merge_bot_and_web_users() -> None:
+    from mos.services import reactions
+
+    raw = reactions.adjust("[]", {"id": None, "name": "👍", "animated": False}, 1, by_bot=False)
+    raw = reactions.adjust(raw, {"id": None, "name": "👍", "animated": False}, 1, by_bot=True)
+    # 디스코드 2개(사람 1 + 봇 1), 웹에서 누른 사람 2명 → 1 + 2 = 3
+    users = [("👍", 5, "discord"), ("👍", 42, "web"), ("👍", 43, "web")]
+    built = reactions.build(raw, users)
+    assert built[0]["count"] == 3 and built[0]["users"] == ["42", "43", "5"]
+    # 봇 반응이 빠지고 사람 것도 빠지면 목록에서 사라진다
+    raw = reactions.adjust(raw, {"id": None, "name": "👍", "animated": False}, -1, by_bot=True)
+    raw = reactions.adjust(raw, {"id": None, "name": "👍", "animated": False}, -1, by_bot=False)
+    assert reactions.build(raw, []) == []
+    custom = reactions.parse_emoji("<a:dance:1046568093355327518>")
+    assert custom == {"id": 1046568093355327518, "name": "dance", "animated": True}
+    for bad in ("", "ab", "a b", "x" * 40):
+        try:
+            reactions.parse_emoji(bad)
+        except reactions.ReactionError:
+            continue
+        raise AssertionError(bad)

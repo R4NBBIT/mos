@@ -104,6 +104,14 @@ class Messenger(Protocol):
 
     async def delete(self, webhook: Webhook, message_id: int, thread_id: int | None) -> None: ...
 
+    async def add_reaction(self, channel_id: int, message_id: int, emoji: dict[str, Any]) -> None:
+        """봇 이름으로 반응 하나(웹에서 누른 사람들의 몫)."""
+        ...
+
+    async def remove_reaction(
+        self, channel_id: int, message_id: int, emoji: dict[str, Any]
+    ) -> None: ...
+
 
 def safe_username(name: str) -> str:
     cleaned = _BLOCKED_NAME_WORDS.sub(lambda m: m.group(0)[0] + "​" + m.group(0)[1:], name)

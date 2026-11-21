@@ -2,6 +2,7 @@ import { memo, useState } from "react";
 import MessageContent from "./MessageContent";
 import { formatSize, formatTime, isDiscordMediaUrl, thumbnailUrl } from "./format";
 import type { Attachment, Message, Sticker } from "./types";
+import Reactions, { ReactionPickerButton } from "./Reactions";
 import { isEmptyMessage, isSystemMessage, systemText } from "./systemMessage";
 
 /** 댓글 시간: 오늘이면 시각만, 아니면 월/일도 */
@@ -32,6 +33,11 @@ interface Props {
   onReply: (message: Message) => void;
   onEdit: (message: Message) => void;
   onDelete: (message: Message) => Promise<void>;
+  /** 반응 달기·빼기(없으면 보기만) */
+  onReact?: (message: Message, emoji: string) => void;
+  myUserId?: string;
+  /** 반응 고르기 창이 모임 이모지를 불러올 채널 */
+  channelId?: string;
   /** bubble: 채팅 말풍선(기본), comment: 포럼 글·스레드의 게시판식 댓글, line: 메모장 한 줄 기록 */
   layout?: "bubble" | "comment" | "line";
 }
@@ -169,6 +175,9 @@ function MessageItem({
   onReply,
   onEdit,
   onDelete,
+  onReact,
+  myUserId = "",
+  channelId = "",
   layout = "bubble",
 }: Props) {
   const { author } = message;
@@ -179,7 +188,7 @@ function MessageItem({
   const classes = ["msg"];
   if (grouped && !message.reference_id) classes.push("msg-grouped");
   if (mine) classes.push("msg-mine");
-  const hasActions = canReply || manageable;
+  const hasActions = canReply || manageable || Boolean(onReact);
 
   if (isSystemMessage(message)) {
     // 입장·고정 같은 알림: 디스코드처럼 가운데 작은 글씨
@@ -226,6 +235,9 @@ function MessageItem({
                   답장
                 </button>
               )}
+              {onReact && channelId && (
+                <ReactionPickerButton message={message} channelId={channelId} onReact={onReact} />
+              )}
               {manageable && (
                 <button type="button" onClick={() => onEdit(message)}>
                   고치기
@@ -259,6 +271,7 @@ function MessageItem({
           <span className="line-name">{author.name}</span>
           {isApp && " [앱]"}: <MessageTextOnly message={message} pictures />
           {message.edited_at && <span className="line-time"> (수정됨)</span>}
+          <Reactions message={message} myUserId={myUserId} onReact={onReact} compact />
           {actions}
         </div>
       </div>
@@ -291,6 +304,7 @@ function MessageItem({
           >
             <MessageBody message={message} />
           </div>
+          <Reactions message={message} myUserId={myUserId} onReact={onReact} />
           {actions}
         </div>
       </div>
@@ -326,6 +340,7 @@ function MessageItem({
             {message.edited_at && " (수정됨)"}
           </span>
         </div>
+        <Reactions message={message} myUserId={myUserId} onReact={onReact} />
         {actions}
       </div>
     </div>

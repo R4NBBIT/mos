@@ -167,6 +167,13 @@ class FakeMessenger:
         self.deleted: list[tuple[int, int | None]] = []
         self.gone_once = False
         self.next_id = 1573400000000000000
+        self.reacted: list[tuple[str, int, str]] = []
+
+    async def add_reaction(self, channel_id: int, message_id: int, emoji: dict) -> None:
+        self.reacted.append(("add", message_id, emoji["name"]))
+
+    async def remove_reaction(self, channel_id: int, message_id: int, emoji: dict) -> None:
+        self.reacted.append(("remove", message_id, emoji["name"]))
 
     async def create_webhook(self, channel_id: int) -> Webhook:
         self.created.append(channel_id)
@@ -713,6 +720,44 @@ def test_notify_only_mentions_or_pinned_channels(env: Env) -> None:
         env.client.portal.call(env.hub.notify, CHANNEL, notify_message(7, mention=43))
         ws.send_text("ping")
         assert ws.receive_text() == "pong"
+
+
+def test_reactions_toggle_through_bot(env: Env) -> None:
+    signed_up(env)  # 모카(42)
+    row = make_row(CHANNEL + 50, channel_id=CHANNEL)
+    row["reactions_json"] = json.dumps(
+        [{"key": "👍", "id": None, "name": "👍", "animated": False, "count": 2, "bot": False}]
+    )
+    env.client.portal.call(env.repo.upsert_many, [row])
+    env.client.portal.call(env.repo.set_reaction_user, CHANNEL + 50, "👍", 43, "discord", True)
+    url = f"/api/messages/{CHANNEL + 50}/reactions"
+
+    # 내가 누르면 봇이 하나 달고, 수는 2 + 나 1 = 3
+    first = env.client.post(url, json={"emoji": "👍"}, headers=POST).json()["reactions"]
+    assert first[0]["count"] == 3 and "42" in first[0]["users"] and "43" in first[0]["users"]
+    assert env.messenger.reacted == [("add", CHANNEL + 50, "👍")]
+    # 다시 누르면 빼고 봇 반응도 뺀다
+    second = env.client.post(url, json={"emoji": "👍"}, headers=POST).json()["reactions"]
+    assert second[0]["count"] == 2 and "42" not in second[0]["users"]
+    assert env.messenger.reacted[-1] == ("remove", CHANNEL + 50, "👍")
+    # 디스코드에서 단 반응은 여기서 뺄 수 없다
+    env.client.portal.call(env.repo.set_reaction_user, CHANNEL + 50, "👍", 42, "discord", True)
+    assert env.client.post(url, json={"emoji": "👍"}, headers=POST).status_code == 409
+    env.tick(3)  # 반응은 2초에 4번까지
+    # 이상한 값, 못 쓰는 모임 이모지
+    assert env.client.post(url, json={"emoji": "abc"}, headers=POST).status_code == 400
+    blocked = env.client.post(url, json={"emoji": "<:x:1573319960745359999>"}, headers=POST)
+    assert blocked.status_code == 403
+    # 볼 수 없는 채널의 메시지는 없는 것과 같다
+    hidden = make_row(SECRET + 1, channel_id=SECRET)
+    env.client.portal.call(env.repo.upsert_many, [hidden])
+    signed_up(env, "latte")
+    assert (
+        env.client.post(
+            f"/api/messages/{SECRET + 1}/reactions", json={"emoji": "👍"}, headers=POST
+        ).status_code
+        == 404
+    )
 
 
 def test_open_websocket_is_closed_after_lock(env: Env, monkeypatch: pytest.MonkeyPatch) -> None:

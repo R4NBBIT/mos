@@ -40,6 +40,16 @@ export interface Sticker {
   format: number;
 }
 
+/** 반응 하나. users: 누가 달았는지 아는 사람(디스코드 ID). 수는 모르는 사람까지 포함 */
+export interface Reaction {
+  key: string;
+  emoji: { id: string | null; name: string; animated: boolean };
+  count: number;
+  users: string[];
+  /** ㅁㅇㅅ 웹에서 누른 사람(여기서 뺄 수 있음) */
+  web_users: string[];
+}
+
 export interface Message {
   id: string;
   channel_id: string;
@@ -55,6 +65,7 @@ export interface Message {
   mentions: Mentions;
   /** 디스코드 스티커(예전 메시지·웹에서 보낸 메시지는 없을 수 있다) */
   stickers?: Sticker[];
+  reactions?: Reaction[];
   reference_id: string | null;
   created_at: string;
   edited_at: string | null;
@@ -149,6 +160,7 @@ export interface GroupChannels {
 export type RealtimeEvent =
   | { type: "message_create" | "message_update"; data: Message }
   | { type: "message_delete"; data: { channel_id: string; ids: string[] } }
+  | { type: "reactions_update"; data: { channel_id: string; message_id: string; reactions: Reaction[] } }
   | { type: "subscribed" | "subscribe_denied" | "threads_changed"; data: { channel_id: string } };
 
 /** 이 브라우저에 저장된 계정 하나 */

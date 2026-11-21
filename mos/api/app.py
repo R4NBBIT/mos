@@ -34,13 +34,14 @@ from mos.db.database import Database
 from mos.db.lists_repo import ListsRepo
 from mos.db.repo import MAX_PAGE_SIZE, MessageRepo
 from mos.db.sender_repo import SenderRepo
+from mos.services import reactions
 from mos.services.crypto import TokenCipher
 from mos.services.directory import ChannelInfo, Directory, DirectoryError, GuildInfo
 from mos.services.discord_oauth import DiscordOAuth, OAuthClient
 from mos.services.egress import EgressMeter
 from mos.services.emojis import EmojiService
 from mos.services.messages import row_to_api
-from mos.services.permissions import ChannelAccess, PermissionService
+from mos.services.permissions import ADD_REACTIONS, ChannelAccess, PermissionService
 from mos.services.realtime import RealtimeHub, Subscriber
 from mos.services.sender import (
     MAX_FILES,
@@ -152,6 +153,10 @@ class SendBody(BaseModel):
     # 화면이 메시지마다 만드는 무작위 값. 같은 값으로 다시 오면 다시 보내지 않는다
     nonce: str = Field(pattern=r"^[A-Za-z0-9-]{8,64}$")
     reply_to: str | None = Field(default=None, pattern=r"^[0-9]{15,21}$")
+
+
+class ReactionBody(BaseModel):
+    emoji: str = Field(min_length=1, max_length=80)
 
 
 class EditBody(BaseModel):
@@ -267,6 +272,7 @@ def create_app(
     )
     connect_limiter = RateLimiter(limit=20, window_sec=600)
     send_limiter = RateLimiter(limit=2, window_sec=1, clock=clock)  # 계정당 1초 2번(설계서 11장)
+    reaction_limiter = RateLimiter(limit=4, window_sec=2, clock=clock)  # 디스코드 반응 한도에 맞춰
     unlock_limiter = RateLimiter(limit=10, window_sec=60)
 
     @asynccontextmanager
@@ -786,6 +792,67 @@ def create_app(
         return await service.edit(
             account.discord_user_id, message_id, body.content, premium=account.premium
         )
+
+    # ------------------------------------------------------------ 반응
+
+    async def publish_reactions(channel_id: int, message_id: int) -> list[dict[str, Any]]:
+        row = await repo.get(message_id)
+        items = row_to_api(row)["reactions"] if row else []
+        await hub.publish(
+            channel_id,
+            "reactions_update",
+            {"channel_id": str(channel_id), "message_id": str(message_id), "reactions": items},
+        )
+        return items
+
+    @app.post("/api/messages/{message_id}/reactions")
+    async def toggle_reaction(
+        message_id: int, body: ReactionBody, request: Request
+    ) -> dict[str, Any]:
+        """반응 누르기·빼기. 디스코드에는 봇이 하나만 달고, 누가 눌렀는지는 여기 남긴다."""
+        account = await require_account(request)
+        require_ready()
+        if messenger is None:
+            raise HTTPException(status_code=503, detail="sending_unavailable")
+        if not reaction_limiter.allow(f"account:{account.account_id}"):
+            raise SessionError("rate_limited", status=429, retry_after=1)
+        row = await repo.get(message_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="not found")
+        channel_id = int(row["channel_id"])
+        access = await require_channel(account, channel_id)
+        try:
+            emoji = reactions.parse_emoji(body.emoji)
+        except reactions.ReactionError as error:
+            raise HTTPException(status_code=400, detail="bad_emoji") from error
+        key = reactions.emoji_key(emoji["id"], emoji["name"])
+        user = account.discord_user_id
+        known = set(row.get("reaction_users") or [])
+        stored = next(
+            (item for item in json.loads(row["reactions_json"] or "[]") if item["key"] == key),
+            None,
+        )
+        bot_has = bool(stored and stored.get("bot"))
+        if (key, user, "web") in known:
+            await repo.set_reaction_user(message_id, key, user, "web", False)
+            others = [u for (k, u, via) in known if k == key and via == "web" and u != user]
+            if bot_has and not others:
+                await messenger.remove_reaction(channel_id, message_id, emoji)
+                await repo.change_reaction(message_id, emoji, -1, by_bot=True)
+        else:
+            if (key, user, "discord") in known:
+                raise HTTPException(status_code=409, detail="reacted_in_discord")
+            if stored is None and not access.permissions & ADD_REACTIONS:
+                raise HTTPException(status_code=403, detail="no_permission")
+            if emoji["id"] is not None:
+                usable = await emojis.usable(user, account.premium, access)
+                if emoji["id"] not in {item.emoji.id for item in usable}:
+                    raise HTTPException(status_code=403, detail="emoji_not_allowed")
+            if not bot_has:
+                await messenger.add_reaction(channel_id, message_id, emoji)
+                await repo.change_reaction(message_id, emoji, 1, by_bot=True)
+            await repo.set_reaction_user(message_id, key, user, "web", True)
+        return {"reactions": await publish_reactions(channel_id, message_id)}
 
     @app.delete("/api/messages/{message_id}", status_code=204)
     async def delete_message(message_id: int, request: Request) -> None:

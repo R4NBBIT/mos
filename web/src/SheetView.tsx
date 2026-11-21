@@ -1,3 +1,4 @@
+import Reactions, { ReactionPickerButton } from "./Reactions";
 import SplitToggle from "./SplitToggle";
 import { type ReactNode, type RefObject, useEffect, useState } from "react";
 import { fetchGroupChannels } from "./api";
@@ -59,6 +60,8 @@ interface Props {
   onReply: (message: Message) => void;
   onEdit: (message: Message) => void;
   onDelete: (message: Message) => Promise<void>;
+  onReact: (message: Message, emoji: string) => void;
+  reactError: string;
   composer: ReactNode;
   showBack: boolean;
   onBack: () => void;
@@ -226,7 +229,8 @@ export default function SheetView(props: Props) {
             </span>
           )}
         </span>
-        <span className="sheet-cell">
+        <span className="sheet-cell sheet-cell-d">
+          <Reactions message={message} myUserId={myUserId} onReact={props.onReact} compact />
           {isStarter ? "본문" : isThread ? "댓글" : ""}
           {message.edited_at ? `${isThread ? " " : ""}(수정됨)` : ""}
         </span>
@@ -298,6 +302,7 @@ export default function SheetView(props: Props) {
                     답장
                   </button>
                 )}
+                {channel && <ReactionPickerButton message={selected} channelId={channel.id} onReact={props.onReact} />}
                 {manageable && (
                   <button type="button" onClick={() => props.onEdit(selected)}>
                     고치기
@@ -310,7 +315,7 @@ export default function SheetView(props: Props) {
                 )}
               </>
             )}
-            {actionError && <span className="danger">{actionError}</span>}
+            {(actionError || props.reactError) && <span className="danger">{actionError || props.reactError}</span>}
           </div>
         )
       }
@@ -327,7 +332,9 @@ export default function SheetView(props: Props) {
       tabsChannel={channel}
       onOpenTab={props.onOpenTab}
       status={
-        props.unseen > 0 ? (
+        props.reactError ? (
+          <span className="danger">{props.reactError}</span>
+        ) : props.unseen > 0 ? (
           <button type="button" className="sheet-status-new" onClick={props.onScrollToBottom}>
             새 메시지 {props.unseen}개 ↓
           </button>
