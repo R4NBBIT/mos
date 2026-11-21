@@ -18,6 +18,7 @@ from mos.bot.client import BotDirectory, BotMessenger, MosBot
 from mos.config import ConfigError, load_settings
 from mos.db.database import Database
 from mos.db.repo import MessageRepo
+from mos.services import retention
 from mos.services.permissions import PermissionService
 from mos.services.realtime import RealtimeHub
 from mos.version import current_version
@@ -80,6 +81,8 @@ async def run() -> int:
     log.info("mos 시작: 버전 %s", current_version())
     bot_task = asyncio.create_task(bot.start(settings.discord_bot_token), name="bot")
     api_task = asyncio.create_task(server.serve(), name="api")
+    # 90일 지난 메시지 복사본 정리(하루 한 번). 멈춰도 앱은 계속 돈다
+    retention_task = asyncio.create_task(retention.run_forever(repo), name="retention")
     done, _pending = await asyncio.wait({bot_task, api_task}, return_when=asyncio.FIRST_COMPLETED)
 
     exit_code = 0
@@ -108,6 +111,9 @@ async def run() -> int:
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await task
+    retention_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError, Exception):
+        await retention_task
     await db.close()
     return exit_code
 

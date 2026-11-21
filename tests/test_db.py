@@ -5,6 +5,7 @@ from pathlib import Path
 
 from mos.db.database import Database, list_migrations
 from mos.db.repo import MessageRepo
+from mos.services import retention
 
 
 def make_row(message_id: int, channel_id: int = 10, content: str = "hi") -> dict:
@@ -83,3 +84,29 @@ def test_page_limit_is_clamped(tmp_path: Path) -> None:
         return len(rows)
 
     assert asyncio.run(scenario()) == 100
+
+
+def test_retention_purges_old_copies_but_keeps_post_starters(tmp_path: Path) -> None:
+    now = 1_800_000_000.0  # 2027-01-15
+    old = retention.cutoff_snowflake(now, days=91)  # 91일 전 메시지 ID
+    fresh = retention.cutoff_snowflake(now, days=10)
+
+    async def scenario() -> set[int]:
+        db = Database(tmp_path / "r.db")
+        await db.open()
+        repo = MessageRepo(db)
+        rows = [make_row(old + i, channel_id=10) for i in range(5)]
+        rows.append(make_row(fresh, channel_id=10))
+        starter = make_row(old + 100, channel_id=old + 100)  # 포럼 글 첫 메시지(ID = 글 ID)
+        rows.append(starter)
+        await repo.upsert_many(rows)
+        deleted = await repo.purge_before(retention.cutoff_snowflake(now), batch=2)
+        assert deleted == 5
+        left = await db.fetch_all("SELECT id FROM message")
+        await db.close()
+        return {int(row[0]) for row in left}
+
+    assert asyncio.run(scenario()) == {fresh, old + 100}
+    # 디스코드 ID의 시각 부분이 맞는지(90일 전 ≈ 기준 시각)
+    millis = (retention.cutoff_snowflake(now) >> 22) + retention.DISCORD_EPOCH_MS
+    assert abs(millis / 1000 - (now - 90 * 24 * 3600)) < 1

@@ -80,6 +80,23 @@ class MessageRepo:
             await conn.executemany("DELETE FROM message WHERE id = ?", ids)
         return len(ids)
 
+    async def purge_before(self, cutoff_id: int, batch: int = 2000) -> int:
+        """cutoff_id(그 시각의 디스코드 ID)보다 오래된 메시지 복사본을 지운다.
+        포럼 글의 첫 메시지(글 ID = 메시지 ID)는 글 카드·미리보기에 쓰여 남긴다.
+        한 번에 조금씩 지워 다른 쓰기를 오래 막지 않는다."""
+        total = 0
+        while True:
+            async with self.db.writing() as conn:
+                cursor = await conn.execute(
+                    "DELETE FROM message WHERE id IN (SELECT id FROM message"
+                    " WHERE id < ? AND id != channel_id LIMIT ?)",
+                    (cutoff_id, batch),
+                )
+                deleted = cursor.rowcount or 0
+            total += deleted
+            if deleted < batch:
+                return total
+
     async def list_page(
         self, channel_id: int, before_id: int | None = None, limit: int = 50
     ) -> list[dict[str, Any]]:
