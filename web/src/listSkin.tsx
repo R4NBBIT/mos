@@ -104,6 +104,8 @@ export interface ListSkin {
   channelsTitle: (name: string) => string;
   /** 안 읽은 수: 숫자, 괄호 숫자, 점 */
   badge: "count" | "paren" | "dot";
+  /** 왼쪽 아래 서버 인원 묶음 이름 */
+  membersTitle: string;
 }
 
 const plain = (channel: ChannelInfo) => (channel.kind === "forum" ? memoStack : memoNote);
@@ -122,6 +124,7 @@ export function listSkin(theme: Theme): ListSkin {
         readOnly: <span className="skin-ro">읽기 전용</span>,
         channelsTitle: (name) => `${name}.xlsx`,
         badge: "paren",
+        membersTitle: "공유 대상",
       };
     case "memo":
       return {
@@ -135,6 +138,7 @@ export function listSkin(theme: Theme): ListSkin {
         readOnly: <span className="skin-ro">[읽기 전용]</span>,
         channelsTitle: () => "열기",
         badge: "paren",
+        membersTitle: "공유 대상",
       };
     case "note":
       return {
@@ -148,6 +152,7 @@ export function listSkin(theme: Theme): ListSkin {
         readOnly: <span className="skin-ro">보기 전용</span>,
         channelsTitle: (name) => name,
         badge: "count",
+        membersTitle: "멤버",
       };
     case "word":
       return {
@@ -161,6 +166,7 @@ export function listSkin(theme: Theme): ListSkin {
         readOnly: <span className="skin-ro">읽기 전용</span>,
         channelsTitle: (name) => name,
         badge: "dot",
+        membersTitle: "공유 대상",
       };
     default:
       // 기본, 다크: 메모 앱 폴더
@@ -179,6 +185,7 @@ export function listSkin(theme: Theme): ListSkin {
         ),
         channelsTitle: (name) => name,
         badge: "count",
+        membersTitle: "함께 보는 사람",
       };
   }
 }

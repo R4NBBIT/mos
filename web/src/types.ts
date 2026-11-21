@@ -155,6 +155,19 @@ export interface GroupList {
   pinned_channels: ChannelInfo[];
 }
 
+export interface GroupMember {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+  bot: boolean;
+}
+
+/** 서버 인원. restricted: 일부만 볼 수 있는 채널마다 볼 수 있는 사람 ID(없는 채널은 모두 볼 수 있음) */
+export interface GroupMembers {
+  members: GroupMember[];
+  restricted: Record<string, string[]>;
+}
+
 export interface GroupChannels {
   group: Group;
   channels: ChannelInfo[];

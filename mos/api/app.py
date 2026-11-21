@@ -634,6 +634,32 @@ def create_app(
             channels.append(data)
         return {"group": group, "channels": channels}
 
+    @app.get("/api/groups/{group_id}/members")
+    async def list_members(group_id: int, request: Request) -> dict[str, Any]:
+        """서버 인원과, 비공개 채널처럼 일부만 볼 수 있는 채널마다 볼 수 있는 사람."""
+        account = await require_account(request)
+        require_ready()
+        found = await perms.channel_viewers(account.discord_user_id, group_id)
+        if found is None:
+            raise HTTPException(status_code=404, detail="not found")
+        members, restricted = found
+        ordered = sorted(members, key=lambda m: (m.is_bot, m.display_name.casefold()))
+        return {
+            "members": [
+                {
+                    "id": str(member.user_id),
+                    "name": member.display_name,
+                    "avatar_url": member.avatar_url,
+                    "bot": member.is_bot,
+                }
+                for member in ordered
+            ],
+            "restricted": {
+                str(channel_id): [str(user) for user in viewers]
+                for channel_id, viewers in restricted.items()
+            },
+        }
+
     @app.post("/api/pins", status_code=204)
     async def add_pin(body: PinBody, request: Request) -> None:
         account = await require_account(request)

@@ -376,6 +376,29 @@ class MosBot(discord.Client):
             timed_out_until=until.timestamp() if until else None,
         )
 
+    async def list_members(self, guild_id: int, limit: int) -> list[MemberInfo]:
+        guild = self.get_guild(guild_id)
+        if guild is None:
+            return []
+        result: list[MemberInfo] = []
+        try:
+            async for member in guild.fetch_members(limit=limit):
+                until = member.timed_out_until
+                result.append(
+                    MemberInfo(
+                        guild_id=guild_id,
+                        user_id=member.id,
+                        role_ids=frozenset(role.id for role in member.roles),
+                        display_name=member.display_name,
+                        avatar_url=str(member.display_avatar.url),
+                        timed_out_until=until.timestamp() if until else None,
+                        is_bot=member.bot,
+                    )
+                )
+        except discord.HTTPException as error:
+            raise DirectoryError(f"member list failed: HTTP {error.status}") from error
+        return result
+
     async def ensure_synced(self, channel_id: int) -> None:
         if channel_id in self._synced:
             return
@@ -842,6 +865,9 @@ class BotDirectory:
 
     async def fetch_member(self, guild_id: int, user_id: int) -> MemberInfo | None:
         return await self.bot.fetch_member(guild_id, user_id)
+
+    async def list_members(self, guild_id: int, limit: int) -> list[MemberInfo]:
+        return await self.bot.list_members(guild_id, limit)
 
     async def ensure_synced(self, channel_id: int) -> None:
         await self.bot.ensure_synced(channel_id)

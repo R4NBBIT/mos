@@ -2,6 +2,7 @@ import type {
   ChannelInfo,
   GroupChannels,
   GroupList,
+  GroupMembers,
   Message,
   MessagePage,
   Reaction,
@@ -97,6 +98,10 @@ export async function markRead(channelId: string, lastId: string): Promise<void>
 
 export async function fetchGroupChannels(groupId: string): Promise<GroupChannels> {
   return (await request(`/api/groups/${encodeURIComponent(groupId)}/channels`)).json() as Promise<GroupChannels>;
+}
+
+export async function fetchGroupMembers(groupId: string): Promise<GroupMembers> {
+  return (await request(`/api/groups/${encodeURIComponent(groupId)}/members`)).json() as Promise<GroupMembers>;
 }
 
 export async function fetchChannel(channelId: string): Promise<ChannelInfo> {

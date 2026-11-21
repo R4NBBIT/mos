@@ -56,6 +56,7 @@ class FakeDirectory:
     def __init__(self) -> None:
         self.ready = True
         self.thread_lookups = 0
+        self.member_lists = 0
         self.thread_members: set[tuple[int, int]] = set()  # 비공개 스레드 참여자
         self.guild_map = {
             GUILD: GuildInfo(
@@ -166,6 +167,15 @@ class FakeDirectory:
         if roles is None:
             return None
         return MemberInfo(guild_id, user_id, roles, f"user{user_id}", None)
+
+    async def list_members(self, guild_id: int, limit: int) -> list[MemberInfo]:
+        self.member_lists += 1
+        found = [
+            MemberInfo(guild, user, roles, f"user{user}", None)
+            for (guild, user), roles in self.members.items()
+            if guild == guild_id
+        ]
+        return found[:limit]
 
     async def ensure_synced(self, channel_id: int) -> None:
         self.synced.append(channel_id)
@@ -972,6 +982,20 @@ def test_groups_and_channels_follow_permissions(env: Env) -> None:
     assert names == ["일반", "포럼"]
     assert env.client.get(f"/api/channels/{SECRET}").status_code == 404
     assert env.client.get(f"/api/channels/{SECRET}/messages").status_code == 404
+
+
+def test_members_follow_channel_visibility(env: Env) -> None:
+    signed_up(env, "mocha")  # 비밀 역할 있음
+    body = env.client.get(f"/api/groups/{GUILD}/members").json()
+    assert [m["name"] for m in body["members"]] == ["user42", "user43"]
+    assert body["members"][0] == {"id": "42", "name": "user42", "avatar_url": None, "bot": False}
+    assert body["restricted"] == {str(SECRET): ["42"]}  # 비밀 채널은 모카만, 나머지는 모두
+    env.client.get(f"/api/groups/{GUILD}/members")
+    assert env.bot.member_lists == 1  # 잠깐 기억
+    assert env.client.get(f"/api/groups/{OTHER_GUILD}/members").status_code == 404
+
+    signed_up(env, "latte")  # 역할 없음: 비밀 채널은 있는지도 모른다
+    assert env.client.get(f"/api/groups/{GUILD}/members").json()["restricted"] == {}
 
 
 def test_forum_messages_are_not_served_yet(env: Env) -> None:

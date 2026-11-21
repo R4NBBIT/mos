@@ -30,6 +30,7 @@ ALL_PERMISSIONS = (1 << 53) - 1
 
 MEMBER_TTL_SEC = 120
 MEMBER_CACHE_MAX = 5000
+MEMBER_LIST_MAX = 1000  # 서버 인원 목록은 이만큼까지만
 _MISSING = object()
 
 
@@ -122,6 +123,7 @@ class PermissionService:
         self.clock = clock
         self._members: OrderedDict[tuple[int, int], tuple[float, MemberInfo | None]] = OrderedDict()
         self._thread_members: OrderedDict[tuple[int, int], tuple[float, bool]] = OrderedDict()
+        self._member_lists: dict[int, tuple[float, list[MemberInfo]]] = {}
 
     # ------------------------------------------------------------ 멤버 캐시
 
@@ -142,7 +144,8 @@ class PermissionService:
         return value
 
     def forget_member(self, guild_id: int, user_id: int | None = None) -> None:
-        """역할이 바뀌었거나 나갔을 때. user_id가 없으면 그 서버 전체."""
+        """역할이 바뀌었거나 들어오고 나갔을 때. user_id가 없으면 그 서버 전체."""
+        self._member_lists.pop(guild_id, None)
         if user_id is not None:
             self._members.pop((guild_id, user_id), None)
             return
@@ -202,6 +205,40 @@ class PermissionService:
             if await self.member(guild.id, user_id) is not None:
                 result.append(guild)
         return result
+
+    async def guild_members(self, guild_id: int) -> list[MemberInfo]:
+        """서버 인원 전체. 멤버 캐시처럼 2분 기억하고, 들어오고 나가거나 역할이 바뀌면 지운다."""
+        now = self.clock()
+        cached = self._member_lists.get(guild_id)
+        if cached is not None and now - cached[0] < MEMBER_TTL_SEC:
+            return cached[1]
+        members = await self.directory.list_members(guild_id, MEMBER_LIST_MAX)
+        self._member_lists[guild_id] = (now, members)
+        return members
+
+    async def channel_viewers(
+        self, user_id: int, guild_id: int
+    ) -> tuple[list[MemberInfo], dict[int, list[int]]] | None:
+        """(서버 인원, 채널마다 볼 수 있는 사람). 묻는 사람이 볼 수 있는 채널만,
+        서버 전원이 볼 수 있는 채널은 빼고 준다. 서버 멤버가 아니면 None."""
+        accesses = await self.visible_channels(user_id, guild_id)
+        guild = self.directory.guild(guild_id)
+        if accesses is None or guild is None:
+            return None
+        members = await self.guild_members(guild_id)
+        restricted: dict[int, list[int]] = {}
+        for access in accesses:
+            channel = access.channel
+            if channel.kind == "thread":
+                continue
+            viewers = [
+                member.user_id
+                for member in members
+                if compute_permissions(guild, member, channel) & VIEW_CHANNEL
+            ]
+            if len(viewers) < len(members):
+                restricted[channel.id] = viewers
+        return members, restricted
 
     async def visible_channels(self, user_id: int, guild_id: int) -> list[ChannelAccess] | None:
         """서버 멤버가 아니면 None."""

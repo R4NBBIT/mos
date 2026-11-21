@@ -1,9 +1,10 @@
 import SplitToggle from "./SplitToggle";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, fetchGroupChannels, fetchGroups, setPinned } from "./api";
+import { ApiError, fetchGroupChannels, fetchGroupMembers, fetchGroups, setPinned } from "./api";
 import { type ListSkin, listSkin } from "./listSkin";
 import { useLook } from "./lookContext";
-import type { ChannelInfo, Group, GroupChannels, GroupList as GroupListData } from "./types";
+import { Avatar } from "./MessageItem";
+import type { ChannelInfo, Group, GroupChannels, GroupList as GroupListData, GroupMembers } from "./types";
 
 const RETRY_MAX_MS = 15_000;
 const REFRESH_MS = 20_000; // 안 읽음 숫자를 새로 받는 간격(목록을 보고 있을 때만)
@@ -226,6 +227,7 @@ function ChannelRow({
   sub,
   skin,
   indent = 0,
+  viewers,
   onOpen,
   onPin,
 }: {
@@ -234,6 +236,8 @@ function ChannelRow({
   sub?: string;
   skin: ListSkin;
   indent?: number;
+  /** 일부만 볼 수 있는 채널이면 볼 수 있는 사람 수 */
+  viewers?: number;
   onOpen: (channel: ChannelInfo) => void;
   onPin: (channel: ChannelInfo) => void;
 }) {
@@ -258,6 +262,11 @@ function ChannelRow({
         {ext && <span className="skin-ext">{ext}</span>}
         {sub && <span className="list-sub">{sub}</span>}
       </span>
+      {viewers !== undefined && (
+        <span className="list-people" title={`${viewers}명만 볼 수 있어요`} aria-label={`${viewers}명만 볼 수 있음`}>
+          {viewers}명
+        </span>
+      )}
       {!channel.can_send && channel.kind !== "forum" && skin.readOnly}
       <Badge unread={channel.unread} mentions={channel.mentions} look={skin.badge} />
       <PinButton pinned={Boolean(channel.pinned)} onToggle={() => onPin(channel)} />
@@ -322,6 +331,87 @@ function GroupRow({
   );
 }
 
+const MEMBERS_SHOWN = 30;
+const MEMBERS_OPEN_KEY = "mos.members.open";
+
+/** 서버 인원(실패하면 조용히 없음) */
+function useMembers(groupId: string, onAuthLost: () => void): GroupMembers | null {
+  const [load] = useLoad<GroupMembers>(() => fetchGroupMembers(groupId), [groupId], onAuthLost);
+  return load.state === "ok" ? load.value : null;
+}
+
+function readMembersOpen(): boolean {
+  try {
+    return localStorage.getItem(MEMBERS_OPEN_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * 왼쪽 목록 아래: 서버 인원. 채널을 열고 있으면 그 채널을 볼 수 있는 사람만
+ * (비공개 채널은 서버 인원과 다를 수 있다).
+ */
+function MemberPanel({
+  data,
+  channel,
+  skin,
+}: {
+  data: GroupMembers;
+  channel: ChannelInfo | undefined;
+  skin: ListSkin;
+}) {
+  const [open, setOpen] = useState(readMembersOpen);
+  const [all, setAll] = useState(false);
+  const allowed = channel ? data.restricted[channel.id] : undefined;
+  const people = allowed ? data.members.filter((member) => allowed.includes(member.id)) : data.members;
+  const shown = all ? people : people.slice(0, MEMBERS_SHOWN);
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    try {
+      localStorage.setItem(MEMBERS_OPEN_KEY, next ? "1" : "0");
+    } catch {
+      // 기억 못 해도 지금 화면에서는 바뀐다
+    }
+  };
+  const scope = !channel
+    ? `서버 전체 ${people.length}명`
+    : allowed
+      ? `${channel.name}: ${people.length}명만 볼 수 있어요 (전체 ${data.members.length}명)`
+      : `${channel.name}: 모두 볼 수 있어요`;
+  return (
+    <section className="list-section member-panel">
+      <button type="button" className="list-section-title member-toggle" aria-expanded={open} onClick={toggle}>
+        <span>{skin.membersTitle}</span>
+        <span className="member-count">{people.length}</span>
+        <span className="member-chevron" aria-hidden="true">
+          {open ? "▾" : "▸"}
+        </span>
+      </button>
+      {open && (
+        <>
+          <p className="member-scope">{scope}</p>
+          <ul className="member-list">
+            {shown.map((member) => (
+              <li key={member.id} className="member-row" title={member.name}>
+                <Avatar url={member.avatar_url} name={member.name} />
+                <span className="member-name">{member.name}</span>
+                {member.bot && <span className="skin-ro">봇</span>}
+              </li>
+            ))}
+          </ul>
+          {people.length > shown.length && (
+            <button type="button" className="text-button member-more" onClick={() => setAll(true)}>
+              {people.length - shown.length}명 더 보기
+            </button>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 /** 노션 트리: 펼친 서버 아래 채널(하위 페이지) */
 function TreeChannels({
   groupId,
@@ -337,6 +427,7 @@ function TreeChannels({
   onAuthLost: () => void;
 }) {
   const [load, reload] = useLoad<GroupChannels>(() => fetchGroupChannels(groupId), [groupId], onAuthLost);
+  const members = useMembers(groupId, onAuthLost);
   const [pinError, togglePin] = usePinToggle(reload);
   if (load.state !== "ok") return <p className="list-note tree-note">{load.state === "loading" ? "불러오는 중…" : load.message}</p>;
   if (load.value.channels.length === 0) return <p className="list-note tree-note">볼 수 있는 페이지가 없어요.</p>;
@@ -353,12 +444,20 @@ function TreeChannels({
               skin={skin}
               indent={1}
               active={channel.id === activeChannelId}
+              viewers={members?.restricted[channel.id]?.length}
               onOpen={onOpen}
               onPin={(item) => togglePin("channel", item.id, !item.pinned)}
             />
           ))}
         </div>
       ))}
+      {members && (
+        <MemberPanel
+          data={members}
+          channel={load.value.channels.find((channel) => channel.id === activeChannelId)}
+          skin={skin}
+        />
+      )}
     </>
   );
 }
@@ -469,6 +568,7 @@ export function ChannelList({
     common.onAuthLost,
   );
   const [pinError, togglePin] = usePinToggle(reload);
+  const members = useMembers(groupId, common.onAuthLost);
   const group = load.state === "ok" ? load.value.group : null;
   return (
     <Shell
@@ -516,12 +616,20 @@ export function ChannelList({
                 channel={channel}
                 skin={skin}
                 active={channel.id === activeChannelId}
+                viewers={members?.restricted[channel.id]?.length}
                 onOpen={onOpen}
                 onPin={(item) => togglePin("channel", item.id, !item.pinned)}
               />
             ))}
           </section>
         ))}
+      {load.state === "ok" && members && (
+        <MemberPanel
+          data={members}
+          channel={load.value.channels.find((channel) => channel.id === activeChannelId)}
+          skin={skin}
+        />
+      )}
     </Shell>
   );
 }

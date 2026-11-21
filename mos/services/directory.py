@@ -103,6 +103,7 @@ class MemberInfo:
     display_name: str
     avatar_url: str | None
     timed_out_until: float | None = None
+    is_bot: bool = False
 
 
 class Directory(Protocol):
@@ -134,6 +135,10 @@ class Directory(Protocol):
 
     async def fetch_member(self, guild_id: int, user_id: int) -> MemberInfo | None:
         """서버에 없으면 None. 캐시하지 않는다(PermissionService가 캐시)."""
+        ...
+
+    async def list_members(self, guild_id: int, limit: int) -> list[MemberInfo]:
+        """서버 멤버를 limit명까지(디스코드에 물어본다). 캐시하지 않는다."""
         ...
 
     async def fetch_channel(self, channel_id: int) -> ChannelInfo | None:
