@@ -5452,3 +5452,46 @@ button.tag-chip:disabled {
     display: none;
   }
 }
+
+/* 스프레드시트 넓은 화면: 왼쪽 목록 머리도 오른쪽 시트 제목 줄처럼 얇은 한 줄(38px) */
+:root[data-theme="sheet"] .split-list .list-room .room-header {
+  min-height: 38px;
+  padding: 0 10px;
+  gap: 8px;
+}
+
+:root[data-theme="sheet"] .split-list .list-room .room-title strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+:root[data-theme="sheet"] .split-list .list-room .back-button,
+:root[data-theme="sheet"] .split-list .list-room .pin-button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 4px;
+  font-size: 20px;
+}
+
+:root[data-theme="sheet"] .split-list .list-room .back-button:hover,
+:root[data-theme="sheet"] .split-list .list-room .pin-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* 스프레드시트 넓은 화면, 채널을 고르기 전 빈 오른쪽: 같은 초록 한 줄 머리 */
+:root[data-theme="sheet"] .split-main .room-header {
+  min-height: 38px;
+  padding: 0 10px;
+  background: #1f6e43;
+  color: #ffffff;
+  border-bottom: 0;
+}
+
+:root[data-theme="sheet"] .split-main .room-header .pane-toggle {
+  width: 26px;
+  height: 26px;
+  color: rgba(255, 255, 255, 0.85);
+}

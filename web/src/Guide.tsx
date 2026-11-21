@@ -131,7 +131,7 @@ function buildCards(
     const forumOnly = situation.scanned.filter((g) => g.chat + g.readOnly === 0 && g.forum > 0);
     const readOnlyOnly = situation.scanned.filter((g) => g.chat === 0 && g.readOnly > 0 && g.forumPostable === 0);
     const where = wide
-      ? "넓은 화면에서는 왼쪽 목록에서 고르고, 목록 옆 얇은 띠(‹)를 누르면 목록을 접을 수 있어요."
+      ? "넓은 화면에서는 왼쪽 목록에서 고르고, 오른쪽 머리 줄 맨 앞의 목록 아이콘으로 목록을 접고 펼 수 있어요."
       : "목록에서 하나씩 눌러 들어가고, 맨 위 ‹ 버튼으로 돌아와요.";
     cards.push({
       id: "groups",
@@ -228,13 +228,36 @@ function buildCards(
     ),
   });
 
+  const titleSpot =
+    settings.theme === "word"
+      ? "Word 테마에서는 문서 제목과 그 아래 부제목, 맨 위 문서 이름을"
+      : settings.theme === "note"
+        ? "노션 테마에서는 페이지 제목을"
+        : settings.theme === "sheet"
+          ? "스프레드시트 테마에서는 맨 위 파일 이름을"
+          : "노션과 Word 테마에서는 페이지(문서) 제목을";
+  cards.push({
+    id: "look",
+    title: "더 티 안 나게",
+    body: (
+      <ul>
+        <li>테마는 기본, 다크, 스프레드시트, 메모장, 노션, Word 중에 골라요. 노션은 표, Word는 여럿이 쓰는 문서처럼 보여요.</li>
+        <li>
+          {titleSpot} 눌러서 바로 고칠 수 있어요(예: '11월 3주차 운영 회의 정리'). 계정에 저장돼서 다른 브라우저에서도
+          그대로예요.
+        </li>
+        <li>설정 › 표시에서 프로필 사진을 숨기고, 반응은 '+n'처럼 수만 작게, 스티커와 큰 이모지는 작게 하거나 숨길 수 있어요.</li>
+      </ul>
+    ),
+  });
+
   cards.push({
     id: "notify",
     title: "알림",
     body: (
       <>
         <ul>
-          <li>나를 부른 글(@내 이름, 내 글에 답장)과 고정한 채널의 새 글이 오면 탭 제목 앞에 숫자가 붙어요.</li>
+          <li>나를 부른 글(@내 이름, 내 글에 답장)과 고정한 채널의 새 글이 오면 탭 제목 앞에 숫자가 붙어요. 범위는 설정 › 알림에서 바꿔요.</li>
           <li>다른 창을 보고 있으면 알림 창도 떠요. 내용은 보이지 않고 '새 알림 n건'만 나와요.</li>
           <li>탭을 닫아도 받고 싶으면 설정 › 알림에서 '탭을 닫아도 알림 받기'를 켜 주세요.</li>
         </ul>
@@ -259,7 +282,7 @@ function buildCards(
     title: "마지막으로",
     body: (
       <ul>
-        <li>설정에서 테마(기본, 다크, 스프레드시트, 메모장, 노션)와 탭 제목을 바꿀 수 있어요.</li>
+        <li>탭 제목은 설정에서 바꿀 수 있어요(비우면 테마에 맞는 이름).</li>
         <li>
           {lockLabel(settings.lock_minutes)} 동안 아무것도 안 하면 저절로 잠겨요(설정 › 잠금에서 바꿀 수 있어요). 잠금 해제는
           처음 정한 비밀번호로 해요.
