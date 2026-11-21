@@ -41,6 +41,7 @@ MAX_BOSS_URL = 300
 # 스티커와 큰 이모지: 그대로, 작게(움직이는 이모지는 멈춤), 숨기기
 REACTION_VIEWS = ("full", "compact", "hidden")
 STICKER_VIEWS = ("full", "small", "hidden")
+MEDIA_VIEWS = ("full", "small", "hidden")  # 사진과 동영상
 # 화면에서 바로 고친 문서 제목(채널 ID → 제목, 'ID:sub' → 부제목).
 # 계정에 저장해 다른 브라우저에서도 그대로
 DOC_TITLE_KEY_RE = re.compile(r"[0-9]{15,21}(?::sub)?")
@@ -81,6 +82,7 @@ DEFAULTS: dict[str, Any] = {
     "show_avatars": True,
     "reactions_view": "full",
     "stickers_view": "full",
+    "media_view": "full",
     "doc_titles": {},
 }
 
@@ -151,6 +153,10 @@ def clean(update: dict[str, Any]) -> dict[str, Any]:
         elif key == "stickers_view":
             if value not in STICKER_VIEWS:
                 raise SettingsError("bad_stickers_view")
+            result[key] = value
+        elif key == "media_view":
+            if value not in MEDIA_VIEWS:
+                raise SettingsError("bad_media_view")
             result[key] = value
         elif key == "doc_titles":
             result[key] = _clean_doc_titles(value)

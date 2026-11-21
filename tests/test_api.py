@@ -1622,6 +1622,7 @@ def test_settings_per_account(env: Env) -> None:
         "show_avatars": True,
         "reactions_view": "full",
         "stickers_view": "full",
+        "media_view": "full",
         "doc_titles": {},
     }
     assert env.client.get("/api/settings").json() == defaults
@@ -1640,9 +1641,15 @@ def test_settings_per_account(env: Env) -> None:
     ).json()
     assert (look["theme"], look["show_avatars"]) == ("word", False)
     quiet = env.client.patch(
-        "/api/settings", json={"reactions_view": "compact", "stickers_view": "hidden"}, headers=POST
+        "/api/settings",
+        json={"reactions_view": "compact", "stickers_view": "hidden", "media_view": "small"},
+        headers=POST,
     ).json()
-    assert (quiet["reactions_view"], quiet["stickers_view"]) == ("compact", "hidden")
+    assert (quiet["reactions_view"], quiet["stickers_view"], quiet["media_view"]) == (
+        "compact",
+        "hidden",
+        "small",
+    )
     first = env.client.patch(
         "/api/settings",
         json={"doc_titles": {str(CHANNEL): "  운영   회의 정리 ", f"{CHANNEL}:sub": "운영지원팀"}},
@@ -1670,6 +1677,7 @@ def test_settings_per_account(env: Env) -> None:
         {"show_avatars": "off"},
         {"reactions_view": "tiny"},
         {"stickers_view": True},
+        {"media_view": "tiny"},
         {"doc_titles": {"general": "x"}},
         {"doc_titles": {str(CHANNEL): "가" * 81}},
         {"doc_titles": [str(CHANNEL)]},

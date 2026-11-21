@@ -1,6 +1,7 @@
 // 알림: 나를 부른 메시지(그리고 고르면 고정한 채널의 새 메시지)를 실시간 연결로 받아
 // 탭 제목 앞 숫자와 브라우저 알림 창으로 알려 준다.
-// 위장 화면 중에는 알림 창을 띄우지 않고, 내용은 설정에서 켠 경우에만 보인다.
+// 화면을 보고 있는 중에는 다른 채널, 포럼 글을 화면 안 작은 알림으로 알려 준다.
+// 위장 화면 중에는 알림을 띄우지 않고, 내용은 설정에서 켠 경우에만 보인다.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isDisguised } from "./boss/bossState";
 import { currentBaseTitle, currentIcon, type NotifyScope, setTitleBadge } from "./theme";
@@ -9,6 +10,7 @@ const MAX_RETRY_MS = 30_000;
 const PING_INTERVAL_MS = 30_000;
 const POLICY_VIOLATION = 1008;
 const PREVIEW_LIMIT = 80;
+const TOAST_MS = 6000;
 
 export interface NotifyEvent {
   message_id: string;
@@ -41,7 +43,16 @@ export async function askPopupPermission(): Promise<PopupSupport> {
   }
 }
 
-/** 알림 창에 넣을 한 줄: 디스코드 코드·서식 기호를 뺀다 */
+/** 화면 안 작은 알림에 보일 것 */
+export interface NotifyToast {
+  /** 같은 내용이 다시 와도 새로 보이게 */
+  key: number;
+  route: string;
+  title: string;
+  body: string;
+}
+
+/** 알림 창에 넣을 한 줄: 디스코드 코드와 서식 기호를 뺀다 */
 function previewText(event: NotifyEvent): string {
   const text = event.content
     .replace(/^> ↪ .*\n/, "")
@@ -72,20 +83,36 @@ interface Options {
   preview: boolean;
   /** 열린 계정이 바뀌면 다시 연결 */
   accountId: string | undefined;
-  /** 지금 보고 있는 채널(보고 있는 채널의 새 글은 세지 않는다) */
+  /** 지금 보고 있는 채널이나 포럼 글(보고 있는 곳의 새 글은 세지 않는다) */
   currentChannel: string | null;
+  /** 지금 보고 있는 포럼(글 목록). 그 포럼의 글에 달린 새 메시지도 세지 않는다 */
+  currentForum: string | null;
   onOpen: (route: string) => void;
 }
 
-export function useNotifications({ enabled, scope, preview, accountId, currentChannel, onOpen }: Options): void {
+export function useNotifications({
+  enabled,
+  scope,
+  preview,
+  accountId,
+  currentChannel,
+  currentForum,
+  onOpen,
+}: Options): { toast: NotifyToast | null; closeToast: () => void } {
+  const [toast, setToast] = useState<NotifyToast | null>(null);
+  const toastTimer = useRef<number | undefined>(undefined);
+  const closeToast = useCallback(() => {
+    window.clearTimeout(toastTimer.current);
+    setToast(null);
+  }, []);
   const [counts, setCountsState] = useState<Record<string, number>>({});
   const countsRef = useRef<Record<string, number>>({});
   const setCounts = useCallback((next: Record<string, number>) => {
     countsRef.current = next;
     setCountsState(next);
   }, []);
-  const optionsRef = useRef({ scope, preview, currentChannel, onOpen });
-  optionsRef.current = { scope, preview, currentChannel, onOpen };
+  const optionsRef = useRef({ scope, preview, currentChannel, currentForum, onOpen });
+  optionsRef.current = { scope, preview, currentChannel, currentForum, onOpen };
   const socketRef = useRef<WebSocket | null>(null);
   const popupRef = useRef<Notification | null>(null);
 
@@ -102,9 +129,27 @@ export function useNotifications({ enabled, scope, preview, accountId, currentCh
     setCounts(next);
   }, [setCounts]);
 
+  // 화면을 보고 있을 때: 알림 창 대신 화면 안 작은 알림(휴대폰에서도 보인다)
+  const showToast = useCallback((event: NotifyEvent) => {
+    const showContent = optionsRef.current.preview;
+    const place = event.channel_name ? `#${event.channel_name}` : "다른 채널";
+    setToast({
+      key: Date.now(),
+      route: notifyRoute(event),
+      title: showContent ? `${event.author_name} (${place})` : `${place}에 새 메시지`,
+      body: showContent ? previewText(event) : "",
+    });
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), TOAST_MS);
+  }, []);
+
   const showPopup = useCallback((event: NotifyEvent, total: number) => {
-    if (isDisguised() || popupSupport() !== "granted") return;
-    if (document.visibilityState === "visible" && document.hasFocus()) return; // 화면을 보고 있으면 숫자만
+    if (isDisguised()) return;
+    if (document.visibilityState === "visible" && document.hasFocus()) {
+      showToast(event);
+      return;
+    }
+    if (popupSupport() !== "granted") return;
     const showContent = optionsRef.current.preview;
     const title = showContent ? `${event.author_name} (#${event.channel_name})` : currentBaseTitle();
     const body = showContent ? previewText(event) : `새 알림 ${total}건`;
@@ -129,7 +174,7 @@ export function useNotifications({ enabled, scope, preview, accountId, currentCh
         )
         .catch(() => {});
     }
-  }, []);
+  }, [showToast]);
 
   // 연결: 알림을 켠 동안만. 끊기면 1초→…→30초 간격으로 다시
   useEffect(() => {
@@ -158,10 +203,9 @@ export function useNotifications({ enabled, scope, preview, accountId, currentCh
         }
         const event = parsed.data;
         if (parsed.type !== "notify" || !event || !/^\d+$/.test(event.channel_id)) return;
-        const watching =
-          optionsRef.current.currentChannel === event.channel_id &&
-          document.visibilityState === "visible" &&
-          !isDisguised();
+        const { currentChannel: openChannel, currentForum: openForum } = optionsRef.current;
+        const here = openChannel === event.channel_id || (openForum !== null && openForum === event.parent_id);
+        const watching = here && document.visibilityState === "visible" && !isDisguised();
         if (watching) return;
         const current = countsRef.current;
         const next = { ...current, [event.channel_id]: (current[event.channel_id] ?? 0) + 1 };
@@ -184,11 +228,21 @@ export function useNotifications({ enabled, scope, preview, accountId, currentCh
       socketRef.current?.close();
       socketRef.current = null;
       setCounts({});
+      closeToast();
     };
-  }, [enabled, accountId, sendScope, showPopup, setCounts]);
+  }, [enabled, accountId, sendScope, showPopup, setCounts, closeToast]);
 
   // 범위를 바꾸면 연결은 그대로 두고 알려만 준다
   useEffect(() => sendScope(socketRef.current), [scope, sendScope]);
+
+  // 알림이 가리키던 곳을 열면 작은 알림도 닫는다
+  useEffect(() => {
+    if (toast && (toast.route.endsWith(`/c/${currentChannel}`) || toast.route.endsWith(`/t/${currentChannel}`))) {
+      closeToast();
+    }
+  }, [currentChannel, toast, closeToast]);
+
+  useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
   // 채널을 열면(그리고 탭으로 돌아오면) 그 채널 숫자는 지운다
   useEffect(() => {
@@ -207,4 +261,6 @@ export function useNotifications({ enabled, scope, preview, accountId, currentCh
   useEffect(() => {
     setTitleBadge(enabled ? total : 0);
   }, [enabled, total]);
+
+  return { toast, closeToast };
 }

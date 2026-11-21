@@ -53,12 +53,15 @@ export interface Settings {
   reactions_view: ReactionsView;
   /** 스티커와 큰 이모지: 그대로, 작게(움직이는 이모지는 멈춤), 숨기기 */
   stickers_view: StickersView;
+  /** 사진과 동영상: 그대로, 작게, 숨기기(파일 이름 글자로만) */
+  media_view: MediaView;
   /** 화면에서 바로 고친 문서 제목: 채널 ID → 제목, 'ID:sub' → 부제목 */
   doc_titles: Record<string, string>;
 }
 
 export type ReactionsView = "full" | "compact" | "hidden";
 export type StickersView = "full" | "small" | "hidden";
+export type MediaView = "full" | "small" | "hidden";
 
 export const LOCK_MINUTES = [5, 10, 15, 30, 60, 120, 240, 480];
 
@@ -102,6 +105,7 @@ export const DEFAULT_SETTINGS: Settings = {
   show_avatars: true,
   reactions_view: "full",
   stickers_view: "full",
+  media_view: "full",
   doc_titles: {},
 };
 
@@ -243,6 +247,7 @@ export function cachedLook(): Settings {
             value.reactions_view === "compact" || value.reactions_view === "hidden" ? value.reactions_view : "full",
           stickers_view:
             value.stickers_view === "small" || value.stickers_view === "hidden" ? value.stickers_view : "full",
+          media_view: value.media_view === "small" || value.media_view === "hidden" ? value.media_view : "full",
           doc_titles: cleanTitles(value.doc_titles),
         };
       }

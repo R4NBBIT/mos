@@ -10,6 +10,7 @@ import {
   lockLabel,
   type ReactionsView,
   type Settings,
+  type MediaView,
   type StickersView,
   THEMES,
   type Theme,
@@ -215,6 +216,22 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
               <option value="hidden">숨기기</option>
             </select>
           </label>
+          <label className="settings-toggle">
+            <span>
+              <strong>사진과 동영상</strong>
+              <small>작게는 작은 그림으로 보이고, 숨기기는 파일 이름 글자로만 보여요</small>
+            </span>
+            <select
+              className="settings-select"
+              aria-label="사진과 동영상 표시"
+              value={settings.media_view}
+              onChange={(event) => void save({ media_view: event.target.value as MediaView })}
+            >
+              <option value="full">그대로</option>
+              <option value="small">작게</option>
+              <option value="hidden">숨기기</option>
+            </select>
+          </label>
         </section>
 
         <section className="settings-card">
@@ -335,7 +352,7 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
                 <label className="settings-toggle">
                   <span>
                     <strong>알림 창에 보낸 사람과 내용 보이기</strong>
-                    <small>끄면 탭 제목과 '새 알림 n건'만 보여서 옆에서 봐도 티가 덜 나요</small>
+                    <small>끄면 알림 창에는 '새 알림 n건', 화면 안 알림에는 채널 이름만 보여서 옆에서 봐도 티가 덜 나요</small>
                   </span>
                   <input
                     type="checkbox"

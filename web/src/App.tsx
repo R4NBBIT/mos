@@ -21,6 +21,7 @@ import WordChrome from "./WordChrome";
 import { LookContext, type LookValue } from "./lookContext";
 import { applyDisguise, applyLook, type BossTemplate, cachedLook, type Settings } from "./theme";
 import type { ChannelInfo, SessionAccount, SessionState } from "./types";
+import NotifyToast from "./NotifyToast";
 import { useNotifications } from "./useNotifications";
 
 // 서버의 자동 잠금(계정 설정, 기본 30분)과 같게. 조작이 없으면 화면도 잠금으로 간다
@@ -239,12 +240,13 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     setLook({ ...look, guide_done: true });
     updateSettings({ guide_done: true }).catch(() => {}); // 못 남기면 다음에 한 번 더 보일 뿐
   }, [look, setLook]);
-  useNotifications({
+  const notify = useNotifications({
     enabled: open && look.notify,
     scope: look.notify_scope,
     preview: look.notify_preview,
     accountId: openAccountId,
     currentChannel: route.view === "chat" ? route.channelId : route.view === "thread" ? route.threadId : null,
+    currentForum: route.view === "posts" ? route.parentId : null,
     onOpen: go,
   });
 
@@ -436,6 +438,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
         screen()
       )}
       {showGuide && <Guide settings={look} wide={wide} onClose={closeGuide} />}
+      <NotifyToast toast={notify.toast} onOpen={go} onClose={notify.closeToast} />
     </LookContext.Provider>
   );
 }

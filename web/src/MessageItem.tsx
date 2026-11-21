@@ -96,13 +96,14 @@ export function StickerView({ sticker }: { sticker: Sticker }) {
   );
 }
 
-/** 글자만 보이는 테마(메모장·시트): "[사진] 파일명" 링크 */
+/** 글자로만 보일 때: "[사진] 파일명" 링크 */
 export function AttachmentText({ attachment }: { attachment: Attachment }) {
-  const isImage = attachment.content_type?.startsWith("image/") ?? false;
+  const type = attachment.content_type ?? "";
+  const label = type.startsWith("image/") ? "사진" : type.startsWith("video/") ? "동영상" : "파일";
   const href = isDiscordMediaUrl(attachment.url) ? attachment.url : undefined;
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" className="attachment-text">
-      [{isImage ? "사진" : "파일"}] {attachment.filename}
+      [{label}] {attachment.filename}
     </a>
   );
 }
@@ -146,9 +147,27 @@ export function MessageTextOnly({ message, pictures = false }: { message: Messag
 
 const PLAYABLE_VIDEO = /^video\/(mp4|webm|quicktime|ogg)$/;
 
-/** 동영상: 브라우저에서 바로 재생(디스코드 CDN에서 직접 받는다). 스포일러면 눌러야 보인다 */
-function VideoView({ attachment }: { attachment: Attachment }) {
-  const [revealed, setRevealed] = useState(!attachment.spoiler);
+/** 동영상: 브라우저에서 바로 재생(디스코드 CDN에서 직접 받는다). 스포일러면 눌러야 보인다.
+ * 작게 보기면 작은 첫 장면만 보이고, 누르면 재생기가 열린다 */
+function VideoView({ attachment, small }: { attachment: Attachment; small: boolean }) {
+  const [revealed, setRevealed] = useState(!attachment.spoiler && !small);
+  const poster = isDiscordMediaUrl(attachment.proxy_url) ? `${attachment.proxy_url}?format=jpeg` : undefined;
+  if (!revealed && small && !attachment.spoiler) {
+    return (
+      <button
+        type="button"
+        className="attachment-video-small"
+        onClick={() => setRevealed(true)}
+        aria-label={`동영상 재생: ${attachment.filename}`}
+        title={attachment.filename}
+      >
+        {poster && <img src={poster} alt="" loading="lazy" referrerPolicy="no-referrer" />}
+        <span className="video-play" aria-hidden="true">
+          ▶
+        </span>
+      </button>
+    );
+  }
   if (!revealed) {
     return (
       <button type="button" className="attachment-file video-spoiler" onClick={() => setRevealed(true)}>
@@ -161,7 +180,8 @@ function VideoView({ attachment }: { attachment: Attachment }) {
     <video
       className="attachment-video"
       src={attachment.url}
-      poster={isDiscordMediaUrl(attachment.proxy_url) ? `${attachment.proxy_url}?format=jpeg` : undefined}
+      poster={poster}
+      autoPlay={small}
       controls
       playsInline
       preload="metadata"
@@ -171,13 +191,22 @@ function VideoView({ attachment }: { attachment: Attachment }) {
 }
 
 export function AttachmentView({ attachment }: { attachment: Attachment }) {
-  const isImage = attachment.content_type?.startsWith("image/") ?? false;
-  if (PLAYABLE_VIDEO.test(attachment.content_type ?? "") && isDiscordMediaUrl(attachment.url)) {
-    return <VideoView attachment={attachment} />;
+  const view = useLook().settings.media_view;
+  const type = attachment.content_type ?? "";
+  const isImage = type.startsWith("image/");
+  if (view === "hidden" && (isImage || type.startsWith("video/"))) return <AttachmentText attachment={attachment} />;
+  if (PLAYABLE_VIDEO.test(type) && isDiscordMediaUrl(attachment.url)) {
+    return <VideoView attachment={attachment} small={view === "small"} />;
   }
   if (isImage && isDiscordMediaUrl(attachment.proxy_url) && isDiscordMediaUrl(attachment.url)) {
     return (
-      <a href={attachment.url} target="_blank" rel="noopener noreferrer" className="attachment-image">
+      <a
+        href={attachment.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={view === "small" ? "attachment-image attachment-image-small" : "attachment-image"}
+        title={view === "small" ? attachment.filename : undefined}
+      >
         <img
           src={thumbnailUrl(attachment.proxy_url, 400)}
           alt={attachment.filename}

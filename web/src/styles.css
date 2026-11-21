@@ -5620,3 +5620,133 @@ button.tag-chip:disabled {
 .msg-mine .bubble.bubble-bare {
   background: transparent;
 }
+
+/* ------------------------------------------------------------ 화면 안 작은 알림 */
+.notify-toast {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 900; /* 위장 화면(1000)보다 아래 */
+  display: flex;
+  align-items: stretch;
+  width: min(360px, calc(100vw - 24px));
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.16);
+  animation: notify-toast-in 160ms ease-out;
+}
+
+.notify-toast-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  padding: 10px 4px 10px 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 10px 0 0 10px;
+}
+
+.notify-toast-title {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notify-toast-body {
+  font-size: 13px;
+  color: var(--sub);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.notify-toast-close {
+  flex: none;
+  width: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--sub);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 0 10px 10px 0;
+}
+
+.notify-toast-main:hover,
+.notify-toast-close:hover {
+  background: var(--tint, rgb(0 0 0 / 0.04));
+}
+
+@keyframes notify-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notify-toast {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------ 사진과 동영상 작게 보기 */
+a.attachment-image.attachment-image-small img {
+  max-height: 72px;
+  max-width: 120px;
+}
+
+.attachment-video-small {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: fit-content;
+  min-width: 96px;
+  height: 64px;
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #2b2b2b;
+  cursor: pointer;
+}
+
+.attachment-video-small img {
+  display: block;
+  height: 64px;
+  max-width: 120px;
+  object-fit: cover;
+}
+
+.attachment-video-small .video-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  font-size: 16px;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+  background: rgb(0 0 0 / 0.18);
+}
+
+.inline-pics .attachment-video-small,
+.sheet-pics .attachment-video-small {
+  margin-top: 0;
+}
