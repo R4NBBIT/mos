@@ -83,6 +83,7 @@ DEFAULT_TITLES = {
     "night": "작업 메모",
     "sheet": "통합 문서1",
     "memo": "제목 없음 - 메모장",
+    "note": "업무 노트",
 }
 SNOWFLAKE_PATTERN = r"^[0-9]{15,21}$"
 UPLOAD_CHUNK = 64 * 1024

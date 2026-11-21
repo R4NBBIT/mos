@@ -2,7 +2,7 @@
 // 화면 어디에도 원래 서비스 이름이 드러나지 않게, 테마마다 평범한 문서처럼 보이는 제목·아이콘을 쓴다.
 import { isDisguised } from "./boss/bossState";
 
-export type Theme = "moon" | "night" | "sheet" | "memo";
+export type Theme = "moon" | "night" | "sheet" | "memo" | "note";
 
 export type BossTemplate = "weekly" | "sales" | "schedule" | "budget" | "myfile" | "image" | "text" | "url";
 
@@ -65,6 +65,7 @@ export const THEMES: { id: Theme; name: string }[] = [
   { id: "night", name: "다크" },
   { id: "sheet", name: "스프레드시트" },
   { id: "memo", name: "메모장" },
+  { id: "note", name: "노트" },
 ];
 
 const DEFAULT_TITLES: Record<Theme, string> = {
@@ -72,6 +73,7 @@ const DEFAULT_TITLES: Record<Theme, string> = {
   night: "작업 메모",
   sheet: "통합 문서1",
   memo: "제목 없음 - 메모장",
+  note: "업무 노트",
 };
 
 const svg = (body: string) =>
@@ -82,6 +84,7 @@ const FAVICONS: Record<Theme, string> = {
   night: svg('<rect x="6" y="3" width="20" height="26" rx="3" fill="#1e2230" stroke="#a7a08f" stroke-width="2"/><path d="M11 11h10M11 16h10M11 21h6" stroke="#a7a08f" stroke-width="2"/>'),
   sheet: svg('<rect x="3" y="3" width="26" height="26" rx="3" fill="#1f6e43"/><path d="M8 10h16M8 16h16M8 22h16M14 7v18M20 7v18" stroke="#fff" stroke-width="1.6"/>'),
   memo: svg('<rect x="6" y="3" width="20" height="26" fill="#ffffff" stroke="#3b6fb6" stroke-width="2"/><path d="M10 10h12M10 15h12M10 20h8" stroke="#555" stroke-width="1.6"/>'),
+  note: svg('<rect x="5" y="4" width="22" height="24" rx="4" fill="#ffffff" stroke="#37352f" stroke-width="2"/><path d="M10 11h12M10 16h12M10 21h7" stroke="#9b9a97" stroke-width="1.8" stroke-linecap="round"/>'),
 };
 
 const CACHE_KEY = "mos.look"; // 잠금 화면에서도 같은 제목·아이콘을 쓰려고 이 브라우저에 기억

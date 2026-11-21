@@ -576,7 +576,7 @@ export default function ChatRoom({
                 onReact={react}
                 myUserId={myUserId}
                 channelId={channel?.id}
-                layout={theme === "memo" ? "line" : isThread ? "comment" : "bubble"}
+                layout={theme === "memo" ? "line" : isThread || theme === "note" ? "comment" : "bubble"}
               />
             </div>
           );

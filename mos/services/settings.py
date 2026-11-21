@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 
 from mos.db.database import Database
 
-THEMES = ("moon", "night", "sheet", "memo")  # 달빛(기본) · 밤하늘 · 스프레드시트 · 메모장
+THEMES = ("moon", "night", "sheet", "memo", "note")  # 기본, 다크, 스프레드시트, 메모장, 노트
 MAX_TAB_TITLE = 40
 # 위장 화면(SCR-12) 템플릿: 주간 업무 보고 · 매출 요약 · 프로젝트 일정표 · 예산 집행 현황 · 내 파일
 # 내 파일 내용은 서버로 보내지 않는다(브라우저에만). 여기에는 '내 파일을 쓴다'는 선택만 남는다

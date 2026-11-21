@@ -26,6 +26,19 @@ function Preview({ theme }: { theme: Theme }) {
       </div>
     );
   }
+  if (theme === "note") {
+    return (
+      <div className="theme-preview theme-preview-note" aria-hidden="true">
+        <span className="side" />
+        <span className="page">
+          <b />
+          <i style={{ width: "80%" }} />
+          <i style={{ width: "65%" }} />
+          <i style={{ width: "72%" }} />
+        </span>
+      </div>
+    );
+  }
   if (theme === "memo") {
     return (
       <div className="theme-preview theme-preview-memo" aria-hidden="true">
