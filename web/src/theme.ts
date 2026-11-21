@@ -4,7 +4,7 @@ import { isDisguised } from "./boss/bossState";
 
 export type Theme = "moon" | "night" | "sheet" | "memo";
 
-export type BossTemplate = "weekly" | "sales" | "schedule" | "budget" | "myfile";
+export type BossTemplate = "weekly" | "sales" | "schedule" | "budget" | "myfile" | "image" | "text" | "url";
 
 export interface Settings {
   theme: Theme;
@@ -15,6 +15,12 @@ export interface Settings {
   boss_relock: boolean;
   /** 보스키(boss/bossKey.ts 모양) */
   boss_key: string;
+  /** 사진 위장: cover 꽉 채우기(가장자리 잘림), contain 다 보이게 */
+  boss_fit: "cover" | "contain";
+  /** 위장할 때 전체 화면으로(주소창·탭까지 가림) */
+  boss_fullscreen: boolean;
+  /** 다른 사이트로 이동 위장의 주소(https만) */
+  boss_url: string | null;
   /** 알림(기본 켬): 범위는 나를 부른 것만 / 나를 부른 것 + 고정한 채널, 내용 보이기는 기본 끔 */
   notify: boolean;
   notify_scope: NotifyScope;
@@ -33,7 +39,7 @@ export function lockLabel(minutes: number): string {
 
 export type NotifyScope = "mentions" | "pinned";
 
-const BOSS_TEMPLATES: BossTemplate[] = ["weekly", "sales", "schedule", "budget", "myfile"];
+const BOSS_TEMPLATES: BossTemplate[] = ["weekly", "sales", "schedule", "budget", "myfile", "image", "text", "url"];
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: "moon",
@@ -42,6 +48,9 @@ export const DEFAULT_SETTINGS: Settings = {
   boss_auto: false,
   boss_relock: false,
   boss_key: "Escape*2",
+  boss_fit: "cover",
+  boss_fullscreen: false,
+  boss_url: null,
   notify: true,
   notify_scope: "pinned",
   notify_preview: false,
@@ -115,10 +124,10 @@ export function currentBaseTitle(): string {
   return baseTitle || document.title;
 }
 
-/** 위장 화면: 파일 이름을 탭 제목으로, 시트 아이콘 */
-export function applyDisguise(fileName: string): void {
+/** 위장 화면: 파일 이름을 탭 제목으로, 그 프로그램 아이콘(표는 시트, 글은 메모장) */
+export function applyDisguise(fileName: string, icon: Theme = "sheet"): void {
   document.title = fileName;
-  setIcon(FAVICONS.sheet);
+  setIcon(FAVICONS[icon]);
 }
 
 export function applyLook(settings: Settings): void {
@@ -152,6 +161,9 @@ export function cachedLook(): Settings {
           boss_relock: value.boss_relock === true,
           boss_key:
             typeof value.boss_key === "string" && BOSS_KEY_RE.test(value.boss_key) ? value.boss_key : "Escape*2",
+          boss_fit: value.boss_fit === "contain" ? "contain" : "cover",
+          boss_fullscreen: value.boss_fullscreen === true,
+          boss_url: typeof value.boss_url === "string" && /^https:\/\/\S+$/.test(value.boss_url) ? value.boss_url : null,
           notify: value.notify !== false,
           notify_scope: value.notify_scope === "mentions" ? "mentions" : "pinned",
           notify_preview: value.notify_preview === true,

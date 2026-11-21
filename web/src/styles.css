@@ -3417,3 +3417,97 @@ button.tag-chip:disabled {
   box-shadow: var(--shadow);
 }
 
+
+/* ------------------------------------------------------------ 위장 화면: 사진, 글 문서 */
+.boss-image {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.boss-image img {
+  width: 100%;
+  height: 100%;
+  user-select: none;
+}
+
+.boss-image-empty {
+  background: #ffffff;
+  color: #666666;
+  font-size: 14px;
+}
+
+.boss-text {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #ffffff;
+  color: #111111;
+}
+
+.boss-text-menu {
+  display: flex;
+  gap: 18px;
+  padding: 4px 12px;
+  border-bottom: 1px solid #e5e5e5;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  color: #333333;
+}
+
+.boss-text-area {
+  flex: 1;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: #ffffff;
+  color: #111111;
+  font-family: Consolas, "D2Coding", "Malgun Gothic", monospace;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.boss-text-status {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0;
+  border-top: 1px solid #e5e5e5;
+  background: #f3f3f3;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  color: #444444;
+}
+
+.boss-text-status span {
+  padding: 3px 14px;
+  border-left: 1px solid #dddddd;
+}
+
+/* 설정: 위장 화면 고르기 */
+.boss-choice-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.boss-choice-extra {
+  margin: 0 0 6px 26px;
+}
+
+.boss-fit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+.boss-fit label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

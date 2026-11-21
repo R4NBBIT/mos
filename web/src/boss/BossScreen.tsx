@@ -1,9 +1,10 @@
 import { type KeyboardEvent, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { address, colName, display, type Evaluated, makeCalculator, parseAddress } from "./formula";
+import { localEdits, pullEdits, pushEdits } from "./bossStore";
 import type { CellStyle, SheetData, Workbook } from "./templates";
 
 // 위장 화면(SCR-12): 진짜처럼 동작하는 표. 셀 선택·방향키·입력·수식 재계산·시트 탭.
-// 고친 값은 이 브라우저에만 남는다(서버로 보내지 않음).
+// 고친 값은 계정에 저장한다(다른 브라우저·PC에서도 그대로).
 
 const ROW_H = 24;
 const HEAD_H = 22;
@@ -15,23 +16,13 @@ const MAX_STORED = 200_000;
 type Edits = Record<string, Record<string, string>>;
 
 function loadEdits(key: string): Edits {
-  try {
-    const raw = window.localStorage.getItem(key);
-    const value = raw ? (JSON.parse(raw) as unknown) : null;
-    if (value && typeof value === "object") return value as Edits;
-  } catch {
-    // 못 읽으면 처음부터
-  }
-  return {};
+  const value = localEdits<unknown>(key);
+  return value && typeof value === "object" ? (value as Edits) : {};
 }
 
+/** 고친 값은 계정에 저장(다른 브라우저에서도 그대로). 이 브라우저에도 사본 */
 function saveEdits(key: string, edits: Edits): void {
-  try {
-    const text = JSON.stringify(edits);
-    if (text.length <= MAX_STORED) window.localStorage.setItem(key, text);
-  } catch {
-    // 저장소가 없거나 꽉 차면 이번 화면에서만
-  }
+  if (JSON.stringify(edits).length <= MAX_STORED) pushEdits(key, edits);
 }
 
 interface Pos {
@@ -159,12 +150,26 @@ export default function BossScreen({ workbook, storageKey, active }: Props) {
   const editorRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 다른 템플릿·파일로 바뀌면 처음 상태로
+  // 다른 템플릿·파일로 바뀌면 처음 상태로. 계정에 저장된 고친 값이 있으면 그걸로
   useEffect(() => {
+    let stopped = false;
     setEdits(loadEdits(storageKey));
     setSheetIndex(0);
     setDraft(null);
     setSel(cursorOf(workbook.sheets[0] ?? { name: "", widths: [], cells: {}, styles: {} }));
+    pullEdits<Edits>(storageKey)
+      .then((saved) => {
+        if (stopped) return;
+        if (saved && typeof saved === "object") setEdits(saved);
+        else {
+          const local = loadEdits(storageKey);
+          if (Object.keys(local).length > 0) pushEdits(storageKey, local); // 예전에 이 브라우저에만 있던 것
+        }
+      })
+      .catch(() => {}); // 잠겨 있으면 이 브라우저 사본으로
+    return () => {
+      stopped = true;
+    };
   }, [storageKey, workbook, cursorOf]);
 
   const sheetEdits = useMemo(() => edits[String(sheetIndex)] ?? {}, [edits, sheetIndex]);

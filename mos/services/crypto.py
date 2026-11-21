@@ -51,6 +51,25 @@ class TokenCipher:
             raise DecryptError("cannot decrypt") from error
 
 
+class BytesCipher:
+    """파일 같은 바이트 덩어리용(같은 열쇠, 앞에 nonce를 붙여 저장)."""
+
+    def __init__(self, cipher: TokenCipher) -> None:
+        self._aead = cipher._aead
+
+    def encrypt(self, data: bytes, context: str) -> bytes:
+        nonce = secrets.token_bytes(_NONCE_BYTES)
+        return nonce + self._aead.encrypt(nonce, data, context.encode("utf-8"))
+
+    def decrypt(self, stored: bytes, context: str) -> bytes:
+        try:
+            return self._aead.decrypt(
+                stored[:_NONCE_BYTES], stored[_NONCE_BYTES:], context.encode("utf-8")
+            )
+        except (InvalidTag, ValueError) as error:
+            raise DecryptError("cannot decrypt") from error
+
+
 def hash_password(password: str) -> str:
     return _password_hasher.hash(password)
 

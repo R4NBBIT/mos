@@ -2,9 +2,11 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import AccountMenu from "./AccountMenu";
 import BossScreen from "./boss/BossScreen";
 import { DOUBLE_PRESS_MS, keyFromEvent, parseBossKey, sameKey } from "./boss/bossKey";
-import { isCapturingKey, setDisguised } from "./boss/bossState";
-import { loadMyFile } from "./boss/myFile";
-import { buildTemplate, type Workbook } from "./boss/templates";
+import { type AssetList, cachedInfo, fetchBossInfo, loadAsset, uploadAsset } from "./boss/bossStore";
+import { isCapturingKey, isDisguised, setDisguised } from "./boss/bossState";
+import { loadMyFile, type StoredFile } from "./boss/myFile";
+import { ImageDisguise, TextDisguise } from "./boss/OtherDisguise";
+import { buildTemplate, type TemplateId, type Workbook } from "./boss/templates";
 import { fetchSession, fetchSettings, lock, updateSettings } from "./api";
 import { ConnectScreen, PasswordSetup, ReconnectScreen, UnlockScreen } from "./AuthScreens";
 import { authText } from "./authText";
@@ -142,9 +144,11 @@ interface ScreensProps {
   /** 바뀌면 세션을 다시 받는다(위장 화면에서 돌아오며 잠갔을 때) */
   refreshKey: number;
   onFileChanged: () => void;
+  /** 열린 계정이 바뀌면(위장 파일을 그 계정 것으로 다시 받는다) */
+  onAccountOpen: (accountId: string | undefined) => void;
 }
 
-function Screens({ look, setLook, refreshKey, onFileChanged }: ScreensProps) {
+function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: ScreensProps) {
   const [session, setSession] = useState<SessionState | null>(null);
   const [failed, setFailed] = useState(false);
   const [notice, setNotice] = useState(takeConnectError);
@@ -201,6 +205,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged }: ScreensProps) {
     };
   }, [openAccountId]);
   useIdleLock(open && !active?.kept, look.lock_minutes, changed);
+  useEffect(() => onAccountOpen(openAccountId), [openAccountId, onAccountOpen]);
   const closeGuide = useCallback(() => {
     setShowGuide(false);
     if (look.guide_done) return;
@@ -392,16 +397,71 @@ function Screens({ look, setLook, refreshKey, onFileChanged }: ScreensProps) {
 function pickWorkbook(
   template: BossTemplate,
   day: string,
-  fileVersion: number,
+  sheet: StoredFile | null,
 ): { workbook: Workbook; storageKey: string } {
   void day; // 날짜가 바뀌면 템플릿 날짜도 새로
-  void fileVersion; // 내 파일을 새로 불러오면 다시 읽기
   if (template === "myfile") {
-    const file = loadMyFile();
+    const file = sheet ?? loadMyFile();
     if (file) return { workbook: file, storageKey: `mos.boss.edits.v1.myfile.${file.stamp}` };
   }
-  const id = template === "myfile" ? "weekly" : template;
+  const id: TemplateId = template === "weekly" || template === "sales" || template === "schedule" || template === "budget"
+    ? template
+    : "weekly";
   return { workbook: buildTemplate(id), storageKey: `mos.boss.edits.v1.${id}` };
+}
+
+interface BossFilesState {
+  sheet: StoredFile | null;
+  image: { url: string; name: string } | null;
+  text: { name: string; body: string } | null;
+}
+
+/** 계정에 저장된 위장 파일을 받는다(잠겨 있어 못 받으면 이 브라우저에 보관된 것). 예전에 이 브라우저에만 있던 표 파일은 계정으로 옮긴다 */
+async function loadBossFiles(): Promise<BossFilesState> {
+  let info: AssetList;
+  let online = true;
+  try {
+    info = await fetchBossInfo();
+  } catch {
+    info = cachedInfo();
+    online = false;
+  }
+  const result: BossFilesState = { sheet: null, image: null, text: null };
+  const sheetInfo = info.sheet;
+  if (sheetInfo) {
+    try {
+      const value = JSON.parse(await (await loadAsset("sheet", sheetInfo)).text()) as Workbook;
+      result.sheet = { ...value, stamp: sheetInfo.version };
+    } catch {
+      // 못 받으면 아래 이 브라우저 것
+    }
+  } else if (online) {
+    const local = loadMyFile();
+    if (local) {
+      try {
+        await uploadAsset("sheet", local.fileName, JSON.stringify(local));
+      } catch {
+        // 다음에 다시
+      }
+    }
+  }
+  const imageInfo = info.image;
+  if (imageInfo) {
+    try {
+      result.image = { url: URL.createObjectURL(await loadAsset("image", imageInfo)), name: imageInfo.name };
+    } catch {
+      // 없으면 안내 화면
+    }
+  }
+  const textInfo = info.text;
+  if (textInfo) {
+    try {
+      result.text = { name: textInfo.name, body: await (await loadAsset("text", textInfo)).text() };
+    } catch {
+      // 없으면 빈 문서
+    }
+  }
+  return result;
 }
 
 /** 화면 맨 위: 평소 화면 + 위장 화면(SCR-12). 위장 화면은 미리 그려 두고 숨겼다 보였다만 한다 */
@@ -410,23 +470,67 @@ export default function App() {
   const [bossOn, setBossOn] = useState(false);
   const [fileVersion, setFileVersion] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [accountKey, setAccountKey] = useState<string | undefined>(undefined);
+  const [files, setFiles] = useState<BossFilesState>({ sheet: null, image: null, text: null });
   const day = new Date().toDateString();
+  const mode = look.boss_template;
+
+  // 위장 파일: 처음, 계정이 열리거나 바뀔 때, 설정에서 새로 올렸을 때
+  useEffect(() => {
+    let stopped = false;
+    let made: string | null = null;
+    void loadBossFiles().then((loaded) => {
+      if (stopped) {
+        if (loaded.image) URL.revokeObjectURL(loaded.image.url);
+        return;
+      }
+      made = loaded.image?.url ?? null;
+      setFiles(loaded);
+    });
+    return () => {
+      stopped = true;
+      if (made) URL.revokeObjectURL(made);
+    };
+  }, [accountKey, fileVersion]);
+
   const { workbook, storageKey } = useMemo(
-    () => pickWorkbook(look.boss_template, day, fileVersion),
-    [look.boss_template, day, fileVersion],
+    () => pickWorkbook(mode, day, files.sheet),
+    [mode, day, files.sheet, fileVersion], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   useEffect(() => {
     setDisguised(bossOn);
-    if (bossOn) applyDisguise(workbook.fileName);
-    else applyLook(look);
-  }, [bossOn, look, workbook.fileName]);
+    if (!bossOn) applyLook(look);
+    else if (mode === "text") applyDisguise(`${(files.text?.name ?? "제목 없음").replace(/\.txt$/i, "")} - 메모장`, "memo");
+    else if (mode === "image") applyLook(look); // 사진은 평소 탭 제목 그대로(그 화면을 찍은 것이므로)
+    else applyDisguise(workbook.fileName);
+  }, [bossOn, look, mode, workbook.fileName, files.text?.name]);
 
   const relock = look.boss_relock;
+  const fullscreen = look.boss_fullscreen;
+  const bossUrl = look.boss_url;
+  const enteredFullscreen = useRef(false);
   const toggle = useCallback(
     (on?: boolean) => {
+      if ((on ?? true) && mode === "url" && bossUrl && !isDisguised()) {
+        window.location.assign(bossUrl); // 다른 사이트로 바로 이동(돌아오려면 뒤로 가기)
+        return;
+      }
       setBossOn((current) => {
         const next = on ?? !current;
+        if (next && !current && fullscreen && !document.fullscreenElement) {
+          // 보스키·모서리 누름 직후라 브라우저가 허락한다(자동 위장 때는 안 될 수 있음)
+          document.documentElement
+            .requestFullscreen?.()
+            .then(() => {
+              enteredFullscreen.current = true;
+            })
+            .catch(() => {});
+        }
+        if (current && !next && enteredFullscreen.current && document.fullscreenElement) {
+          enteredFullscreen.current = false;
+          void document.exitFullscreen().catch(() => {});
+        }
         if (current && !next && relock) {
           // 돌아올 때 잠그기: 잠그고 잠금 화면으로
           void lock()
@@ -436,7 +540,7 @@ export default function App() {
         return next;
       });
     },
-    [relock],
+    [relock, fullscreen, mode, bossUrl],
   );
 
   // 보스키(기본 Esc 두 번, 사람마다 바꿀 수 있음). 어느 화면에서나
@@ -493,10 +597,17 @@ export default function App() {
           setLook={setLook}
           refreshKey={refreshKey}
           onFileChanged={() => setFileVersion((version) => version + 1)}
+          onAccountOpen={setAccountKey}
         />
       </div>
       <div className="boss-layer" hidden={!bossOn}>
-        <BossScreen workbook={workbook} storageKey={storageKey} active={bossOn} />
+        {mode === "image" ? (
+          <ImageDisguise url={files.image?.url ?? null} fit={look.boss_fit} />
+        ) : mode === "text" ? (
+          <TextDisguise key={fileVersion} original={files.text?.body ?? ""} active={bossOn} />
+        ) : (
+          <BossScreen workbook={workbook} storageKey={storageKey} active={bossOn} />
+        )}
       </div>
       <button
         type="button"

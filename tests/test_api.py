@@ -522,6 +522,42 @@ def test_lock_minutes_setting(env: Env) -> None:
         assert response.status_code == 400
 
 
+def test_boss_files_saved_per_account_encrypted(env: Env, tmp_path: Path) -> None:
+    signed_up(env)
+    png = b"\x89PNG\r\n\x1a\n" + b"secret-screen" * 10
+    put = env.client.put(
+        "/api/boss/assets/image?name=업무화면.png",
+        content=png,
+        headers={**POST, "content-type": "application/octet-stream"},
+    )
+    assert put.status_code == 200 and put.json()["mime"] == "image/png"
+    info = env.client.get("/api/boss").json()["assets"]
+    assert info["image"]["name"] == "업무화면.png" and info["image"]["size"] == len(png)
+    got = env.client.get("/api/boss/assets/image")
+    assert got.content == png and got.headers["content-type"] == "image/png"
+    assert b"secret-screen" not in (tmp_path / "api.db").read_bytes()  # 암호화해서 저장
+
+    # 사진이 아닌 것, 너무 큰 것, 모르는 종류
+    fake = env.client.put("/api/boss/assets/image", content=b"<svg>", headers=POST)
+    assert fake.status_code == 400
+    big = env.client.put("/api/boss/assets/text", content=b"a" * 300_000, headers=POST)
+    assert big.status_code == 413
+    assert env.client.put("/api/boss/assets/exe", content=b"x", headers=POST).status_code == 404
+
+    # 고친 내용: 저장, 읽기, 되돌리기
+    edits = {"0": {"B3": "완료"}}
+    assert env.client.put("/api/boss/edits/weekly", json=edits, headers=POST).status_code == 204
+    assert env.client.get("/api/boss/edits/weekly").json() == {"edits": edits}
+    assert env.client.delete("/api/boss/edits/weekly", headers=POST).status_code == 204
+    assert env.client.get("/api/boss/edits/weekly").json() == {"edits": None}
+    assert env.client.get("/api/boss/edits/../x").status_code == 404
+
+    # 다른 계정에서는 안 보인다
+    signed_up(env, "latte")
+    assert env.client.get("/api/boss").json()["assets"] == {}
+    assert env.client.get("/api/boss/assets/image").status_code == 404
+
+
 def test_unsafe_requests_need_our_origin(env: Env) -> None:
     account_id = signed_up(env)
     for origin in ("https://evil.example", ""):
@@ -1446,6 +1482,9 @@ def test_settings_per_account(env: Env) -> None:
         "boss_auto": False,
         "boss_relock": False,
         "boss_key": "Escape*2",
+        "boss_fit": "cover",
+        "boss_fullscreen": False,
+        "boss_url": None,
         "notify": True,
         "notify_scope": "pinned",
         "notify_preview": False,
@@ -1471,6 +1510,9 @@ def test_settings_per_account(env: Env) -> None:
         {"boss_relock": 1},
         {"boss_key": "<script>"},
         {"notify_scope": "all"},
+        {"boss_url": "http://example.com"},
+        {"boss_url": "javascript:alert(1)"},
+        {"boss_fit": "stretch"},
         {"notify": "yes"},
         {"boss_key": "Ctrl+"},
         {"boss_key": 5},

@@ -1,9 +1,8 @@
-import { type ChangeEvent, type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { updateSettings } from "./api";
 import BossKeyPicker from "./BossKeyPicker";
 import { bossKeyLabel, parseBossKey } from "./boss/bossKey";
-import { clearMyFile, FileImportError, importMyFile, loadMyFile } from "./boss/myFile";
-import { TEMPLATE_NAMES } from "./boss/templates";
+import DisguiseSettings from "./boss/DisguiseSettings";
 import { isTouchOnly } from "./device";
 import { defaultTitle, LOCK_MINUTES, lockLabel, type Settings, THEMES, type Theme } from "./theme";
 import { askPopupPermission, popupSupport, type PopupSupport } from "./useNotifications";
@@ -57,29 +56,8 @@ interface Props {
 export default function SettingsScreen({ settings, onChange, onBack, menu, onFileChanged }: Props) {
   const [title, setTitle] = useState(settings.tab_title ?? "");
   const [error, setError] = useState("");
-  const [myFile, setMyFile] = useState(() => loadMyFile()?.fileName ?? null);
-  const [fileBusy, setFileBusy] = useState(false);
-  const [fileError, setFileError] = useState("");
   const [popup, setPopup] = useState<PopupSupport>(popupSupport);
   const touchOnly = isTouchOnly();
-
-  const pickFile = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    setFileBusy(true);
-    setFileError("");
-    try {
-      const stored = await importMyFile(file);
-      setMyFile(stored.fileName);
-      onFileChanged();
-      if (settings.boss_template !== "myfile") void save({ boss_template: "myfile" });
-    } catch (caught) {
-      setFileError(caught instanceof FileImportError ? caught.message : "파일을 읽지 못했어요.");
-    } finally {
-      setFileBusy(false);
-    }
-  };
 
   useEffect(() => setTitle(settings.tab_title ?? ""), [settings.tab_title]);
 
@@ -266,48 +244,7 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
           )}
           <BossKeyPicker value={settings.boss_key} onSave={(value) => void save({ boss_key: value })} />
 
-          <h3 className="settings-sub">보여 줄 표</h3>
-          <div className="boss-choices" role="radiogroup" aria-label="위장 화면 표">
-            {TEMPLATE_NAMES.map((item) => {
-              const disabled = item.id === "myfile" && !myFile;
-              return (
-                <label key={item.id} className={disabled ? "boss-choice boss-choice-off" : "boss-choice"}>
-                  <input
-                    type="radio"
-                    name="boss-template"
-                    checked={settings.boss_template === item.id}
-                    disabled={disabled}
-                    onChange={() => void save({ boss_template: item.id })}
-                  />
-                  {item.id === "myfile" ? `내 파일${myFile ? `: ${myFile}` : "(아직 없음)"}` : item.name}
-                </label>
-              );
-            })}
-          </div>
-          <div className="settings-buttons">
-            <label className={fileBusy ? "pill-button busy" : "pill-button"}>
-              {fileBusy ? "읽는 중…" : "내 파일 불러오기(.xlsx, .csv)"}
-              <input type="file" accept=".xlsx,.xlsm,.csv" hidden disabled={fileBusy} onChange={(event) => void pickFile(event)} />
-            </label>
-            {myFile && (
-              <button
-                type="button"
-                className="pill-button"
-                onClick={() => {
-                  clearMyFile();
-                  setMyFile(null);
-                  onFileChanged();
-                  if (settings.boss_template === "myfile") void save({ boss_template: "weekly" });
-                }}
-              >
-                내 파일 지우기
-              </button>
-            )}
-          </div>
-          {fileError && <p className="list-error">{fileError}</p>}
-          <p className="settings-note">
-            불러온 파일과 표에 고친 내용은 이 브라우저에만 남고 서버로 보내지 않아요. 수식은 파일에 저장된 값으로 보여요.
-          </p>
+          <DisguiseSettings settings={settings} save={save} onFileChanged={onFileChanged} />
 
           <h3 className="settings-sub">더 숨기기</h3>
           <label className="settings-toggle">
@@ -320,6 +257,18 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
               className="switch"
               checked={settings.boss_auto}
               onChange={(event) => void save({ boss_auto: event.target.checked })}
+            />
+          </label>
+          <label className="settings-toggle">
+            <span>
+              <strong>위장할 때 전체 화면으로</strong>
+              <small>주소창과 탭까지 가려서 진짜 프로그램처럼 보여요(돌아오면 원래 크기로)</small>
+            </span>
+            <input
+              type="checkbox"
+              className="switch"
+              checked={settings.boss_fullscreen}
+              onChange={(event) => void save({ boss_fullscreen: event.target.checked })}
             />
           </label>
           <label className="settings-toggle">

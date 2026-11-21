@@ -35,7 +35,11 @@ from mos.db.lists_repo import ListsRepo
 from mos.db.repo import MAX_PAGE_SIZE, MessageRepo
 from mos.db.sender_repo import SenderRepo
 from mos.services import reactions
-from mos.services.crypto import TokenCipher
+from mos.services.boss_files import KINDS as BOSS_KINDS
+from mos.services.boss_files import MAX_BYTES as BOSS_MAX_BYTES
+from mos.services.boss_files import MAX_EDITS_BYTES as BOSS_MAX_EDITS
+from mos.services.boss_files import BossFileError, BossFiles
+from mos.services.crypto import BytesCipher, TokenCipher
 from mos.services.directory import ChannelInfo, Directory, DirectoryError, GuildInfo
 from mos.services.discord_oauth import DiscordOAuth, OAuthClient
 from mos.services.egress import EgressMeter
@@ -193,6 +197,7 @@ def create_app(
     perms = permissions or PermissionService(directory)
     hub.set_access_check(perms.can_read)
     cipher = TokenCipher(settings.secret_key)
+    boss_files = BossFiles(db, BytesCipher(cipher), clock=clock)
     emojis = EmojiService(directory, perms)
     lists = ListsRepo(db)
 
@@ -857,6 +862,84 @@ def create_app(
                 await repo.change_reaction(message_id, emoji, 1, by_bot=True)
             await repo.set_reaction_user(message_id, key, user, "web", True)
         return {"reactions": await publish_reactions(channel_id, message_id)}
+
+    # ------------------------------------------------------------ 위장 화면 파일(계정에 저장)
+
+    async def read_body(request: Request, limit: int) -> bytes:
+        length = request.headers.get("content-length", "")
+        if length.isdigit() and int(length) > limit:
+            raise HTTPException(status_code=413, detail="file_too_large")
+        chunks: list[bytes] = []
+        total = 0
+        async for chunk in request.stream():
+            total += len(chunk)
+            if total > limit:
+                raise HTTPException(status_code=413, detail="file_too_large")
+            chunks.append(chunk)
+        return b"".join(chunks)
+
+    @app.exception_handler(BossFileError)
+    async def boss_file_error(_request: Request, error: BossFileError) -> JSONResponse:
+        return JSONResponse({"detail": error.code}, status_code=error.status)
+
+    @app.get("/api/boss")
+    async def boss_info(request: Request) -> dict[str, Any]:
+        account = await require_account(request)
+        return {"assets": await boss_files.info(account.account_id)}
+
+    @app.get("/api/boss/assets/{kind}")
+    async def boss_asset(kind: str, request: Request) -> Response:
+        account = await require_account(request)
+        found = await boss_files.load(account.account_id, kind)
+        if found is None:
+            raise HTTPException(status_code=404, detail="not found")
+        data, mime, version = found
+        return Response(
+            data,
+            media_type=mime,
+            headers={
+                "Cache-Control": "private, no-store",
+                "X-Boss-Version": version,
+                "Content-Disposition": "inline",
+            },
+        )
+
+    @app.put("/api/boss/assets/{kind}")
+    async def boss_asset_save(
+        kind: str, request: Request, name: str = Query(default="", max_length=200)
+    ) -> dict[str, Any]:
+        account = await require_account(request)
+        if kind not in BOSS_KINDS:
+            raise HTTPException(status_code=404, detail="not found")
+        data = await read_body(request, BOSS_MAX_BYTES[kind])
+        return await boss_files.save(account.account_id, kind, name, data)
+
+    @app.delete("/api/boss/assets/{kind}", status_code=204)
+    async def boss_asset_delete(kind: str, request: Request) -> None:
+        account = await require_account(request)
+        await boss_files.delete(account.account_id, kind)
+
+    @app.get("/api/boss/edits/{key}")
+    async def boss_edits(key: str, request: Request) -> dict[str, Any]:
+        account = await require_account(request)
+        return {"edits": await boss_files.edits(account.account_id, key)}
+
+    @app.put("/api/boss/edits/{key}", status_code=204)
+    async def boss_edits_save(key: str, request: Request) -> None:
+        account = await require_account(request)
+        raw = await read_body(request, BOSS_MAX_EDITS)
+        try:
+            value = json.loads(raw)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="bad_json") from error
+        if not isinstance(value, dict | str):
+            raise HTTPException(status_code=400, detail="bad_json")
+        await boss_files.save_edits(account.account_id, key, value)
+
+    @app.delete("/api/boss/edits/{key}", status_code=204)
+    async def boss_edits_delete(key: str, request: Request) -> None:
+        account = await require_account(request)
+        await boss_files.delete_edits(account.account_id, key)
 
     @app.delete("/api/messages/{message_id}", status_code=204)
     async def delete_message(message_id: int, request: Request) -> None:
