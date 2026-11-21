@@ -383,15 +383,12 @@ function MemberPanel({
       // 기억 못 해도 지금 화면에서는 바뀐다
     }
   };
-  const scope = !channel
-    ? `서버 전체 ${people.length}명`
-    : allowed
-      ? `${channel.name}: ${people.length}명만 볼 수 있어요 (전체 ${data.members.length}명)`
-      : `${channel.name}: 모두 볼 수 있어요`;
+  // 일부만 볼 수 있는 채널을 열고 있을 때만 한 줄 설명(나머지는 머리의 숫자로 충분)
+  const scope = channel && allowed ? `${channel.name}: ${people.length}명만 볼 수 있어요 (전체 ${data.members.length}명)` : "";
   return (
-    <section className="list-section member-panel">
-      <button type="button" className="list-section-title member-toggle" aria-expanded={open} onClick={toggle}>
-        <span>{skin.membersTitle}</span>
+    <section className="member-panel">
+      <button type="button" className="member-toggle" aria-expanded={open} onClick={toggle}>
+        <span className="member-title">{skin.membersTitle}</span>
         <span className="member-count">{people.length}</span>
         <span className="member-chevron" aria-hidden="true">
           {open ? "▾" : "▸"}
@@ -399,13 +396,13 @@ function MemberPanel({
       </button>
       {open && (
         <>
-          <p className="member-scope">{scope}</p>
+          {scope && <p className="member-scope">{scope}</p>}
           <ul className="member-list">
             {shown.map((member) => (
               <li key={member.id} className="member-row" title={member.name}>
                 <Avatar url={member.avatar_url} name={member.name} />
                 <span className="member-name">{member.name}</span>
-                {member.bot && <span className="skin-ro">봇</span>}
+                {member.bot && <span className="member-bot">봇</span>}
               </li>
             ))}
           </ul>
