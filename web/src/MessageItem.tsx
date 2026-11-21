@@ -1,6 +1,6 @@
 import { type CSSProperties, memo, useState } from "react";
 import { useLook } from "./lookContext";
-import MessageContent from "./MessageContent";
+import MessageContent, { isEmojiOnly } from "./MessageContent";
 import { formatSize, formatTime, isDiscordMediaUrl, thumbnailUrl } from "./format";
 import type { Attachment, Message, Sticker } from "./types";
 import Reactions, { ReactionPickerButton } from "./Reactions";
@@ -197,6 +197,14 @@ export function AttachmentView({ attachment }: { attachment: Attachment }) {
   );
 }
 
+/** 스티커만, 또는 크게 보이는 이모지만 있는 메시지는 말풍선 없이(카톡 이모티콘처럼) */
+function bareBubble(message: Message, stickersView: string): boolean {
+  if (stickersView !== "full" || message.attachments.length > 0 || message.embeds.length > 0) return false;
+  const content = message.content.trim();
+  if (!content) return (message.stickers ?? []).length > 0;
+  return (message.stickers ?? []).length === 0 && isEmojiOnly(content);
+}
+
 // Word 테마: 사람마다 같은 색(본문 왼쪽 막대, 이름표)
 const PARA_COLORS = ["#1f5fa8", "#a3620a", "#2f6b2f", "#8a5a2b", "#7a3e9d", "#b03a48", "#0f7b7b", "#5c5c9e"];
 
@@ -231,6 +239,7 @@ function MessageItem({
   layout = "bubble",
 }: Props) {
   const { author } = message;
+  const stickersView = useLook().settings.stickers_view;
   const [confirming, setConfirming] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   // 웹에서 보낸 메시지도 디스코드에서는 웹훅(앱)이지만, ㅁㅇㅅ에서는 사람 메시지처럼 보인다
@@ -472,7 +481,13 @@ function MessageItem({
         )}
         <div className="msg-row">
           <div
-            className={selected ? "bubble bubble-selected" : "bubble"}
+            className={[
+              "bubble",
+              selected ? "bubble-selected" : "",
+              bareBubble(message, stickersView) ? "bubble-bare" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
             onClick={hasActions ? () => onSelect(selected ? null : message.id) : undefined}
           >
             <MessageBody message={message} />

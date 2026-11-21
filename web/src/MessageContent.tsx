@@ -71,7 +71,7 @@ function emojiUrl(id: string, animated: boolean): string {
   return `https://cdn.discordapp.com/emojis/${id}.webp?size=96${animated ? "&animated=true" : ""}`;
 }
 
-function isEmojiOnly(content: string): boolean {
+export function isEmojiOnly(content: string): boolean {
   let custom = 0;
   const rest = content.replace(
     tokenPattern,
