@@ -3232,3 +3232,17 @@ button.tag-chip:disabled {
   font: inherit;
   font-size: 14px;
 }
+
+/* 첨부 미리보기 그림, 끌어다 놓는 중 */
+.file-chip-thumb {
+  width: 22px;
+  height: 22px;
+  margin-left: -6px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.composer-drop {
+  outline: 2px dashed var(--honey);
+  outline-offset: -4px;
+}

@@ -1,7 +1,7 @@
 import SplitToggle from "./SplitToggle";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, createPost, fetchThreads } from "./api";
-import { sendErrorText } from "./Composer";
+import { sendErrorText, withPastedName } from "./Composer";
 import { formatDay, formatTime } from "./format";
 import { formatBytes, prepareImage } from "./imageResize";
 import { SheetFrame } from "./SheetView";
@@ -72,6 +72,12 @@ function NewPost({
   const [error, setError] = useState("");
   const [nonce] = useState(() => crypto.randomUUID());
 
+  const addFiles = (picked: File[]) => {
+    void Promise.all(picked.map((file) => prepareImage(file))).then((prepared) =>
+      setFiles((current) => [...current, ...prepared].slice(0, 10)),
+    );
+  };
+
   const toggle = (id: string) => {
     setError("");
     setTags((current) =>
@@ -124,6 +130,13 @@ function NewPost({
         placeholder="내용"
         aria-label="내용"
         onChange={(event) => setContent(event.target.value)}
+        onPaste={(event) => {
+          // 복사한 사진을 붙여넣으면 첨부로
+          const pasted = [...event.clipboardData.files].map((file, index) => withPastedName(file, index));
+          if (pasted.length === 0) return;
+          event.preventDefault();
+          addFiles(pasted);
+        }}
       />
       <div className="new-post-actions">
         <label className="text-button file-pick">
@@ -135,15 +148,13 @@ function NewPost({
             onChange={(event) => {
               const picked = [...(event.target.files ?? [])];
               event.target.value = "";
-              void Promise.all(picked.map((file) => prepareImage(file))).then((prepared) =>
-                setFiles((current) => [...current, ...prepared].slice(0, 10)),
-              );
+              addFiles(picked);
             }}
           />
         </label>
         {files.length > 0 && (
           <span className="file-total">
-            파일 {files.length}개 · {formatBytes(files.reduce((sum, file) => sum + file.size, 0))}
+            파일 {files.length}개, {formatBytes(files.reduce((sum, file) => sum + file.size, 0))}
           </span>
         )}
         <span className="spacer" />

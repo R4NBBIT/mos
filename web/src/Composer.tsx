@@ -1,4 +1,13 @@
-import { type ChangeEvent, type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type ClipboardEvent,
+  type DragEvent,
+  type FormEvent,
+  type KeyboardEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { ApiError } from "./api";
 import EmojiPicker from "./EmojiPicker";
 import { formatBytes, prepareImage } from "./imageResize";
@@ -35,6 +44,31 @@ export function sendErrorText(caught: unknown): string {
   return "서버에 연결할 수 없어요. 다시 보내 주세요.";
 }
 
+/** 클립보드 사진은 이름이 'image.png'뿐이라, 붙여넣은 시각으로 이름을 붙인다 */
+export function withPastedName(file: File, index: number): File {
+  if (file.name && !/^image\.(png|jpe?g|gif|webp)$/i.test(file.name)) return file;
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const extension = (file.type.split("/")[1] ?? "png").replace("jpeg", "jpg").replace(/[^a-z0-9]/g, "") || "png";
+  return new File([file], `붙여넣은사진_${stamp}${index ? `_${index + 1}` : ""}.${extension}`, {
+    type: file.type,
+    lastModified: file.lastModified,
+  });
+}
+
+/** 첨부 미리보기: 사진이면 작은 그림 */
+function FileThumb({ file }: { file: File }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!file.type.startsWith("image/")) return;
+    const objectUrl = URL.createObjectURL(file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+  return url ? <img className="file-chip-thumb" src={url} alt="" /> : null;
+}
+
 function newNonce(): string {
   return crypto.randomUUID();
 }
@@ -68,6 +102,7 @@ export default function Composer({
   const [confirmSlash, setConfirmSlash] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [preparing, setPreparing] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -109,6 +144,31 @@ export default function Composer({
   const addFiles = async (event: ChangeEvent<HTMLInputElement>) => {
     const picked = [...(event.target.files ?? [])];
     event.target.value = ""; // 같은 파일을 다시 고를 수 있게
+    await addPicked(picked);
+  };
+
+  // 복사한 사진·파일을 입력창에 붙여넣거나 끌어다 놓으면 첨부로(카톡처럼)
+  const takeFiles = (list: DataTransfer | null): File[] =>
+    list ? [...list.files].map((file, index) => withPastedName(file, index)) : [];
+
+  const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (editing) return;
+    const pasted = takeFiles(event.clipboardData);
+    if (pasted.length === 0) return; // 글자는 원래대로 붙여넣기
+    event.preventDefault();
+    void addPicked(pasted);
+  };
+
+  const onDrop = (event: DragEvent<HTMLFormElement>) => {
+    setDragging(false);
+    if (editing) return;
+    const dropped = takeFiles(event.dataTransfer);
+    if (dropped.length === 0) return;
+    event.preventDefault();
+    void addPicked(dropped);
+  };
+
+  const addPicked = async (picked: File[]) => {
     if (picked.length === 0) return;
     setError("");
     setPreparing(true);
@@ -188,7 +248,17 @@ export default function Composer({
       : null;
 
   return (
-    <form className="composer" onSubmit={submit}>
+    <form
+      className={dragging ? "composer composer-drop" : "composer"}
+      onSubmit={submit}
+      onDragOver={(event) => {
+        if (editing || !event.dataTransfer.types.includes("Files")) return;
+        event.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={onDrop}
+    >
       {banner && (
         <div className="composer-banner">
           <span className="composer-banner-label">↪ {banner.label}</span>
@@ -214,6 +284,7 @@ export default function Composer({
         <div className="composer-files">
           {files.map((file, index) => (
             <span key={`${file.name}-${index}`} className="file-chip">
+              <FileThumb file={file} />
               <span className="file-chip-name">{file.name}</span>
               <span className="file-chip-size">{formatBytes(file.size)}</span>
               <button
@@ -293,6 +364,7 @@ export default function Composer({
             if (!editing) nonceRef.current = newNonce(); // 내용이 바뀌면 새 메시지
           }}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
         />
         <button
           type="submit"
