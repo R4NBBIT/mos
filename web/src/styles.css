@@ -4407,50 +4407,50 @@ button.tag-chip:disabled {
   opacity: 0.5;
 }
 
-.para-flag {
-  position: absolute;
-  left: 0;
-  top: -15px;
-  z-index: 2;
-  padding: 0 6px;
-  border-radius: 2px 2px 2px 0;
-  background: var(--who);
-  color: #ffffff;
-  font-size: 11px;
-  line-height: 16px;
+.para-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+/* 앞부분의 이름과 시각: 흐리고 작게 */
+.para-who {
+  flex-shrink: 0;
+  display: inline-flex;
+  gap: 4px;
+  min-width: 9.5em; /* 본문 시작을 가지런히 */
+  color: #a19f9d;
+  font-size: 12px;
   white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.12s;
 }
 
-.para-flag-time {
-  opacity: 0.85;
-}
-
-@media (hover: hover) {
-  .para:hover .para-flag {
-    opacity: 1;
-  }
-}
-
-/* 가장 최근에 쓴 사람(내가 아니면)은 이름표를 띄워 둔다(공동 편집 커서처럼) */
-.room-list > div:last-child .para:not(.para-mine) .para-flag {
-  opacity: 1;
+.para-name {
+  max-width: 6em;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .para-body {
+  flex: 1;
+  min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* 좁은 폭: 이름과 시각을 본문 위 한 줄로 */
+@container roomlist (max-width: 480px) {
+  .para-line {
+    display: block;
+  }
+
+  .para-who {
+    display: flex;
+    min-width: 0;
+    line-height: 1.5;
+  }
 }
 
 .para-selected {
   background: rgba(24, 90, 189, 0.06);
-}
-
-.para-meta {
-  margin-top: 2px;
-  color: var(--sub);
-  font-size: 12px;
 }
 
 .para .msg-reply {
@@ -4551,4 +4551,39 @@ button.tag-chip:disabled {
 
 :root[data-theme="word"] .list-body {
   background: #ffffff;
+}
+
+/* 화면에서 바로 고치는 제목: 평소엔 그냥 글자, 마우스를 올리면 살짝 밑줄 */
+.editable {
+  cursor: text;
+  border-radius: 2px;
+}
+
+.editable:hover {
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+}
+
+.editable:focus-visible {
+  outline: 2px solid var(--focus-ring);
+}
+
+.editable-input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 1px dashed rgba(0, 0, 0, 0.3);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.word-doc-name .editable-input,
+.sheet-doc .editable-input {
+  width: 18em;
+  max-width: 100%;
+  outline-color: rgba(255, 255, 255, 0.7);
 }

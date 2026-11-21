@@ -1,5 +1,8 @@
-// Word 테마의 맨 위 장식: 파란 제목 줄(문서 이름, 저장됨, 검색), 리본 탭, 서식 도구 줄.
-// 눌러도 아무 일도 하지 않는 장식이라 화면 읽기 프로그램에는 숨긴다(aria-hidden).
+// Word 테마의 맨 위: 파란 제목 줄(문서 이름, 저장됨, 검색), 리본 탭, 서식 도구 줄.
+// 문서 이름(탭 제목)만 눌러서 고칠 수 있고, 나머지는 아무 일도 하지 않는 장식이라 화면 읽기 프로그램에는 숨긴다.
+import EditableText from "./EditableText";
+import { useLook } from "./lookContext";
+import { defaultTitle } from "./theme";
 
 function Icon({ path, size = 16 }: { path: string; size?: number }) {
   return (
@@ -11,25 +14,37 @@ function Icon({ path, size = 16 }: { path: string; size?: number }) {
 
 const TABS = ["파일", "홈", "삽입", "레이아웃", "참조", "검토", "보기", "도움말"];
 
-export default function WordChrome({ title }: { title: string }) {
-  const name = title.replace(/\s*-\s*Word$/i, "");
+export default function WordChrome() {
+  const { settings, save } = useLook();
+  const fallback = defaultTitle("word");
   return (
-    <div className="word-chrome" aria-hidden="true">
+    <div className="word-chrome">
       <div className="word-bar">
-        <span className="word-waffle">
+        <span className="word-waffle" aria-hidden="true">
           {Array.from({ length: 9 }, (_, index) => (
             <i key={index} />
           ))}
         </span>
-        <span className="word-app-name">Word</span>
-        <span className="word-doc-name">{name}</span>
-        <span className="word-saved">저장됨</span>
-        <span className="word-search">
+        <span className="word-app-name" aria-hidden="true">
+          Word
+        </span>
+        <EditableText
+          className="word-doc-name"
+          value={settings.tab_title || fallback}
+          fallback={fallback}
+          maxLength={40}
+          label="문서 이름(탭 제목)"
+          onSave={(text) => void save({ tab_title: text })}
+        />
+        <span className="word-saved" aria-hidden="true">
+          저장됨
+        </span>
+        <span className="word-search" aria-hidden="true">
           <Icon path="M9 4a5 5 0 1 0 0 10A5 5 0 0 0 9 4zm4 9 4 4" />
           검색(Alt + Q)
         </span>
       </div>
-      <div className="word-ribbon">
+      <div className="word-ribbon" aria-hidden="true">
         {TABS.map((tab) => (
           <span key={tab} className={tab === "홈" ? "word-tab word-tab-on" : "word-tab"}>
             {tab}
@@ -50,7 +65,7 @@ export default function WordChrome({ title }: { title: string }) {
           </span>
         </span>
       </div>
-      <div className="word-tools">
+      <div className="word-tools" aria-hidden="true">
         <Icon path="M7 5 3.5 8.5 7 12M3.5 8.5H12a4 4 0 0 1 0 8h-2" />
         <span className="word-sep" />
         <span className="word-box">맑은 고딕</span>

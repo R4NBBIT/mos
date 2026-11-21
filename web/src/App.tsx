@@ -7,7 +7,7 @@ import { isCapturingKey, isDisguised, setDisguised } from "./boss/bossState";
 import { loadMyFile, type StoredFile } from "./boss/myFile";
 import { ImageDisguise, TextDisguise } from "./boss/OtherDisguise";
 import { buildTemplate, type TemplateId, type Workbook } from "./boss/templates";
-import { fetchSession, fetchSettings, lock, updateSettings } from "./api";
+import { fetchSession, fetchSettings, lock, type SettingsChanges, updateSettings } from "./api";
 import { ConnectScreen, PasswordSetup, ReconnectScreen, UnlockScreen } from "./AuthScreens";
 import { authText } from "./authText";
 import ChatRoom from "./ChatRoom";
@@ -17,7 +17,8 @@ import { ChannelList, GroupList } from "./Lists";
 import Posts from "./Posts";
 import SettingsScreen from "./SettingsScreen";
 import WordChrome from "./WordChrome";
-import { applyDisguise, applyLook, type BossTemplate, cachedLook, defaultTitle, type Settings } from "./theme";
+import { LookContext, type LookValue } from "./lookContext";
+import { applyDisguise, applyLook, type BossTemplate, cachedLook, type Settings } from "./theme";
 import type { ChannelInfo, SessionAccount, SessionState } from "./types";
 import { useNotifications } from "./useNotifications";
 
@@ -207,6 +208,30 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
   }, [openAccountId]);
   useIdleLock(open && !active?.kept, look.lock_minutes, changed);
   useEffect(() => onAccountOpen(openAccountId), [openAccountId, onAccountOpen]);
+  // 화면에서 바로 고치는 설정(문서 제목, 탭 제목). 바로 보이게 하고 실패하면 되돌린다
+  const lookRef = useRef(look);
+  lookRef.current = look;
+  const lookValue = useMemo<LookValue>(
+    () => ({
+      settings: look,
+      save: async (changes: SettingsChanges) => {
+        const before = lookRef.current;
+        const { doc_titles: titleChanges, ...rest } = changes;
+        const titles = { ...before.doc_titles };
+        for (const [key, title] of Object.entries(titleChanges ?? {})) {
+          if (title) titles[key] = title;
+          else delete titles[key];
+        }
+        setLook({ ...before, ...rest, doc_titles: titles });
+        try {
+          setLook(await updateSettings(changes));
+        } catch {
+          setLook(before);
+        }
+      },
+    }),
+    [look, setLook],
+  );
   const closeGuide = useCallback(() => {
     setShowGuide(false);
     if (look.guide_done) return;
@@ -387,17 +412,17 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     );
   };
   return (
-    <>
+    <LookContext.Provider value={lookValue}>
       {look.theme === "word" ? (
         <div className="word-app">
-          <WordChrome title={look.tab_title || defaultTitle("word")} />
+          <WordChrome />
           <div className="word-stage">{screen()}</div>
         </div>
       ) : (
         screen()
       )}
       {showGuide && <Guide settings={look} wide={wide} onClose={closeGuide} />}
-    </>
+    </LookContext.Provider>
   );
 }
 

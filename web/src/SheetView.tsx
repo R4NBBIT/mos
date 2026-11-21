@@ -1,5 +1,8 @@
 import Reactions, { ReactionPickerButton } from "./Reactions";
 import SplitToggle from "./SplitToggle";
+import EditableText from "./EditableText";
+import { useLook } from "./lookContext";
+import { defaultTitle } from "./theme";
 import { type ReactNode, type RefObject, useEffect, useState } from "react";
 import { fetchGroupChannels } from "./api";
 import { dayKey, formatDay } from "./format";
@@ -409,6 +412,22 @@ interface FrameProps {
   variant?: string;
 }
 
+/** 제목 줄의 파일 이름(탭 제목). 눌러서 바로 고친다 */
+function SheetDocName() {
+  const { settings, save } = useLook();
+  const fallback = defaultTitle("sheet");
+  return (
+    <EditableText
+      className="sheet-doc"
+      value={settings.tab_title || fallback}
+      fallback={fallback}
+      maxLength={40}
+      label="파일 이름(탭 제목)"
+      onSave={(text) => void save({ tab_title: text })}
+    />
+  );
+}
+
 /** 엑셀처럼 보이는 껍데기: 제목 줄·메뉴·리본·수식 입력줄·격자·시트 탭·상태 줄 */
 export function SheetFrame(props: FrameProps) {
   return (
@@ -420,7 +439,7 @@ export function SheetFrame(props: FrameProps) {
             ‹
           </button>
         )}
-        <span className="sheet-doc">{document.title}</span>
+        <SheetDocName />
         {props.menu}
       </header>
       <div className="sheet-menus">

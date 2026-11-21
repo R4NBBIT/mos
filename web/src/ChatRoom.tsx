@@ -14,6 +14,8 @@ import {
 } from "./api";
 import { isDisguised } from "./boss/bossState";
 import Composer from "./Composer";
+import EditableText from "./EditableText";
+import { useLook } from "./lookContext";
 import { compareIds, dayKey, formatDay, formatTime } from "./format";
 import MessageItem, { Avatar, MessageBody, paraColor, type ReplyPreview } from "./MessageItem";
 import SheetView, { plainText } from "./SheetView";
@@ -130,6 +132,10 @@ export default function ChatRoom({
   onOpenChannel,
 }: Props) {
   const [channel, setChannel] = useState<ChannelInfo | null>(null);
+  const {
+    settings: { doc_titles: docTitles },
+    save: saveLook,
+  } = useLook();
   const [messages, setMessages] = useState<Message[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -593,8 +599,22 @@ export default function ChatRoom({
         {theme === "word" && channel && !isThread && (
           // Word 문서 첫머리: 채널 이름이 문서 제목
           <div className="wd-head">
-            <h1 className="wd-title">{channel.name}</h1>
-            <p className="wd-sub">{channel.group_name} / 공동 작성 문서</p>
+            <EditableText
+              as="h1"
+              className="wd-title"
+              value={docTitles[channel.id] ?? channel.name}
+              fallback={channel.name}
+              label="문서 제목"
+              onSave={(text) => void saveLook({ doc_titles: { [channel.id]: text } })}
+            />
+            <EditableText
+              as="p"
+              className="wd-sub"
+              value={docTitles[`${channel.id}:sub`] ?? `${channel.group_name} / 공동 작성 문서`}
+              fallback={`${channel.group_name} / 공동 작성 문서`}
+              label="문서 부제목"
+              onSave={(text) => void saveLook({ doc_titles: { [`${channel.id}:sub`]: text } })}
+            />
           </div>
         )}
         {theme === "note" && channel && (
@@ -602,7 +622,14 @@ export default function ChatRoom({
           <>
             {!isThread && (
               <div className="db-head">
-                <h1 className="db-title">{channel.name}</h1>
+                <EditableText
+                  as="h1"
+                  className="db-title"
+                  value={docTitles[channel.id] ?? channel.name}
+                  fallback={channel.name}
+                  label="페이지 제목"
+                  onSave={(text) => void saveLook({ doc_titles: { [channel.id]: text } })}
+                />
                 <div className="db-views">
                   <span className="db-view db-view-on">
                     <IconTable /> 표

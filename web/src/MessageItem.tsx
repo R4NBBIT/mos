@@ -339,7 +339,7 @@ function MessageItem({
   }
 
   if (layout === "para") {
-    // Word 공동 작성: 본문은 평범한 문단, 누가 썼는지는 왼쪽 색 막대와 마우스를 올리면 뜨는 이름표
+    // Word 공동 작성: 본문은 평범한 문단, 앞에 흐린 작은 글씨로 이름과 시각, 왼쪽에 사람마다 색 막대
     const who = `${author.name}${isApp ? " (앱)" : ""}`;
     const when = `${formatTime(message.created_at)}${message.edited_at ? " (수정됨)" : ""}`;
     const paraClasses = ["para"];
@@ -349,28 +349,24 @@ function MessageItem({
     return (
       <div className={paraClasses.join(" ")} style={{ "--who": paraColor(author.id) } as CSSProperties}>
         <span className="para-bar" aria-hidden="true" />
-        <span className="para-flag">
-          {who}
-          <span className="para-flag-time"> {when}</span>
-        </span>
         {message.reference_id && (
           <div className="msg-reply">
             ↪ {reply ? <><strong>{reply.author}</strong> {reply.text}</> : "이전 문단에 답장"}
           </div>
         )}
-        <div
-          className="para-body"
-          title={`${who} ${when}`}
-          onClick={hasActions ? () => onSelect(selected ? null : message.id) : undefined}
-        >
-          <MessageBody message={message} />
+        <div className="para-line">
+          <span className="para-who" title={`${who} ${when}`}>
+            <span className="para-name">{who}</span>
+            <span className="para-when">{when}</span>
+          </span>
+          <div
+            className="para-body"
+            onClick={hasActions ? () => onSelect(selected ? null : message.id) : undefined}
+          >
+            <MessageBody message={message} />
+          </div>
         </div>
         <Reactions message={message} myUserId={myUserId} onReact={onReact} compact />
-        {selected && (
-          <div className="para-meta">
-            {who}, {when}
-          </div>
-        )}
         {actions}
       </div>
     );

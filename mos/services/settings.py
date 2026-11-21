@@ -19,6 +19,11 @@ MAX_TAB_TITLE = 40
 BOSS_TEMPLATES = ("weekly", "sales", "schedule", "budget", "myfile", "image", "text", "url")
 BOSS_FITS = ("cover", "contain")  # 사진: 화면에 꽉 채우기(가장자리 잘림) · 다 보이게
 MAX_BOSS_URL = 300
+# 화면에서 바로 고친 문서 제목(채널 ID → 제목, 'ID:sub' → 부제목).
+# 계정에 저장해 다른 브라우저에서도 그대로
+DOC_TITLE_KEY_RE = re.compile(r"[0-9]{15,21}(?::sub)?")
+MAX_DOC_TITLE = 80
+MAX_DOC_TITLES = 300
 # 자동 위장, 돌아올 때 잠그기, 알림, 알림에 내용 보이기, 처음 사용 안내를 봤는지, 작성자 프로필 사진
 BOOL_KEYS = (
     "boss_auto",
@@ -52,6 +57,7 @@ DEFAULTS: dict[str, Any] = {
     "guide_done": False,
     "lock_minutes": 30,
     "show_avatars": True,
+    "doc_titles": {},
 }
 
 
@@ -70,6 +76,23 @@ def _clean_url(value: Any) -> str | None:
     if parts.scheme != "https" or not parts.hostname or any(ch.isspace() for ch in url):
         raise SettingsError("bad_boss_url")
     return url
+
+
+def _clean_doc_titles(value: Any) -> dict[str, str | None]:
+    """문서 제목 바꾸기: 값이 비었거나 None이면 그 제목을 지운다(원래 이름으로)."""
+    if not isinstance(value, dict) or len(value) > MAX_DOC_TITLES:
+        raise SettingsError("bad_doc_titles")
+    result: dict[str, str | None] = {}
+    for key, title in value.items():
+        if not isinstance(key, str) or not DOC_TITLE_KEY_RE.fullmatch(key):
+            raise SettingsError("bad_doc_titles")
+        if title is None or (isinstance(title, str) and not title.strip()):
+            result[key] = None
+        elif isinstance(title, str) and len(title.strip()) <= MAX_DOC_TITLE:
+            result[key] = " ".join(title.split())
+        else:
+            raise SettingsError("bad_doc_titles")
+    return result
 
 
 def clean(update: dict[str, Any]) -> dict[str, Any]:
@@ -97,6 +120,8 @@ def clean(update: dict[str, Any]) -> dict[str, Any]:
             result[key] = value
         elif key == "boss_url":
             result[key] = _clean_url(value)
+        elif key == "doc_titles":
+            result[key] = _clean_doc_titles(value)
         elif key == "lock_minutes":
             if isinstance(value, bool) or value not in LOCK_MINUTES:
                 raise SettingsError("bad_lock_minutes")
@@ -137,16 +162,27 @@ class SettingsStore:
         )
         stored = json.loads(row[0]) if row else {}
         merged = dict(DEFAULTS)
-        try:
-            merged.update(clean({k: v for k, v in stored.items() if k in DEFAULTS}))
-        except SettingsError:
-            pass  # 예전 값이 이상하면 기본값으로
+        for key, value in stored.items():
+            if key not in DEFAULTS:
+                continue
+            try:
+                merged.update(clean({key: value}))
+            except SettingsError:
+                pass  # 예전 값이 이상하면 그 항목만 기본값으로
         return merged
 
     async def update(self, account_id: int, update: dict[str, Any]) -> dict[str, Any]:
         changes = clean(update)
         current = await self.get(account_id)
+        titles = changes.pop("doc_titles", None)
         current.update(changes)
+        if titles is not None:
+            # 보낸 것만 합친다(다른 채널 제목은 그대로)
+            merged = {**current["doc_titles"], **titles}
+            merged = {key: title for key, title in merged.items() if title}
+            if len(merged) > MAX_DOC_TITLES:
+                raise SettingsError("too_many_doc_titles")
+            current["doc_titles"] = merged
         async with self.db.writing() as conn:
             await conn.execute(
                 "INSERT INTO account_setting (account_id, settings_json, updated_at)"

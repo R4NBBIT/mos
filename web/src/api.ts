@@ -238,9 +238,12 @@ export async function fetchSettings(): Promise<import("./theme").Settings> {
   return (await request("/api/settings")).json() as Promise<import("./theme").Settings>;
 }
 
-export async function updateSettings(
-  changes: Partial<import("./theme").Settings>,
-): Promise<import("./theme").Settings> {
+/** 바꿀 설정. 문서 제목은 보낸 것만 합쳐지고 null이면 지운다 */
+export type SettingsChanges = Partial<Omit<import("./theme").Settings, "doc_titles">> & {
+  doc_titles?: Record<string, string | null>;
+};
+
+export async function updateSettings(changes: SettingsChanges): Promise<import("./theme").Settings> {
   const response = await request("/api/settings", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },

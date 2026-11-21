@@ -1592,6 +1592,7 @@ def test_settings_per_account(env: Env) -> None:
         "guide_done": False,
         "lock_minutes": 30,
         "show_avatars": True,
+        "doc_titles": {},
     }
     assert env.client.get("/api/settings").json() == defaults
     changed = env.client.patch(
@@ -1608,6 +1609,16 @@ def test_settings_per_account(env: Env) -> None:
         "/api/settings", json={"theme": "word", "show_avatars": False}, headers=POST
     ).json()
     assert (look["theme"], look["show_avatars"]) == ("word", False)
+    first = env.client.patch(
+        "/api/settings",
+        json={"doc_titles": {str(CHANNEL): "  운영   회의 정리 ", f"{CHANNEL}:sub": "운영지원팀"}},
+        headers=POST,
+    ).json()
+    assert first["doc_titles"] == {str(CHANNEL): "운영 회의 정리", f"{CHANNEL}:sub": "운영지원팀"}
+    second = env.client.patch(
+        "/api/settings", json={"doc_titles": {f"{CHANNEL}:sub": ""}}, headers=POST
+    ).json()
+    assert second["doc_titles"] == {str(CHANNEL): "운영 회의 정리"}  # 보낸 것만 바뀜
     key = env.client.patch("/api/settings", json={"boss_key": "Ctrl+Shift+KeyK"}, headers=POST)
     assert key.json()["boss_key"] == "Ctrl+Shift+KeyK"
     for bad in (
@@ -1623,6 +1634,9 @@ def test_settings_per_account(env: Env) -> None:
         {"boss_key": "Ctrl+"},
         {"boss_key": 5},
         {"show_avatars": "off"},
+        {"doc_titles": {"general": "x"}},
+        {"doc_titles": {str(CHANNEL): "가" * 81}},
+        {"doc_titles": [str(CHANNEL)]},
     ):
         assert env.client.patch("/api/settings", json=bad, headers=POST).status_code == 400
     assert (

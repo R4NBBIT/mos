@@ -31,6 +31,8 @@ export interface Settings {
   lock_minutes: number;
   /** 메시지 작성자 프로필 사진 보이기(모든 테마) */
   show_avatars: boolean;
+  /** 화면에서 바로 고친 문서 제목: 채널 ID → 제목, 'ID:sub' → 부제목 */
+  doc_titles: Record<string, string>;
 }
 
 export const LOCK_MINUTES = [5, 10, 15, 30, 60, 120, 240, 480];
@@ -59,6 +61,7 @@ export const DEFAULT_SETTINGS: Settings = {
   guide_done: false,
   lock_minutes: 30,
   show_avatars: true,
+  doc_titles: {},
 };
 
 const BOSS_KEY_RE = /^(?:(?:Ctrl|Alt|Shift|Meta)\+){0,4}[A-Za-z][A-Za-z0-9]{0,24}(?:\*2)?$/;
@@ -158,6 +161,16 @@ export function applyLook(settings: Settings): void {
   }
 }
 
+function cleanTitles(value: unknown): Record<string, string> {
+  const result: Record<string, string> = {};
+  if (value && typeof value === "object") {
+    for (const [key, title] of Object.entries(value)) {
+      if (/^[0-9]{15,21}(:sub)?$/.test(key) && typeof title === "string") result[key] = title.slice(0, 80);
+    }
+  }
+  return result;
+}
+
 /** 잠금 화면 등 로그인 전: 이 브라우저에 기억해 둔 모양 */
 export function cachedLook(): Settings {
   try {
@@ -185,6 +198,7 @@ export function cachedLook(): Settings {
           lock_minutes:
             typeof value.lock_minutes === "number" && LOCK_MINUTES.includes(value.lock_minutes) ? value.lock_minutes : 30,
           show_avatars: value.show_avatars !== false,
+          doc_titles: cleanTitles(value.doc_titles),
         };
       }
     }
