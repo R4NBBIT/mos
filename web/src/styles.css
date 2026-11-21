@@ -3622,15 +3622,34 @@ button.tag-chip:disabled {
   color: #ffffff;
 }
 
-/* 머리 줄: 페이지 경로처럼 얇게 */
+/* 머리 줄: 노션 페이지 경로처럼 '모임 / 채널' 한 줄 */
 :root[data-theme="note"] .room-header {
   border-bottom: 1px solid transparent;
   background: #ffffff;
 }
 
+:root[data-theme="note"] .room-title {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
 :root[data-theme="note"] .room-title strong {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
+}
+
+:root[data-theme="note"] .room-title .room-sub {
+  font-size: 14px;
+  color: var(--sub);
+}
+
+:root[data-theme="note"] .room-title .room-sub:not(:empty)::after {
+  content: "/";
+  margin-left: 6px;
+  color: #c7c6c4;
 }
 
 /* 대화: 말풍선 없이 문서 블록처럼(댓글 모양) */

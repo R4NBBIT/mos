@@ -65,7 +65,7 @@ export const THEMES: { id: Theme; name: string }[] = [
   { id: "night", name: "다크" },
   { id: "sheet", name: "스프레드시트" },
   { id: "memo", name: "메모장" },
-  { id: "note", name: "노트" },
+  { id: "note", name: "노션" },
 ];
 
 const DEFAULT_TITLES: Record<Theme, string> = {
@@ -84,7 +84,8 @@ const FAVICONS: Record<Theme, string> = {
   night: svg('<rect x="6" y="3" width="20" height="26" rx="3" fill="#1e2230" stroke="#a7a08f" stroke-width="2"/><path d="M11 11h10M11 16h10M11 21h6" stroke="#a7a08f" stroke-width="2"/>'),
   sheet: svg('<rect x="3" y="3" width="26" height="26" rx="3" fill="#1f6e43"/><path d="M8 10h16M8 16h16M8 22h16M14 7v18M20 7v18" stroke="#fff" stroke-width="1.6"/>'),
   memo: svg('<rect x="6" y="3" width="20" height="26" fill="#ffffff" stroke="#3b6fb6" stroke-width="2"/><path d="M10 10h12M10 15h12M10 20h8" stroke="#555" stroke-width="1.6"/>'),
-  note: svg('<rect x="5" y="4" width="22" height="24" rx="4" fill="#ffffff" stroke="#37352f" stroke-width="2"/><path d="M10 11h12M10 16h12M10 21h7" stroke="#9b9a97" stroke-width="1.8" stroke-linecap="round"/>'),
+  // 노션 페이지처럼 페이지 아이콘(이모지)을 탭 아이콘으로
+  note: svg('<text x="16" y="26" font-size="26" text-anchor="middle">📝</text>'),
 };
 
 const CACHE_KEY = "mos.look"; // 잠금 화면에서도 같은 제목·아이콘을 쓰려고 이 브라우저에 기억
