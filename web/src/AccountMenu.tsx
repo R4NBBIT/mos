@@ -160,7 +160,9 @@ export default function AccountMenu({ session, account, onChanged, onOpenSetting
                   onClick={() => void run(() => switchAccount(item.id))}
                 >
                   <AccountFace account={item} size={24} />
-                  <span className="menu-account-name">{item.name}</span>
+                  <span className="menu-account-name" title={item.name}>
+                    {item.name}
+                  </span>
                   {item.locked && <span className="account-state">잠김</span>}
                 </button>
               ))}

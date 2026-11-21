@@ -1944,7 +1944,8 @@ button.tag-chip:disabled {
 
 .sheet-row {
   display: grid;
-  grid-template-columns: 40px 60px 110px minmax(0, 1fr) 90px 64px 64px;
+  /* B열(보낸 사람)은 가장 긴 이름에 맞춰 넓어진다(SheetView가 --col-b를 정함) */
+  grid-template-columns: 40px 60px var(--col-b, 110px) minmax(0, 1fr) 90px 64px 64px;
   min-width: 100%;
 }
 
@@ -2132,7 +2133,7 @@ button.tag-chip:disabled {
   }
 
   .sheet-row {
-    grid-template-columns: 34px 52px 76px minmax(0, 1fr);
+    grid-template-columns: 34px 52px var(--col-b-narrow, 76px) minmax(0, 1fr);
   }
 
   .sheet-grid {
@@ -4415,10 +4416,19 @@ button.tag-chip:disabled {
   white-space: nowrap;
 }
 
+/* 긴 이름도 자르지 않는다: 앞 칸은 본문 폭의 40%까지, 넘치면 이름이 다음 줄로 */
+.para-who {
+  flex-wrap: wrap;
+  max-width: 40%;
+  white-space: normal;
+}
+
 .para-name {
-  max-width: 6em;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+}
+
+.para-when {
+  white-space: nowrap;
 }
 
 .para-body {

@@ -3,7 +3,7 @@ import SplitToggle from "./SplitToggle";
 import EditableText from "./EditableText";
 import { useLook } from "./lookContext";
 import { defaultTitle } from "./theme";
-import { type ReactNode, type RefObject, useEffect, useState } from "react";
+import { type CSSProperties, type ReactNode, type RefObject, useEffect, useMemo, useState } from "react";
 import { fetchGroupChannels } from "./api";
 import { dayKey, formatDay } from "./format";
 import { AttachmentText, AttachmentView, Avatar, isPicture, MessageTextOnly, StickerView, type ReplyPreview } from "./MessageItem";
@@ -196,7 +196,7 @@ export default function SheetView(props: Props) {
       >
         <span className="sheet-rownum">{rowNumber}</span>
         <span className="sheet-cell">{cellTime(message.created_at)}</span>
-        <span className="sheet-cell sheet-author">
+        <span className="sheet-cell sheet-author" title={message.author.name}>
           <Avatar url={message.author.avatar_url} name={message.author.name} />
           {message.author.name}
         </span>
@@ -260,9 +260,19 @@ export default function SheetView(props: Props) {
   };
 
   const forumPost = channel?.kind === "thread" && channel.parent_kind === "forum";
+  // 보낸 사람 열: 가장 긴 이름이 잘리지 않게 넓힌다(너무 길면 그 너비까지만, 나머지는 …과 마우스 올리면 전체)
+  const longestName = rows.reduce((best, row) => (row.author.name.length > best.length ? row.author.name : best), "");
+  const nameColumn = useMemo(() => {
+    const width = textWidth(longestName) + 40; // 사진 20 + 좌우 여백 12 + 여유
+    return {
+      "--col-b": `${Math.round(Math.min(Math.max(width, 110), 260))}px`,
+      "--col-b-narrow": `${Math.round(Math.min(Math.max(width, 76), 150))}px`,
+    } as CSSProperties;
+  }, [longestName]);
 
   return (
     <SheetFrame
+      gridStyle={nameColumn}
       showBack={props.showBack}
       onBack={props.onBack}
 
@@ -390,6 +400,8 @@ export default function SheetView(props: Props) {
 }
 
 interface FrameProps {
+  /** 열 너비 같은 격자 CSS 변수(B열 이름 너비 등) */
+  gridStyle?: CSSProperties;
   showBack: boolean;
   onBack: () => void;
   menu: ReactNode | null;
@@ -429,6 +441,23 @@ function SheetDocName() {
       onSave={(text) => void save({ tab_title: text })}
     />
   );
+}
+
+let measure: CanvasRenderingContext2D | null = null;
+
+/** 글자 너비(px): 시트 글꼴 14px 기준 */
+function textWidth(text: string): number {
+  if (!text) return 0;
+  try {
+    measure ??= document.createElement("canvas").getContext("2d");
+    if (measure) {
+      measure.font = `14px ${getComputedStyle(document.documentElement).fontFamily || "sans-serif"}`;
+      return measure.measureText(text).width;
+    }
+  } catch {
+    // 못 재면 글자 수로 어림
+  }
+  return [...text].reduce((sum, ch) => sum + (ch.charCodeAt(0) > 0x2e80 ? 14 : 8), 0);
 }
 
 /** 엑셀처럼 보이는 껍데기: 제목 줄·메뉴·리본·수식 입력줄·격자·시트 탭·상태 줄 */
@@ -479,7 +508,7 @@ export function SheetFrame(props: FrameProps) {
         </div>
       )}
 
-      <div className="sheet-grid" ref={props.listRef} onScroll={props.onScroll}>
+      <div className="sheet-grid" ref={props.listRef} onScroll={props.onScroll} style={props.gridStyle}>
         <div className="sheet-row sheet-colhead">
           <span className="sheet-rownum sheet-corner" />
           <span className="sheet-cell">A</span>
