@@ -294,7 +294,7 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
             <label className="settings-toggle">
               <span>
                 <strong>알림 받기</strong>
-                <small>새 알림이 오면 탭 제목 앞에 숫자를 붙이고, 다른 창을 보고 있으면 알림 창을 띄워요</small>
+                <small>새 알림이 오면 탭 제목 앞에 숫자를 붙여요. 보고 있지 않은 채널의 메시지는 화면 위 작은 알림으로, 다른 창을 보고 있으면 알림 창으로 알려요</small>
               </span>
               <input
                 type="checkbox"
@@ -322,19 +322,19 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
                     <input
                       type="radio"
                       name="notify-scope"
-                      checked={settings.notify_scope === "pinned"}
-                      onChange={() => void save({ notify_scope: "pinned" })}
+                      checked={settings.notify_scope === "mentions"}
+                      onChange={() => void save({ notify_scope: "mentions" })}
                     />
-                    나를 부른 메시지 + 고정한 채널의 새 메시지
+                    나를 부른 메시지만
                   </label>
                   <label className="boss-choice">
                     <input
                       type="radio"
                       name="notify-scope"
-                      checked={settings.notify_scope === "mentions"}
-                      onChange={() => void save({ notify_scope: "mentions" })}
+                      checked={settings.notify_scope === "pinned"}
+                      onChange={() => void save({ notify_scope: "pinned" })}
                     />
-                    나를 부른 메시지만
+                    나를 부른 메시지 + 고정한 채널의 새 메시지
                   </label>
                   <label className="boss-choice">
                     <input
