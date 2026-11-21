@@ -436,23 +436,47 @@ button {
 
 .pin-button {
   flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border: 0;
+  border-radius: 8px;
   background: none;
-  padding: 2px 4px;
-  color: var(--line);
-  font-size: 16px;
-  line-height: 1;
+  color: var(--sub);
+  opacity: 0; /* 고정 안 한 것은 마우스를 올렸을 때만 */
   cursor: pointer;
+  transition: opacity 0.12s;
 }
 
 .list-item:hover .pin-button,
-.room-header .pin-button {
-  color: var(--sub);
+.list-item:focus-within .pin-button,
+.room-header .pin-button,
+.pin-button:focus-visible {
+  opacity: 1;
+}
+
+.pin-button:hover {
+  background: var(--tint);
+  color: var(--ink);
 }
 
 .pin-on,
 .list-item .pin-on {
+  opacity: 1;
   color: var(--star);
+}
+
+/* 손가락 기기는 마우스를 올릴 수 없어 늘 흐리게 보인다 */
+@media (hover: none) {
+  .pin-button {
+    opacity: 0.45;
+  }
+
+  .pin-on {
+    opacity: 1;
+  }
 }
 
 /* 넓은 창: 왼쪽 목록 + 오른쪽 채팅방 */
@@ -1482,8 +1506,8 @@ button.tag-chip:disabled {
 }
 
 :root[data-theme="memo"] .room-header {
-  padding: 6px 12px;
-  font-size: 13px;
+  padding: 8px 12px;
+  font-size: 15px;
 }
 
 :root[data-theme="memo"] .msg .avatar,
@@ -1496,7 +1520,7 @@ button.tag-chip:disabled {
 :root[data-theme="memo"] .post-item,
 :root[data-theme="memo"] .post-card {
   border-radius: 0;
-  padding: 4px 8px;
+  padding: 7px 8px;
   border: 0;
   background: none;
 }
@@ -1521,18 +1545,21 @@ button.tag-chip:disabled {
 }
 
 /* 메모장 앱처럼 보이는 메뉴 줄(장식) */
-/* 넓은 화면 왼쪽 목록에는 메모장 메뉴 줄을 다시 그리지 않는다 */
-:root[data-theme="memo"] .split-list .room::before {
-  content: none;
+/* 넓은 화면: 메뉴 글자는 창 왼쪽(목록 위)에만, 오른쪽은 같은 높이의 빈 줄로 이어 붙여 머리 줄 높이를 맞춘다 */
+:root[data-theme="memo"] .split-list ~ .split-main .room::before {
+  content: " ";
 }
 
 :root[data-theme="memo"] .room::before {
   content: "파일    편집    서식    보기    도움말";
+  display: block;
+  box-sizing: border-box;
+  height: 26px;
   white-space: pre;
-  padding: 3px 10px;
+  padding: 4px 10px 0;
   border-bottom: 1px solid var(--line);
   font-family: system-ui, sans-serif;
-  font-size: 12px;
+  font-size: 13px;
   color: #333;
 }
 
@@ -1560,8 +1587,8 @@ button.tag-chip:disabled {
   display: flex;
   gap: 8px;
   padding: 1px 4px;
-  line-height: 1.5;
-  font-size: 14px;
+  line-height: 1.55;
+  font-size: 15px;
 }
 
 .line-msg-selected {
@@ -1758,7 +1785,7 @@ button.tag-chip:disabled {
   --head-bg: #f3f4f6;
   background: #ffffff;
   color: #1f2328;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .sheet-titlebar {
@@ -3208,7 +3235,7 @@ button.tag-chip:disabled {
 }
 
 :root[data-theme="memo"] .room-header {
-  min-height: 49px;
+  min-height: 56px;
 }
 
 .settings-select {

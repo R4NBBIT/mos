@@ -106,7 +106,17 @@ function PinButton({ pinned, onToggle }: { pinned: boolean; onToggle: () => void
       aria-label={pinned ? "고정 풀기" : "고정하기"}
       title={pinned ? "고정 풀기" : "고정하기"}
     >
-      {pinned ? "★" : "☆"}
+      <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+        {/* 압정 모양. 고정하면 칠해진다 */}
+        <path
+          d="M12.6 2.8 17.2 7.4a.8.8 0 0 1-.3 1.3l-2.3.9-2.2 2.2.2 3a.8.8 0 0 1-1.4.6L4.6 8.8a.8.8 0 0 1 .6-1.4l3 .2 2.2-2.2.9-2.3a.8.8 0 0 1 1.3-.3Z"
+          fill={pinned ? "currentColor" : "none"}
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinejoin="round"
+        />
+        <path d="m7.6 12.4-4.1 4.1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      </svg>
     </button>
   );
 }

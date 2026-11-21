@@ -205,7 +205,7 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
                     checked={settings.notify_scope === "pinned"}
                     onChange={() => void save({ notify_scope: "pinned" })}
                   />
-                  나를 부른 메시지 + 고정한(★) 채널의 새 메시지
+                  나를 부른 메시지 + 고정한 채널의 새 메시지
                 </label>
                 <label className="boss-choice">
                   <input
