@@ -3233,6 +3233,7 @@ button.tag-chip:disabled {
 
 .settings-select {
   flex-shrink: 0;
+  width: 132px; /* 설정의 고르기 칸은 모두 같은 크기 */
   height: 34px;
   padding: 0 10px;
   border: 1px solid var(--line);
@@ -4401,7 +4402,7 @@ button.tag-chip:disabled {
 
 .para-line {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start; /* 본문이 그림이어도 이름과 시각은 첫 줄 높이에 */
   gap: 10px;
 }
 
@@ -4409,7 +4410,9 @@ button.tag-chip:disabled {
 .para-who {
   flex-shrink: 0;
   display: inline-flex;
+  align-items: center;
   gap: 4px;
+  padding-top: 5px; /* 본문 첫 줄(15px, 줄 높이 1.7)과 가운데를 맞춤 */
   min-width: 11em; /* 본문 시작을 가지런히(사진 + 이름 + 시각) */
   color: #a19f9d;
   font-size: 12px;
@@ -4446,6 +4449,8 @@ button.tag-chip:disabled {
   .para-who {
     display: flex;
     min-width: 0;
+    max-width: none;
+    padding-top: 0;
     line-height: 1.5;
   }
 }
@@ -5433,4 +5438,17 @@ button.tag-chip:disabled {
 
 .account-menu-list .menu-confirm-buttons .danger {
   border-color: var(--danger);
+}
+
+/* ------------------------------------------------------------ UI 검토(2026-11-21) */
+/* 스프레드시트 좁은 화면: 장식 메뉴는 앞의 세 개만(오른쪽의 진짜 버튼과 겹치지 않게) */
+@media (max-width: 640px) {
+  .sheet-menus .sheet-menu:not(.sheet-menu-link):nth-child(n + 4) {
+    display: none;
+  }
+
+  /* Word 좁은 화면: 머리 줄의 '편집 중' 동그라미는 숨김(머리 줄이 붐비지 않게) */
+  .coauthors {
+    display: none;
+  }
 }

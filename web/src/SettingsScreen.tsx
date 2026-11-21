@@ -182,7 +182,7 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
           <label className="settings-toggle">
             <span>
               <strong>반응</strong>
-              <small>작게 고르면 반응 수만 흐린 '+n'(n은 반응 수)으로 보여요</small>
+              <small>작게는 반응 개수만 흐린 +n으로 보여요</small>
             </span>
             <select
               className="settings-select"
@@ -202,10 +202,7 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
           <label className="settings-toggle">
             <span>
               <strong>스티커와 큰 이모지</strong>
-              <small>
-                작게 고르면 스티커는 작은 그림, 이모지는 글자 크기로, 움직이는 이모지는 멈춰요. 숨기면 이름 글자로만
-                보여요
-              </small>
+              <small>작게는 작은 그림으로 멈춰 보이고, 숨기기는 이름 글자로만 보여요</small>
             </span>
             <select
               className="settings-select"
