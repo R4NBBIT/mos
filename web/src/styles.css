@@ -5391,3 +5391,36 @@ button.tag-chip:disabled {
   gap: 6px;
   font-size: 13px;
 }
+
+/* 계정 메뉴 안의 확인(빼기와 취소) */
+.menu-confirm {
+  margin: 2px 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  white-space: normal;
+}
+
+.menu-confirm p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.menu-confirm-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.account-menu-list .menu-confirm-buttons button {
+  flex: 1;
+  justify-content: center;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.account-menu-list .menu-confirm-buttons .danger {
+  border-color: var(--danger);
+}

@@ -32,8 +32,13 @@ function nitroHelp(account: SessionAccount): string {
 /** 채팅방 오른쪽 위: 잠그기, 니트로, 계정 바꾸기·추가·빼기 */
 export default function AccountMenu({ session, account, onChanged, onOpenSettings, onOpenGuide }: Props) {
   const [open, setOpen] = useState(false);
+  const [askRemove, setAskRemove] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   const others = session.accounts.filter((item) => item.id !== account.id);
+
+  useEffect(() => {
+    if (!open) setAskRemove(false); // 메뉴를 닫으면 묻던 것도 취소
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -122,14 +127,26 @@ export default function AccountMenu({ session, account, onChanged, onOpenSetting
               다른 계정 추가
             </button>
           )}
-          <button
-            type="button"
-            role="menuitem"
-            className="danger"
-            onClick={() => void run(() => removeAccount(account.id))}
-          >
-            이 브라우저에서 이 계정 빼기
-          </button>
+          {askRemove ? (
+            // 되돌리려면 디스코드로 다시 연결해야 하니 한 번 묻는다(빼기와 취소를 나란히)
+            <div className="menu-confirm" role="alertdialog" aria-label="계정 빼기 확인">
+              <p>
+                이 브라우저에서 '{account.name}' 계정을 뺄까요? 다시 쓰려면 디스코드로 다시 연결해야 해요.
+              </p>
+              <div className="menu-confirm-buttons">
+                <button type="button" className="danger" onClick={() => void run(() => removeAccount(account.id))}>
+                  빼기
+                </button>
+                <button type="button" onClick={() => setAskRemove(false)} autoFocus>
+                  취소
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" role="menuitem" className="danger" onClick={() => setAskRemove(true)}>
+              이 브라우저에서 이 계정 빼기
+            </button>
+          )}
           {others.length > 0 && (
             <>
               <div className="menu-divider" role="separator" />
