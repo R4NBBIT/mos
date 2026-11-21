@@ -377,7 +377,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
                     </button>
                   </div>
                 )}
-                <div className="split-empty">왼쪽에서 {route.view === "groups" ? "모임" : "채널"}을 골라 주세요.</div>
+                <div className="split-empty">왼쪽에서 {route.view === "groups" ? "서버를" : "채널을"} 골라 주세요.</div>
               </div>
             )}
           </main>

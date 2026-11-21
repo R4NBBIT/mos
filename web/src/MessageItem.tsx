@@ -39,7 +39,8 @@ interface Props {
   /** 반응 고르기 창이 모임 이모지를 불러올 채널 */
   channelId?: string;
   /** bubble: 채팅 말풍선(기본), comment: 포럼 글·스레드의 게시판식 댓글, line: 메모장 한 줄 기록 */
-  layout?: "bubble" | "comment" | "line";
+  /** bubble 말풍선, comment 게시판 댓글, line 메모장 한 줄, row 노션 표의 한 줄 */
+  layout?: "bubble" | "comment" | "line" | "row";
 }
 
 /** 본문·임베드·첨부(말풍선과 댓글이 같이 쓴다) */
@@ -132,8 +133,37 @@ export function MessageTextOnly({ message, pictures = false }: { message: Messag
   );
 }
 
+const PLAYABLE_VIDEO = /^video\/(mp4|webm|quicktime|ogg)$/;
+
+/** 동영상: 브라우저에서 바로 재생(디스코드 CDN에서 직접 받는다). 스포일러면 눌러야 보인다 */
+function VideoView({ attachment }: { attachment: Attachment }) {
+  const [revealed, setRevealed] = useState(!attachment.spoiler);
+  if (!revealed) {
+    return (
+      <button type="button" className="attachment-file video-spoiler" onClick={() => setRevealed(true)}>
+        <span className="file-name">스포일러 동영상(눌러서 보기)</span>
+        <span className="file-size">{formatSize(attachment.size)}</span>
+      </button>
+    );
+  }
+  return (
+    <video
+      className="attachment-video"
+      src={attachment.url}
+      poster={isDiscordMediaUrl(attachment.proxy_url) ? `${attachment.proxy_url}?format=jpeg` : undefined}
+      controls
+      playsInline
+      preload="metadata"
+      aria-label={attachment.filename}
+    />
+  );
+}
+
 export function AttachmentView({ attachment }: { attachment: Attachment }) {
   const isImage = attachment.content_type?.startsWith("image/") ?? false;
+  if (PLAYABLE_VIDEO.test(attachment.content_type ?? "") && isDiscordMediaUrl(attachment.url)) {
+    return <VideoView attachment={attachment} />;
+  }
   if (isImage && isDiscordMediaUrl(attachment.proxy_url) && isDiscordMediaUrl(attachment.url)) {
     return (
       <a href={attachment.url} target="_blank" rel="noopener noreferrer" className="attachment-image">
@@ -191,7 +221,21 @@ function MessageItem({
   const hasActions = canReply || manageable || Boolean(onReact);
 
   if (isSystemMessage(message)) {
-    // 입장·고정 같은 알림: 디스코드처럼 가운데 작은 글씨
+    // 입장, 고정 같은 알림: 디스코드처럼 가운데 작은 글씨(표에서는 흐린 한 줄)
+    if (layout === "row") {
+      return (
+        <div className="db-row db-row-system" role="row">
+          <div className="db-cell db-time" role="cell">
+            {formatTime(message.created_at)}
+          </div>
+          <div className="db-cell db-author" role="cell" />
+          <div className="db-cell db-content" role="cell">
+            {systemText(message)}
+          </div>
+          <div className="db-cell db-react" role="cell" />
+        </div>
+      );
+    }
     return layout === "line" ? (
       <div className="line-msg line-system">
         <span className="line-time">{formatTime(message.created_at)}</span>
@@ -273,6 +317,41 @@ function MessageItem({
           {message.edited_at && <span className="line-time"> (수정됨)</span>}
           <Reactions message={message} myUserId={myUserId} onReact={onReact} compact />
           {actions}
+        </div>
+      </div>
+    );
+  }
+
+  if (layout === "row") {
+    // 노션 표: 작성 일시, 작성자, 내용, 반응 열
+    return (
+      <div className={selected ? "db-row db-row-selected" : "db-row"} role="row">
+        <div className="db-cell db-time" role="cell">
+          {formatTime(message.created_at)}
+          {message.edited_at && <span className="db-edited">수정됨</span>}
+        </div>
+        <div className="db-cell db-author" role="cell">
+          <Avatar url={author.avatar_url} name={author.name} />
+          <span className="db-author-name">{author.name}</span>
+          {mine && <span className="tag tag-mine">나</span>}
+          {isApp && <span className="tag">앱</span>}
+        </div>
+        <div className="db-cell db-content" role="cell">
+          {message.reference_id && (
+            <div className="msg-reply">
+              ↪ {reply ? <><strong>{reply.author}</strong> {reply.text}</> : "이전 메시지에 답장"}
+            </div>
+          )}
+          <div
+            className="db-body"
+            onClick={hasActions ? () => onSelect(selected ? null : message.id) : undefined}
+          >
+            <MessageBody message={message} />
+          </div>
+          {actions}
+        </div>
+        <div className="db-cell db-react" role="cell">
+          <Reactions message={message} myUserId={myUserId} onReact={onReact} compact />
         </div>
       </div>
     );

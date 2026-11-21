@@ -68,6 +68,25 @@ function reactionErrorText(caught: unknown): string {
   return (caught instanceof ApiError && reactionErrors[caught.code]) || "반응을 달지 못했어요. 잠시 후 다시 해 주세요.";
 }
 
+function IconTable() {
+  return (
+    <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <rect x="3" y="4" width="14" height="12" rx="1.5" />
+      <path d="M3 8h14M3 12h14M8 4v12" />
+    </svg>
+  );
+}
+
+function IconBoard() {
+  return (
+    <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <rect x="3" y="4" width="4" height="12" rx="1" />
+      <rect x="8.5" y="4" width="4" height="8" rx="1" />
+      <rect x="14" y="4" width="3" height="10" rx="1" />
+    </svg>
+  );
+}
+
 export default function ChatRoom({
   channelId,
   myUserId,
@@ -533,6 +552,48 @@ export default function ChatRoom({
             {hasMore ? "+" : ""}개
           </div>
         )}
+        {theme === "note" && channel && (
+          // 노션 표 보기: 페이지 제목, 보기 탭, 열 머리(스크롤해도 위에 남음)
+          <>
+            {!isThread && (
+              <div className="db-head">
+                <h1 className="db-title">{channel.name}</h1>
+                <div className="db-views">
+                  <span className="db-view db-view-on">
+                    <IconTable /> 표
+                  </span>
+                  <span className="db-view">
+                    <IconBoard /> 보드
+                  </span>
+                  <span className="db-count">개수 {shownMessages.length}</span>
+                  {channel.can_send && (
+                    <button
+                      type="button"
+                      className="db-new"
+                      onClick={() => document.querySelector<HTMLTextAreaElement>(".composer-input")?.focus()}
+                    >
+                      새로 만들기
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="db-row db-header" role="row">
+              <div className="db-cell db-time" role="columnheader">
+                작성 일시
+              </div>
+              <div className="db-cell db-author" role="columnheader">
+                작성자
+              </div>
+              <div className="db-cell db-content" role="columnheader">
+                내용
+              </div>
+              <div className="db-cell db-react" role="columnheader">
+                반응
+              </div>
+            </div>
+          </>
+        )}
         {hasMore && (
           <button type="button" className="older-button" onClick={loadOlder} disabled={loadingOlder}>
             {loadingOlder ? "불러오는 중…" : isThread ? "지난 댓글 더 보기" : "이전 메시지 더 보기"}
@@ -576,7 +637,7 @@ export default function ChatRoom({
                 onReact={react}
                 myUserId={myUserId}
                 channelId={channel?.id}
-                layout={theme === "memo" ? "line" : isThread || theme === "note" ? "comment" : "bubble"}
+                layout={theme === "memo" ? "line" : theme === "note" ? "row" : isThread ? "comment" : "bubble"}
               />
             </div>
           );
