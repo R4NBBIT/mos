@@ -6008,3 +6008,24 @@ a.attachment-image.attachment-image-small img {
 .sheet-cell-c .sheet-md .md-codeblock code {
   white-space: normal;
 }
+
+/* 스프레드시트 좁은 화면: 숨은 D열 대신 내용 칸 끝에 반응과 (수정됨) */
+.sheet-d-inline {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .sheet-d-inline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin-top: 3px;
+    color: #6b7280;
+    font-size: 12px;
+  }
+
+  .sheet-d-inline .reactions-compact {
+    margin: 0;
+  }
+}

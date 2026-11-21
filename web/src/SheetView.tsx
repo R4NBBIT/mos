@@ -234,6 +234,13 @@ export default function SheetView(props: Props) {
               ))}
             </span>
           )}
+          {/* 좁은 화면은 D열이 숨으니 반응과 (수정됨)을 내용 칸 끝에 */}
+          {((message.reactions?.length ?? 0) > 0 || message.edited_at) && (
+            <span className="sheet-d-inline">
+              <Reactions message={message} myUserId={myUserId} onReact={props.onReact} compact />
+              {message.edited_at ? "(수정됨)" : ""}
+            </span>
+          )}
         </span>
         <span className="sheet-cell sheet-cell-d">
           <Reactions message={message} myUserId={myUserId} onReact={props.onReact} compact />
