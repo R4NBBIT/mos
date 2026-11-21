@@ -133,7 +133,7 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
                 <Preview theme={item.id} />
                 <span>
                   {item.name}
-                  {item.id === settings.theme ? " · 사용 중" : ""}
+                  {item.id === settings.theme ? " (사용 중)" : ""}
                 </span>
               </button>
             ))}
@@ -227,11 +227,23 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
                   />
                   나를 부른 메시지만
                 </label>
+                <label className="boss-choice">
+                  <input
+                    type="radio"
+                    name="notify-scope"
+                    checked={settings.notify_scope === "all"}
+                    onChange={() => void save({ notify_scope: "all" })}
+                  />
+                  모든 새 메시지(볼 수 있는 모든 채널)
+                </label>
               </div>
-              <p className="settings-note">나를 부른 메시지는 @내 이름이 들어간 글과 내 글에 단 답장이에요.</p>
+              <p className="settings-note">
+                나를 부른 메시지는 @내 이름이 들어간 글과 내 글에 단 답장이에요.
+                {settings.notify_scope === "all" && " 모든 새 메시지를 고르면 채널이 많을 때 알림이 아주 자주 올 수 있어요."}
+              </p>
               <label className="settings-toggle">
                 <span>
-                  <strong>알림 창에 보낸 사람·내용 보이기</strong>
+                  <strong>알림 창에 보낸 사람과 내용 보이기</strong>
                   <small>끄면 탭 제목과 '새 알림 n건'만 보여서 옆에서 봐도 티가 덜 나요</small>
                 </span>
                 <input
@@ -287,7 +299,7 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
           <h2 className="settings-title">위장 화면</h2>
           {touchOnly && (
             <p className="settings-warn">
-              휴대폰·태블릿에는 키보드가 없어 보스키를 쓸 수 없어요. 대신 화면 왼쪽 아래 모서리를 누르면 위장 화면으로
+              휴대폰과 태블릿에는 키보드가 없어 보스키를 쓸 수 없어요. 대신 화면 왼쪽 아래 모서리를 누르면 위장 화면으로
               바뀌어요. 아래 보스키 설정은 컴퓨터에서 쓸 때 적용돼요.
             </p>
           )}

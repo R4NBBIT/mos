@@ -16,7 +16,8 @@ log = logging.getLogger(__name__)
 SEND_TIMEOUT_SEC = 5
 
 AccessCheck = Callable[[int, int], Awaitable[bool]]  # (사용자 ID, 채널 ID) → 볼 수 있나
-NOTIFY_SCOPES = ("mentions", "pinned")  # 나를 부른 것만 · 나를 부른 것 + 고정한 채널
+# 나를 부른 것만, 나를 부른 것과 고정한 채널, 볼 수 있는 모든 채널의 새 글
+NOTIFY_SCOPES = ("mentions", "pinned", "all")
 
 
 class JsonSocket(Protocol):

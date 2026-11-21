@@ -28,7 +28,7 @@ BOOL_KEYS = (
     "guide_done",
 )
 # 알림 범위: 나를 부른 것만 · 나를 부른 것 + 고정한 채널의 새 메시지
-NOTIFY_SCOPES = ("mentions", "pinned")
+NOTIFY_SCOPES = ("mentions", "pinned", "all")
 # 자동 잠금(분). 너무 길면 자리를 비운 사이 위험해서 8시간까지만
 LOCK_MINUTES = (5, 10, 15, 30, 60, 120, 240, 480)
 # 보스키: 보조키 + 키 위치 이름(KeyboardEvent.code), '*2'면 빠르게 두 번.

@@ -37,7 +37,7 @@ export function lockLabel(minutes: number): string {
   return minutes >= 60 ? `${minutes / 60}시간` : `${minutes}분`;
 }
 
-export type NotifyScope = "mentions" | "pinned";
+export type NotifyScope = "mentions" | "pinned" | "all";
 
 const BOSS_TEMPLATES: BossTemplate[] = ["weekly", "sales", "schedule", "budget", "myfile", "image", "text", "url"];
 
@@ -169,7 +169,8 @@ export function cachedLook(): Settings {
           boss_fullscreen: value.boss_fullscreen === true,
           boss_url: typeof value.boss_url === "string" && /^https:\/\/\S+$/.test(value.boss_url) ? value.boss_url : null,
           notify: value.notify !== false,
-          notify_scope: value.notify_scope === "mentions" ? "mentions" : "pinned",
+          notify_scope:
+            value.notify_scope === "mentions" || value.notify_scope === "all" ? value.notify_scope : "pinned",
           notify_preview: value.notify_preview === true,
           guide_done: value.guide_done === true,
           lock_minutes:

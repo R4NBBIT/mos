@@ -768,6 +768,13 @@ def test_notify_only_mentions_or_pinned_channels(env: Env) -> None:
         env.client.portal.call(env.hub.notify, CHANNEL, notify_message(6))
         assert ws.receive_json()["data"]["message_id"] == "6"
 
+        # 범위 all이면 고정하지 않은 채널의 부르지 않은 글도 알린다
+        ws.send_text('{"type": "notify", "scope": "all"}')
+        ws.send_text("ping")
+        assert ws.receive_text() == "pong"
+        env.client.portal.call(env.hub.notify, CHANNEL, notify_message(8))
+        assert ws.receive_json()["data"]["message_id"] == "8"
+
         # 알림을 끄면 아무것도 오지 않는다
         ws.send_text('{"type": "notify", "scope": null}')
         ws.send_text("ping")
@@ -1603,7 +1610,7 @@ def test_settings_per_account(env: Env) -> None:
         {"boss_auto": "yes"},
         {"boss_relock": 1},
         {"boss_key": "<script>"},
-        {"notify_scope": "all"},
+        {"notify_scope": "everything"},
         {"boss_url": "http://example.com"},
         {"boss_url": "javascript:alert(1)"},
         {"boss_fit": "stretch"},

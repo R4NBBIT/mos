@@ -226,8 +226,9 @@ def create_app(
     async def notify_rule(
         subscriber: Subscriber, channel_id: int, message: dict[str, Any]
     ) -> dict[str, Any] | None:
-        """알림 조건: 남이 쓴 보통 메시지 중 나를 부른 것(멘션·내 글에 답장),
-        범위가 'pinned'면 고정한 채널(그 채널의 스레드 포함)의 새 메시지도."""
+        """알림 조건: 남이 쓴 보통 메시지 중 나를 부른 것(멘션, 내 글에 답장).
+        범위가 'pinned'면 고정한 채널(그 채널의 스레드 포함)의 새 메시지도,
+        'all'이면 볼 수 있는 모든 채널의 새 메시지."""
         user = subscriber.user_id
         if int(message.get("kind") or 0) not in NOTIFY_KINDS:
             return None
@@ -243,7 +244,7 @@ def create_app(
                 original["author_id"],
                 original.get("web_sender_id"),
             )
-        if not mentioned:
+        if not mentioned and subscriber.notify_scope != "all":
             if subscriber.notify_scope != "pinned":
                 return None
             pinned = {
@@ -1027,7 +1028,7 @@ def create_app(
             unlocked = False
         if prefs["notify_preview"] and unlocked:
             text = " ".join(str(latest["content"]).split())[:80] or latest.get("extra") or ""
-            result["title"] = f"{latest['author_name']} · #{latest['channel_name']}"
+            result["title"] = f"{latest['author_name']} (#{latest['channel_name']})"
             result["body"] = text or "새 메시지"
         return result
 

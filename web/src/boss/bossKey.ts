@@ -154,7 +154,7 @@ export function warningsFor(key: BossKey): KeyWarning[] {
   ) {
     blocked("브라우저가 먼저 처리하는 키(탭 닫기, 새 탭, 새 창, 탭 이동)라서 웹에서 막을 수 없어요. 누르면 탭이 닫히거나 바뀌어요.");
   }
-  if (code === "Lang1" || code === "Lang2") blocked("한/영·한자 키는 입력기가 먼저 가져가서 웹 화면에 제대로 전달되지 않아요.");
+  if (code === "Lang1" || code === "Lang2") blocked("한/영, 한자 키는 입력기가 먼저 가져가서 웹 화면에 제대로 전달되지 않아요.");
 
   // 2. 브라우저 기능 키: 대신 새로고침·인쇄 등이 실행될 수 있음
   const browserKeys: Record<string, string> = {
@@ -196,7 +196,7 @@ export function warningsFor(key: BossKey): KeyWarning[] {
   const tabDigit = only(primary) && /^Digit[1-9]$/.test(code) ? "탭 이동" : undefined;
   const altNav =
     only("Alt") && ["ArrowLeft", "ArrowRight", "Home", "KeyD", "KeyF", "KeyE"].includes(code)
-      ? "뒤로·앞으로 가기, 주소창, 브라우저 메뉴"
+      ? "뒤로 가기, 앞으로 가기, 주소창, 브라우저 메뉴"
       : undefined;
   const editKey =
     only(primary) && ["KeyA", "KeyC", "KeyV", "KeyX", "KeyZ", "KeyY"].includes(code)
@@ -208,7 +208,7 @@ export function warningsFor(key: BossKey): KeyWarning[] {
       `브라우저 기능 키(${feature})예요. 주소창 등 웹 화면 밖에 커서가 있을 때 누르면 위장 화면 대신 '${feature}' 기능이 실행될 수 있어요.`,
     );
   }
-  if (editKey) caution(`평소에 자주 쓰는 편집 키(${editKey})라서 복사·붙여넣기를 하다가 화면이 바뀔 수 있어요.`);
+  if (editKey) caution(`평소에 자주 쓰는 편집 키(${editKey})라서 복사, 붙여넣기를 하다가 화면이 바뀔 수 있어요.`);
 
   // 3. 글을 쓰다가 실수로 눌리기 쉬운 키
   const noCommand = !mods.has("Ctrl") && !mods.has("Alt") && !mods.has("Meta");

@@ -106,7 +106,7 @@ export function useNotifications({ enabled, scope, preview, accountId, currentCh
     if (isDisguised() || popupSupport() !== "granted") return;
     if (document.visibilityState === "visible" && document.hasFocus()) return; // 화면을 보고 있으면 숫자만
     const showContent = optionsRef.current.preview;
-    const title = showContent ? `${event.author_name} · #${event.channel_name}` : currentBaseTitle();
+    const title = showContent ? `${event.author_name} (#${event.channel_name})` : currentBaseTitle();
     const body = showContent ? previewText(event) : `새 알림 ${total}건`;
     try {
       popupRef.current?.close();

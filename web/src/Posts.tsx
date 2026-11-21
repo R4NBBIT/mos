@@ -140,7 +140,7 @@ function NewPost({
       />
       <div className="new-post-actions">
         <label className="text-button file-pick">
-          사진·파일 붙이기
+          사진, 파일 붙이기
           <input
             type="file"
             multiple
