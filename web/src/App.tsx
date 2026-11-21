@@ -159,6 +159,9 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
   const [route, go] = useHashRoute();
   const wide = useWide();
   const [listOpen, setListOpen] = useListOpen();
+  // 넓은 화면 왼쪽 목록에서 둘러보는 서버(null이면 서버 목록). 오른쪽 화면과 따로 움직이고,
+  // 채널을 열거나 뒤로 가서 주소가 바뀌면 다시 주소를 따른다
+  const [browse, setBrowse] = useState<{ from: Route; groupId: string | null } | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -288,11 +291,12 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
       go(channel.kind === "forum" ? `#/g/${groupId}/p/${channel.id}` : `#/g/${groupId}/c/${channel.id}`);
     // 넓은 화면 왼쪽 목록에는 계정 메뉴·안내를 두지 않는다(계정 메뉴는 늘 오른쪽 위 같은 자리)
     const listSide = { ...common, menu: null, notice: "" };
+    const browseTo = (groupId: string | null) => setBrowse({ from: route, groupId });
     const groupList = (side = false) => (
       <GroupList
         key={look.theme === "note" ? `${active.id}:tree` : active.id}
         tree={look.theme === "note"}
-        onOpen={(groupId) => go(`#/g/${groupId}`)}
+        onOpen={(groupId) => (side ? browseTo(groupId) : go(`#/g/${groupId}`))}
         onOpenChannel={openChannel}
         {...(side ? listSide : common)}
       />
@@ -314,7 +318,8 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           key={`${active.id}:${groupId}`}
           groupId={groupId}
           activeChannelId={activeChannelId}
-          onBack={() => go("#/")}
+          onBack={() => (side ? browseTo(null) : go("#/"))}
+          onSwitch={(id) => (side ? browseTo(id) : go(`#/g/${id}`))}
           onOpen={(channel) => openChannel(groupId, channel)}
           {...(side ? listSide : common)}
         />
@@ -385,16 +390,17 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
         </SplitContext.Provider>
       );
     }
+    // 왼쪽 목록: 둘러보는 중이면 그 서버, 아니면 주소의 서버
+    const routeGroup = route.view === "groups" ? null : route.groupId;
+    const leftGroup = browse && browse.from === route ? browse.groupId : routeGroup;
+    const routeActive =
+      route.view === "chat" ? route.channelId : route.view === "posts" || route.view === "thread" ? route.parentId : undefined;
     return (
       <div className="split">
         <aside className="split-list">
-          {route.view === "groups"
+          {leftGroup === null
             ? groupList(true)
-            : channelList(
-                route.groupId,
-                route.view === "chat" ? route.channelId : route.view === "channels" ? undefined : route.parentId,
-                true,
-              )}
+            : channelList(leftGroup, leftGroup === routeGroup ? routeActive : undefined, true)}
         </aside>
         <SplitContext.Provider value={split}>
           <main className="split-main">
@@ -419,7 +425,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
                     </button>
                   </div>
                 )}
-                <div className="split-empty">왼쪽에서 {route.view === "groups" ? "서버를" : "채널을"} 골라 주세요.</div>
+                <div className="split-empty">왼쪽에서 {leftGroup === null ? "서버를" : "채널을"} 골라 주세요.</div>
               </div>
             )}
           </main>

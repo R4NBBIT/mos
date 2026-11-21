@@ -140,6 +140,7 @@ function usePinToggle(
 
 function Shell({
   title,
+  titleNode,
   sub,
   onBack,
   menu,
@@ -150,6 +151,8 @@ function Shell({
   children,
 }: {
   title: string;
+  /** 제목 자리에 글자 대신 넣을 것(서버 바꾸기 단추) */
+  titleNode?: ReactNode;
   sub?: string;
   onBack?: () => void;
   menu: ReactNode;
@@ -170,7 +173,7 @@ function Shell({
           </button>
         )}
         <div className="room-title">
-          <strong>{title}</strong>
+          {titleNode ?? <strong>{title}</strong>}
           {sub && <span className="room-sub">{sub}</span>}
         </div>
         {extra}
@@ -548,17 +551,124 @@ export function GroupList({
   );
 }
 
+/** 채널 목록 머리: 서버 이름을 누르면 다른 서버를 바로 고를 수 있다 */
+function ServerSwitch({
+  title,
+  groupId,
+  onSwitch,
+  onAll,
+}: {
+  title: string;
+  groupId: string;
+  onSwitch: (groupId: string) => void;
+  onAll: () => void;
+}) {
+  const { theme } = useLook().settings;
+  const skin = listSkin(theme);
+  const [open, setOpen] = useState(false);
+  const [groups, setGroups] = useState<Group[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const boxRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let stopped = false;
+    setFailed(false);
+    fetchGroups()
+      .then((value) => {
+        if (!stopped) setGroups(value.groups);
+      })
+      .catch(() => {
+        if (!stopped) setFailed(true);
+      });
+    const onDown = (event: PointerEvent) => {
+      if (!boxRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      stopped = true;
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const pick = (id: string) => {
+    setOpen(false);
+    if (id !== groupId) onSwitch(id);
+  };
+  return (
+    <span className="server-switch" ref={boxRef}>
+      <button
+        type="button"
+        className="server-switch-button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="다른 서버로"
+        onClick={() => setOpen(!open)}
+      >
+        <strong>{title}</strong>
+        <span className="server-switch-chevron" aria-hidden="true">
+          ▾
+        </span>
+      </button>
+      {open && (
+        <div className="server-switch-menu" role="menu">
+          {!groups && !failed && <p className="server-switch-note">불러오는 중…</p>}
+          {failed && <p className="server-switch-note">불러오지 못했어요.</p>}
+          {groups?.map((group) => (
+            <button
+              key={group.id}
+              type="button"
+              role="menuitemradio"
+              aria-checked={group.id === groupId}
+              className="server-switch-item"
+              onClick={() => pick(group.id)}
+            >
+              <span className="channel-mark">{skin.serverIcon(group)}</span>
+              <span className="server-switch-name">{group.name}</span>
+              {group.unread ? <span className="server-switch-dot" aria-label="안 읽은 글 있음" /> : null}
+              {group.id === groupId && (
+                <span className="server-switch-check" aria-hidden="true">
+                  ✓
+                </span>
+              )}
+            </button>
+          ))}
+          <button
+            type="button"
+            role="menuitem"
+            className="server-switch-item server-switch-all"
+            onClick={() => {
+              setOpen(false);
+              onAll();
+            }}
+          >
+            전체 서버 목록
+          </button>
+        </div>
+      )}
+    </span>
+  );
+}
+
 export function ChannelList({
   groupId,
   activeChannelId,
   onOpen,
   onBack,
+  onSwitch,
   ...common
 }: CommonProps & {
   groupId: string;
   activeChannelId?: string;
   onOpen: (channel: ChannelInfo) => void;
   onBack: () => void;
+  /** 머리의 서버 이름에서 다른 서버를 골랐을 때 */
+  onSwitch: (groupId: string) => void;
 }) {
   const { theme } = useLook().settings;
   const skin = listSkin(theme);
@@ -573,6 +683,11 @@ export function ChannelList({
   return (
     <Shell
       title={group ? skin.channelsTitle(group.name) : "…"}
+      titleNode={
+        group ? (
+          <ServerSwitch title={skin.channelsTitle(group.name)} groupId={groupId} onSwitch={onSwitch} onAll={onBack} />
+        ) : undefined
+      }
       onBack={onBack}
       menu={common.menu}
       top={<ListTop theme={theme} path={`C:\\문서\\${group?.name ?? ""}`} inGroup />}
