@@ -382,6 +382,11 @@ class SessionService:
             raise SessionError("not_found", status=404)
         await self.repo.set_active_account(device.id, account_id)
 
+    async def logout(self, device: Device | None) -> None:
+        """로그아웃: 이 브라우저(기기)에 넣어 둔 계정을 모두 빼고 기기를 지운다."""
+        if device is not None:
+            await self.repo.delete_device(device.id)
+
     async def remove_account(self, device: Device | None, account_id: int) -> bool:
         """기기에서 계정을 뺀다. 남은 계정이 없으면 기기를 지우고 True."""
         if device is None:

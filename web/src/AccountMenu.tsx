@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { lock, removeAccount, setNitroClaim, startConnect, switchAccount } from "./api";
+import { lock, logout, removeAccount, setNitroClaim, startConnect, switchAccount } from "./api";
+import { disablePush } from "./webPush";
 import { AccountFace } from "./AuthScreens";
 import type { SessionAccount, SessionState } from "./types";
 
@@ -33,11 +34,17 @@ function nitroHelp(account: SessionAccount): string {
 export default function AccountMenu({ session, account, onChanged, onOpenSettings, onOpenGuide }: Props) {
   const [open, setOpen] = useState(false);
   const [askRemove, setAskRemove] = useState(false);
+  const [askLogout, setAskLogout] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   const others = session.accounts.filter((item) => item.id !== account.id);
 
   useEffect(() => {
-    if (!open) setAskRemove(false); // 메뉴를 닫으면 묻던 것도 취소
+    if (!open) {
+      // 메뉴를 닫으면 묻던 것도 취소
+      setAskRemove(false);
+      setAskLogout(false);
+    }
   }, [open]);
 
   useEffect(() => {
@@ -54,6 +61,30 @@ export default function AccountMenu({ session, account, onChanged, onOpenSetting
       document.removeEventListener("keydown", close);
     };
   }, [open]);
+
+  // 로그아웃: 서버에서 이 브라우저의 계정을 모두 빼고, 이 브라우저에 남은 사본(설정, 위장 파일, 알림 구독)도 지운 뒤 처음 화면으로
+  const signOut = async () => {
+    setLoggingOut(true);
+    try {
+      await disablePush().catch(() => "off");
+      await logout();
+      try {
+        const keys: string[] = [];
+        for (let index = 0; index < window.localStorage.length; index += 1) {
+          const key = window.localStorage.key(index);
+          if (key?.startsWith("mos.")) keys.push(key);
+        }
+        for (const key of keys) window.localStorage.removeItem(key);
+        if ("caches" in window) await caches.delete("mos-boss-v1");
+      } catch {
+        // 지우지 못한 사본은 다음 로그인 때 덮어쓴다
+      }
+      window.location.replace("/");
+    } catch {
+      setLoggingOut(false);
+      onChanged();
+    }
+  };
 
   const run = async (action: () => Promise<void>) => {
     setOpen(false);
@@ -127,24 +158,60 @@ export default function AccountMenu({ session, account, onChanged, onOpenSetting
               다른 계정 추가
             </button>
           )}
-          {askRemove ? (
-            // 되돌리려면 디스코드로 다시 연결해야 하니 한 번 묻는다(빼기와 취소를 나란히)
-            <div className="menu-confirm" role="alertdialog" aria-label="계정 빼기 확인">
+          {session.accounts.length > 1 &&
+            (askRemove ? (
+              // 되돌리려면 디스코드로 다시 연결해야 하니 한 번 묻는다(빼기와 취소를 나란히)
+              <div className="menu-confirm" role="alertdialog" aria-label="계정 빼기 확인">
+                <p>이 브라우저에서 '{account.name}' 계정을 뺄까요? 다시 쓰려면 디스코드로 다시 연결해야 해요.</p>
+                <div className="menu-confirm-buttons">
+                  <button type="button" className="danger" onClick={() => void run(() => removeAccount(account.id))}>
+                    빼기
+                  </button>
+                  <button type="button" onClick={() => setAskRemove(false)} autoFocus>
+                    취소
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setAskLogout(false);
+                  setAskRemove(true);
+                }}
+              >
+                이 브라우저에서 이 계정 빼기
+              </button>
+            ))}
+          {askLogout ? (
+            <div className="menu-confirm" role="alertdialog" aria-label="로그아웃 확인">
               <p>
-                이 브라우저에서 '{account.name}' 계정을 뺄까요? 다시 쓰려면 디스코드로 다시 연결해야 해요.
+                {session.accounts.length > 1
+                  ? `이 브라우저에 넣어 둔 계정 ${session.accounts.length}개에서 모두 로그아웃할까요?`
+                  : "이 브라우저에서 로그아웃할까요?"}{" "}
+                다시 쓰려면 디스코드로 다시 연결해야 해요.
               </p>
               <div className="menu-confirm-buttons">
-                <button type="button" className="danger" onClick={() => void run(() => removeAccount(account.id))}>
-                  빼기
+                <button type="button" className="danger" disabled={loggingOut} onClick={() => void signOut()}>
+                  {loggingOut ? "나가는 중…" : "로그아웃"}
                 </button>
-                <button type="button" onClick={() => setAskRemove(false)} autoFocus>
+                <button type="button" disabled={loggingOut} onClick={() => setAskLogout(false)} autoFocus>
                   취소
                 </button>
               </div>
             </div>
           ) : (
-            <button type="button" role="menuitem" className="danger" onClick={() => setAskRemove(true)}>
-              이 브라우저에서 이 계정 빼기
+            <button
+              type="button"
+              role="menuitem"
+              className="danger"
+              onClick={() => {
+                setAskRemove(false);
+                setAskLogout(true);
+              }}
+            >
+              로그아웃
             </button>
           )}
           {others.length > 0 && (

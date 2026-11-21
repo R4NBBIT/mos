@@ -683,6 +683,22 @@ def test_remove_last_account_forgets_device(env: Env) -> None:
     assert session(env)["accounts"] == []
 
 
+def test_logout_removes_every_account_from_browser(env: Env) -> None:
+    signed_up(env, "mocha")
+    signed_up(env, "latte")
+    assert len(session(env)["accounts"]) == 2
+    response = env.client.post("/api/session/logout", headers=POST)
+    assert response.status_code == 204
+    assert (
+        "max-age=0" in response.headers["set-cookie"].lower()
+        or 'sid=""' in (response.headers["set-cookie"])
+    )
+    assert session(env)["accounts"] == []
+    assert messages_status(env) == 401
+    # 로그인하지 않은 채로 눌러도 문제없다
+    assert env.client.post("/api/session/logout", headers=POST).status_code == 204
+
+
 # ------------------------------------------------------------ 실시간
 
 

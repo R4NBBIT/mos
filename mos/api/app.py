@@ -550,6 +550,15 @@ def create_app(
     async def switch(body: SwitchBody, request: Request) -> None:
         await sessions.switch(await current_device(request), int(body.account_id))
 
+    @app.post("/api/session/logout", status_code=204)
+    async def logout(request: Request, response: Response) -> None:
+        """이 브라우저에서 로그아웃: 모든 계정을 빼고 쿠키와 알림 구독도 지운다."""
+        device = await current_device(request)
+        if device is not None:
+            await push.forget_device_account(device.id)
+        await sessions.logout(device)
+        clear_device_cookie(response)
+
     @app.delete("/api/session/accounts/{account_id}", status_code=204)
     async def remove_account(account_id: int, request: Request, response: Response) -> None:
         device = await current_device(request)

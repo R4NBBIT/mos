@@ -70,6 +70,11 @@ export async function switchAccount(accountId: string): Promise<void> {
   await postJson("/api/session/switch", { account_id: accountId });
 }
 
+/** 이 브라우저에서 로그아웃(모든 계정 빼기) */
+export async function logout(): Promise<void> {
+  await postJson("/api/session/logout");
+}
+
 export async function removeAccount(accountId: string): Promise<void> {
   await request(`/api/session/accounts/${encodeURIComponent(accountId)}`, { method: "DELETE" });
 }
