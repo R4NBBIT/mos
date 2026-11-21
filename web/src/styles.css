@@ -1481,6 +1481,11 @@ button.tag-chip:disabled {
 }
 
 /* 메모장 앱처럼 보이는 메뉴 줄(장식) */
+/* 넓은 화면 왼쪽 목록에는 메모장 메뉴 줄을 다시 그리지 않는다 */
+:root[data-theme="memo"] .split-list .room::before {
+  content: none;
+}
+
 :root[data-theme="memo"] .room::before {
   content: "파일    편집    서식    보기    도움말";
   white-space: pre;
@@ -1541,8 +1546,18 @@ button.tag-chip:disabled {
   display: inline;
 }
 
+/* 메모장: 첫 줄은 이름 옆에 이어서, 다음 줄부터는 줄을 바꿔서 */
 .line-main .msg-text > span {
+  display: block;
+}
+
+.line-main .msg-text > span:first-child {
   display: inline;
+}
+
+.line-main .msg-jumbo .emoji {
+  width: 1.375em;
+  height: 1.375em;
 }
 
 /* ------------------------------------------------------------ 설정 */
@@ -2936,4 +2951,72 @@ button.tag-chip:disabled {
   .settings-toggle {
     align-items: flex-start;
   }
+}
+
+/* 시트 셀 안의 서식: 한 줄로 이어 보이고, 넘치면 …으로 */
+.sheet-md .msg-text {
+  display: inline;
+  white-space: nowrap;
+}
+
+.sheet-md .msg-text > *,
+.sheet-md .md-quote,
+.sheet-md .md-h,
+.sheet-md .md-subtext,
+.sheet-md .md-list,
+.sheet-md .md-list li,
+.sheet-md .md-codeblock {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.sheet-md .msg-text > * + *::before {
+  content: " ";
+}
+
+.sheet-md .md-h {
+  font-weight: 700;
+}
+
+.sheet-md .md-subtext {
+  color: #6b7280;
+}
+
+.sheet-md .md-quote {
+  padding-left: 5px;
+  border-left: 2px solid #c4c8ce;
+  color: #4b5563;
+}
+
+.sheet-md .md-list li::before {
+  content: "• ";
+}
+
+.sheet-md .md-list li + li {
+  margin-left: 0.5em;
+}
+
+.sheet-md .md-codeblock {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.06);
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+
+.sheet-md .md-codeblock code {
+  white-space: nowrap;
+}
+
+.sheet-md .emoji-jumbo {
+  width: 1.375em;
+  height: 1.375em;
+}
+
+/* 수식 입력줄: 전체 글을 서식 그대로(여러 줄) */
+.sheet-formula-text .msg-text {
+  white-space: pre-wrap;
 }

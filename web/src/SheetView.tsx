@@ -4,6 +4,7 @@ import { dayKey, formatDay } from "./format";
 import { AttachmentText, AttachmentView, isPicture, MessageTextOnly, type ReplyPreview } from "./MessageItem";
 import type { ChannelInfo, Message } from "./types";
 import { isSystemMessage, systemText } from "./systemMessage";
+import MessageContent from "./MessageContent";
 
 // 스프레드시트 테마 대화방(화면명세서 SCR-11). 메시지 하나 = 행 하나.
 // A 시간 · B 보낸 사람 · C 내용 · D 반응, 맨 아래 입력 행, 시트 탭 = 같은 모임의 채널
@@ -195,7 +196,12 @@ export default function SheetView(props: Props) {
           ].join(" ")}
           title={reply ? `↪ ${reply.author}: ${reply.text}` : undefined}
         >
-          {text}
+          {message.content && (
+            // 서식(굵게·기울임·링크·스포일러 등)은 그대로, 여러 줄은 한 줄로 이어서
+            <span className="sheet-md">
+              <MessageContent content={message.content} mentions={message.mentions} />
+            </span>
+          )}
           {message.embeds.length > 0 && !text ? `[${message.embeds[0]?.title || "링크 미리보기"}]` : ""}
           {message.attachments
             .filter((attachment) => !isPicture(attachment))
