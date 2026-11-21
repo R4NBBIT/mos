@@ -5365,3 +5365,29 @@ button.tag-chip:disabled {
     padding: 32px 22px;
   }
 }
+
+/* 되돌릴 수 없는 일: 설명과 함께 '하기'와 '취소'를 나란히 */
+.confirm-box {
+  padding: 10px 12px;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+}
+
+.confirm-box p {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+.settings-done {
+  align-self: center;
+  color: var(--sub);
+  font-size: 12px;
+}
+
+.inline-confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}

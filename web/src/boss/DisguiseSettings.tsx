@@ -123,6 +123,7 @@ export default function DisguiseSettings({ settings, save, onFileChanged }: Prop
   const [busy, setBusy] = useState<AssetKind | null>(null);
   const [error, setError] = useState("");
   const [url, setUrl] = useState(settings.boss_url ?? "");
+  const [askRemove, setAskRemove] = useState<AssetKind | null>(null);
   const [resetState, setResetState] = useState<"idle" | "confirm" | "busy" | "done">("idle");
   const current = shownTemplate(settings.boss_template);
 
@@ -175,12 +176,8 @@ export default function DisguiseSettings({ settings, save, onFileChanged }: Prop
     }
   };
 
-  // 모두 처음으로: 올린 파일과 고친 내용(표, 메모장, 노션, Word)을 전부 지운다. 한 번 더 눌러야 한다
+  // 모두 처음으로: 올린 파일과 고친 내용(표, 메모장, 노션, Word)을 전부 지운다. 확인 창에서 '모두 지우기'를 눌러야 하고 취소할 수 있다
   const resetEverything = async () => {
-    if (resetState !== "confirm") {
-      setResetState("confirm");
-      return;
-    }
     setResetState("busy");
     setError("");
     try {
@@ -197,6 +194,31 @@ export default function DisguiseSettings({ settings, save, onFileChanged }: Prop
       setResetState("idle");
     }
   };
+
+  // 파일 지우기도 되살릴 수 없으니 '지울까요? 지우기 / 취소'로 한 번 묻는다
+  const removeButton = (kind: AssetKind, template: BossTemplate, example: BossTemplate) =>
+    askRemove === kind ? (
+      <span className="inline-confirm" role="alertdialog" aria-label="파일 지우기 확인">
+        <span>지울까요?</span>
+        <button
+          type="button"
+          className="pill-button pill-button-danger"
+          onClick={() => {
+            setAskRemove(null);
+            void remove(kind, template, example);
+          }}
+        >
+          지우기
+        </button>
+        <button type="button" className="pill-button" onClick={() => setAskRemove(null)}>
+          취소
+        </button>
+      </span>
+    ) : (
+      <button type="button" className="pill-button" onClick={() => setAskRemove(kind)}>
+        지우기
+      </button>
+    );
 
   const choice = (id: BossTemplate, label: ReactNode, disabled = false, extra?: ReactNode) => (
     <div key={id} className="boss-choice-block">
@@ -251,15 +273,7 @@ export default function DisguiseSettings({ settings, save, onFileChanged }: Prop
                   slot.accept,
                   slot.template,
                 )}
-                {found && (
-                  <button
-                    type="button"
-                    className="pill-button"
-                    onClick={() => void remove(slot.kind, slot.template, slot.example)}
-                  >
-                    지우기
-                  </button>
-                )}
+                {found && removeButton(slot.kind, slot.template, slot.example)}
               </div>,
             );
           })}
@@ -281,11 +295,7 @@ export default function DisguiseSettings({ settings, save, onFileChanged }: Prop
                   "image/png,image/jpeg,image/webp,image/gif",
                   "image",
                 )}
-                {info.image && (
-                  <button type="button" className="pill-button" onClick={() => void remove("image", "image", "weekly")}>
-                    지우기
-                  </button>
-                )}
+                {info.image && removeButton("image", "image", "weekly")}
               </div>
               {current === "image" && (
                 <div className="boss-fit" role="radiogroup" aria-label="사진 맞추기">
@@ -349,22 +359,40 @@ export default function DisguiseSettings({ settings, save, onFileChanged }: Prop
 
       <div className="settings-item">
         <h3 className="settings-sub">모두 처음으로</h3>
-        <div className="settings-buttons">
-          <button
-            type="button"
-            className={resetState === "confirm" ? "pill-button pill-button-danger" : "pill-button"}
-            disabled={resetState === "busy"}
-            onClick={() => void resetEverything()}
-          >
-            {resetState === "confirm"
-              ? "한 번 더 누르면 모두 지워요"
-              : resetState === "busy"
-                ? "지우는 중…"
-                : resetState === "done"
-                  ? "처음 상태로 되돌렸어요"
-                  : "올린 파일과 고친 내용 모두 지우기"}
-          </button>
-        </div>
+        {resetState === "confirm" || resetState === "busy" ? (
+          <div className="confirm-box" role="alertdialog" aria-label="모두 지우기 확인">
+            <p>올린 파일과 고친 내용을 모두 지울까요? 지운 뒤에는 되살릴 수 없어요.</p>
+            <div className="settings-buttons">
+              <button
+                type="button"
+                className="pill-button pill-button-danger"
+                disabled={resetState === "busy"}
+                onClick={() => void resetEverything()}
+              >
+                {resetState === "busy" ? "지우는 중…" : "모두 지우기"}
+              </button>
+              <button
+                type="button"
+                className="pill-button"
+                disabled={resetState === "busy"}
+                onClick={() => setResetState("idle")}
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="settings-buttons">
+            <button type="button" className="pill-button" onClick={() => setResetState("confirm")}>
+              올린 파일과 고친 내용 모두 지우기
+            </button>
+            {resetState === "done" && (
+              <span className="settings-done" role="status">
+                처음 상태로 되돌렸어요.
+              </span>
+            )}
+          </div>
+        )}
         <p className="settings-item-note">
           올린 파일(표, 사진, 메모장, 노션, Word)을 모두 지우고, 예시에 고친 내용도 처음으로 돌아가요. 파일과 고친
           내용은 계정에 암호화해 저장돼서 다른 브라우저나 PC에서도 그대로 보이고, 여기서 지우면 모든 곳에서 지워져요.
