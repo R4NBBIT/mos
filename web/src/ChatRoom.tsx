@@ -386,7 +386,7 @@ export default function ChatRoom({
             {isThread
               ? `${isForumPost ? "▤" : "#"} ${channel?.parent_name ?? ""} › ${isForumPost ? "글" : "스레드"}`
               : (channel?.group_name ?? "")}
-            {channel?.archived ? " · 보관된 글(쓰면 다시 열려요)" : ""}
+            {channel?.archived ? " (보관됨, 쓰면 다시 열려요)" : ""}
           </span>
         </div>
         {onOpenThreads && channel && channel.kind !== "thread" && (

@@ -603,8 +603,18 @@ button.tag-chip:disabled {
 }
 
 .post-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
   color: var(--sub);
   font-size: 12px;
+}
+
+.post-archived {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--tint);
 }
 
 .new-post {

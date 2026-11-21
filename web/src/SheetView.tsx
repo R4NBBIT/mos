@@ -348,8 +348,8 @@ export default function SheetView(props: Props) {
               </span>
             ))}
             <span className="sheet-title-sub">
-              {forumPost ? "글" : "스레드"} · {channel.parent_name ?? ""}
-              {channel.archived ? " · 보관됨(쓰면 다시 열려요)" : ""}
+              {channel.parent_name ?? ""}의 {forumPost ? "글" : "스레드"}
+              {channel.archived ? " (보관됨, 쓰면 다시 열려요)" : ""}
             </span>
           </span>
         </div>

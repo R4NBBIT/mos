@@ -430,8 +430,9 @@ export default function Posts({
             )}
             {thread.preview && <span className="post-preview">{thread.preview}</span>}
             <span className="post-meta">
-              💬 {thread.message_count} · {when(thread.last_message_at)}
-              {thread.archived && " · 보관됨"}
+              <span>💬 {thread.message_count}</span>
+              <span>{when(thread.last_message_at)}</span>
+              {thread.archived && <span className="post-archived">보관됨</span>}
             </span>
           </button>
         ))}

@@ -144,7 +144,7 @@ export function warningsFor(key: BossKey): KeyWarning[] {
   }
   if (mods.has("Ctrl") && mods.has("Alt") && code === "Delete") blocked("운영체제 보안 화면 키라서 웹에서 받을 수 없어요.");
   if (IS_MAC && only("Meta") && ["KeyH", "KeyM", "KeyQ", "Space"].includes(code)) {
-    blocked("Mac이 먼저 처리하는 키(가리기·최소화·종료·Spotlight)라서 웹 화면에 전달되지 않아요.");
+    blocked("Mac이 먼저 처리하는 키(가리기, 최소화, 종료, Spotlight)라서 웹 화면에 전달되지 않아요.");
   }
   if (
     (only(primary) && ["KeyW", "KeyT", "KeyN"].includes(code)) ||
@@ -152,7 +152,7 @@ export function warningsFor(key: BossKey): KeyWarning[] {
     (only("Ctrl") && ["Tab", "PageUp", "PageDown"].includes(code)) ||
     (only("Ctrl", "Shift") && code === "Tab")
   ) {
-    blocked("브라우저가 먼저 처리하는 키(탭 닫기·새 탭·새 창·탭 이동)라서 웹에서 막을 수 없어요. 누르면 탭이 닫히거나 바뀌어요.");
+    blocked("브라우저가 먼저 처리하는 키(탭 닫기, 새 탭, 새 창, 탭 이동)라서 웹에서 막을 수 없어요. 누르면 탭이 닫히거나 바뀌어요.");
   }
   if (code === "Lang1" || code === "Lang2") blocked("한/영·한자 키는 입력기가 먼저 가져가서 웹 화면에 제대로 전달되지 않아요.");
 
@@ -191,7 +191,7 @@ export function warningsFor(key: BossKey): KeyWarning[] {
   const withPrimary = only(primary) ? primaryBrowser[code] : undefined;
   const shiftPrimary =
     only(primary, "Shift") && ["KeyI", "KeyJ", "KeyC", "KeyR", "KeyB", "KeyO", "Delete"].includes(code)
-      ? "개발자 도구·강력 새로고침·즐겨찾기 같은 브라우저 기능"
+      ? "개발자 도구, 강력 새로고침, 즐겨찾기 같은 브라우저 기능"
       : undefined;
   const tabDigit = only(primary) && /^Digit[1-9]$/.test(code) ? "탭 이동" : undefined;
   const altNav =
@@ -220,7 +220,7 @@ export function warningsFor(key: BossKey): KeyWarning[] {
     );
   }
   if (noCommand && EDITING.has(code)) {
-    caution("글쓰기와 위장 표 조작(셀 이동·입력·지우기)에 쓰는 키라서 실수로 바뀌기 쉬워요.");
+    caution("글쓰기와 위장 표 조작(셀 이동, 입력, 지우기)에 쓰는 키라서 실수로 바뀌기 쉬워요.");
   }
   if (mods.size === 0 && code === "Escape" && !key.double) {
     caution("메뉴를 닫거나 입력을 취소할 때도 쓰는 키라서 한 번만 누르는 건 실수로 바뀌기 쉬워요. '두 번'을 권해요.");
