@@ -390,9 +390,9 @@ function MemberPanel({
       <button type="button" className="member-toggle" aria-expanded={open} onClick={toggle}>
         <span className="member-title">{skin.membersTitle}</span>
         <span className="member-count">{people.length}</span>
-        <span className="member-chevron" aria-hidden="true">
-          {open ? "▾" : "▸"}
-        </span>
+        <svg className="member-chevron" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </button>
       {open && (
         <>

@@ -5802,8 +5802,20 @@ a.attachment-image.attachment-image-small img {
 }
 
 .member-chevron {
+  flex-shrink: 0;
   margin-left: auto;
-  font-size: 10px;
+  transition: transform 0.15s ease;
+}
+
+/* 접혀 있으면 오른쪽을 가리키게 */
+.member-toggle[aria-expanded="false"] .member-chevron {
+  transform: rotate(-90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .member-chevron {
+    transition: none;
+  }
 }
 
 .member-scope {
