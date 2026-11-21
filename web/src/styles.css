@@ -1532,13 +1532,6 @@ button.tag-chip:disabled {
   padding: 0;
 }
 
-:root[data-theme="memo"] .unread-badge::before {
-  content: "(";
-}
-
-:root[data-theme="memo"] .unread-badge::after {
-  content: ")";
-}
 
 :root[data-theme="memo"] .composer-input,
 :root[data-theme="memo"] .composer-send {
@@ -4797,4 +4790,195 @@ button.tag-chip:disabled {
 
 :root[data-theme="word"] .theme-card {
   border-radius: 4px;
+}
+
+/* ------------------------------------------------------------ 왼쪽 목록: 테마 컨셉 모양(listSkin.tsx) */
+.channel-mark {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+}
+
+.skin-icon {
+  display: block;
+}
+
+.skin-emoji {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.skin-ext {
+  color: var(--sub);
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+.skin-ro {
+  flex-shrink: 0;
+  color: var(--sub);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.skin-lock {
+  display: inline-grid;
+  place-items: center;
+}
+
+.unread-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #185abd;
+}
+
+.unread-dot-mention {
+  background: #c4314b;
+}
+
+.list-item-indent {
+  padding-left: 30px;
+}
+
+.tree-chevron {
+  flex-shrink: 0;
+  width: 10px;
+  color: #a5a29a;
+  font-size: 10px;
+}
+
+.tree-category {
+  margin: 6px 0 2px 34px;
+  color: #91918e;
+  font-size: 11.5px;
+}
+
+.tree-note {
+  padding-left: 34px;
+}
+
+/* 기본, 다크: 흐린 숫자, 나를 부른 것만 빨간 글자 */
+:root:not([data-theme]) .list-room .unread-badge,
+:root[data-theme="night"] .list-room .unread-badge,
+:root[data-theme="sheet"] .list-room .unread-badge,
+:root[data-theme="memo"] .list-room .unread-badge,
+:root[data-theme="word"] .list-room .unread-badge {
+  min-width: 0;
+  padding: 0;
+  background: none;
+  color: var(--sub);
+  font-weight: 500;
+}
+
+:root:not([data-theme]) .list-room .unread-mention,
+:root[data-theme="night"] .list-room .unread-mention,
+:root[data-theme="memo"] .list-room .unread-mention {
+  color: #d9534f;
+}
+
+/* 스프레드시트: 초록 머리 줄, 표처럼 줄 긋기 */
+:root[data-theme="sheet"] .list-room .room-header {
+  background: #1f6e43;
+  color: #ffffff;
+  border-bottom: 0;
+}
+
+:root[data-theme="sheet"] .list-room .room-header .back-button,
+:root[data-theme="sheet"] .list-room .room-header .pin-button,
+:root[data-theme="sheet"] .list-room .room-header .pane-toggle {
+  color: #ffffff;
+}
+
+:root[data-theme="sheet"] .list-room .list-item {
+  border-radius: 0;
+  border-bottom: 1px solid #eeeeee;
+  font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+}
+
+:root[data-theme="sheet"] .list-room .list-item-active {
+  background: #e6f2ea;
+  box-shadow: inset 3px 0 0 #1f6e43;
+}
+
+:root[data-theme="sheet"] .list-room .unread-mention {
+  color: #cc0000;
+}
+
+:root[data-theme="sheet"] .list-room .list-section-title {
+  margin: 0;
+  padding: 8px 12px;
+  border-bottom: 1px solid #d9d9d9;
+  color: #555555;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* 메모장: 파일 열기 창 */
+.skin-path {
+  margin: 8px 10px 6px;
+  padding: 4px 8px;
+  border: 1px solid #bbbbbb;
+  background: #ffffff;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skin-cols {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 12px;
+  border-bottom: 1px solid #dddddd;
+  color: #555555;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+}
+
+:root[data-theme="memo"] .list-room .list-item {
+  gap: 8px;
+  padding: 5px 12px;
+}
+
+:root[data-theme="memo"] .list-room .list-item-active {
+  background: #cce8ff;
+  box-shadow: none;
+}
+
+:root[data-theme="memo"] .list-room .list-item-unread .list-name {
+  font-weight: 400;
+}
+
+:root[data-theme="memo"] .list-room .skin-ro,
+:root[data-theme="memo"] .list-room .unread-badge {
+  color: #333333;
+  font-size: 13px;
+}
+
+/* Word: 문서 열기의 '폴더 / 최근 항목' 탭 */
+.skin-top-word {
+  display: flex;
+  gap: 14px;
+  padding: 0 14px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #ffffff;
+  color: #616161;
+  font-size: 13px;
+}
+
+.skin-top-word span {
+  padding: 8px 0 7px;
+}
+
+.skin-top-word .skin-tab-on {
+  color: #185abd;
+  box-shadow: inset 0 -2px 0 #185abd;
+}
+
+:root[data-theme="word"] .list-room .list-item-unread .list-name {
+  font-weight: 600;
 }

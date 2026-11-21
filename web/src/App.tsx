@@ -287,22 +287,35 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     const listSide = { ...common, menu: null, notice: "" };
     const groupList = (side = false) => (
       <GroupList
-        key={active.id}
+        key={look.theme === "note" ? `${active.id}:tree` : active.id}
+        tree={look.theme === "note"}
         onOpen={(groupId) => go(`#/g/${groupId}`)}
         onOpenChannel={openChannel}
         {...(side ? listSide : common)}
       />
     );
-    const channelList = (groupId: string, activeChannelId?: string, side = false) => (
-      <ChannelList
-        key={`${active.id}:${groupId}`}
-        groupId={groupId}
-        activeChannelId={activeChannelId}
-        onBack={() => go("#/")}
-        onOpen={(channel) => openChannel(groupId, channel)}
-        {...(side ? listSide : common)}
-      />
-    );
+    const channelList = (groupId: string, activeChannelId?: string, side = false) =>
+      look.theme === "note" ? (
+        // 노션: 서버 목록 안에서 그 서버를 펼친 트리 하나로
+        <GroupList
+          key={`${active.id}:tree`}
+          tree
+          openGroupId={groupId}
+          activeChannelId={activeChannelId}
+          onOpen={(id) => go(`#/g/${id}`)}
+          onOpenChannel={openChannel}
+          {...(side ? listSide : common)}
+        />
+      ) : (
+        <ChannelList
+          key={`${active.id}:${groupId}`}
+          groupId={groupId}
+          activeChannelId={activeChannelId}
+          onBack={() => go("#/")}
+          onOpen={(channel) => openChannel(groupId, channel)}
+          {...(side ? listSide : common)}
+        />
+      );
     const chatRoom = (groupId: string, channelId: string, inSplit: boolean, parentId?: string) => (
       <ChatRoom
         key={`${active.id}:${channelId}`}

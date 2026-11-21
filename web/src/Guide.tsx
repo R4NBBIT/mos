@@ -154,7 +154,7 @@ function buildCards(
             )}
             {readOnlyOnly.length > 0 && (
               <li>
-                {names(readOnlyOnly)}은(는) 읽기만 할 수 있어요('읽기만' 표시). 디스코드에서 내게 쓰기 권한이 없는
+                {names(readOnlyOnly)}은(는) 읽기만 할 수 있어요(목록에 '읽기 전용'이나 자물쇠로 표시). 디스코드에서 내게 쓰기 권한이 없는
                 채널이라 여기서도 쓸 수 없어요.
               </li>
             )}
