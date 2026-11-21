@@ -39,6 +39,19 @@ function Preview({ theme }: { theme: Theme }) {
       </div>
     );
   }
+  if (theme === "word") {
+    return (
+      <div className="theme-preview theme-preview-word" aria-hidden="true">
+        <span className="bar" />
+        <span className="page">
+          <b />
+          <i style={{ width: "85%", borderColor: "#1f5fa8" }} />
+          <i style={{ width: "70%", borderColor: "#a3620a" }} />
+          <i style={{ width: "78%", borderColor: "#2f6b2f" }} />
+        </span>
+      </div>
+    );
+  }
   if (theme === "memo") {
     return (
       <div className="theme-preview theme-preview-memo" aria-hidden="true">
@@ -139,6 +152,18 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
             ))}
           </div>
           <p className="settings-note">고르는 즉시 바뀌고, 이 계정에 기억돼요. 탭 제목과 아이콘도 테마에 맞춰 바뀌어요.</p>
+          <label className="settings-toggle">
+            <span>
+              <strong>작성자 프로필 사진 보이기</strong>
+              <small>끄면 모든 테마에서 메시지 옆 프로필 사진을 숨기고 이름만 보여요</small>
+            </span>
+            <input
+              type="checkbox"
+              className="switch"
+              checked={settings.show_avatars}
+              onChange={(event) => void save({ show_avatars: event.target.checked })}
+            />
+          </label>
         </section>
 
         <section className="settings-card">

@@ -16,7 +16,8 @@ import SplitToggle, { SplitContext } from "./SplitToggle";
 import { ChannelList, GroupList } from "./Lists";
 import Posts from "./Posts";
 import SettingsScreen from "./SettingsScreen";
-import { applyDisguise, applyLook, type BossTemplate, cachedLook, type Settings } from "./theme";
+import WordChrome from "./WordChrome";
+import { applyDisguise, applyLook, type BossTemplate, cachedLook, defaultTitle, type Settings } from "./theme";
 import type { ChannelInfo, SessionAccount, SessionState } from "./types";
 import { useNotifications } from "./useNotifications";
 
@@ -73,9 +74,9 @@ function useHashRoute(): [Route, (hash: string) => void] {
   return [route, go];
 }
 
-const WIDE_QUERY = "(min-width: 900px)";
+const WIDE_QUERY = "(min-width: 641px)"; // 휴대폰보다 넓으면 왼쪽 목록(접기, 펴기)
 
-/** 넓은 창(900px 이상)이면 목록 + 채팅방 2단 */
+/** 넓은 창(641px 이상)이면 목록 + 채팅방 2단 */
 function useWide(): boolean {
   const [wide, setWide] = useState(() => window.matchMedia(WIDE_QUERY).matches);
   useEffect(() => {
@@ -387,7 +388,14 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
   };
   return (
     <>
-      {screen()}
+      {look.theme === "word" ? (
+        <div className="word-app">
+          <WordChrome title={look.tab_title || defaultTitle("word")} />
+          <div className="word-stage">{screen()}</div>
+        </div>
+      ) : (
+        screen()
+      )}
       {showGuide && <Guide settings={look} wide={wide} onClose={closeGuide} />}
     </>
   );

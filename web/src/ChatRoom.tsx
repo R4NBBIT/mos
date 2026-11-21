@@ -1,5 +1,5 @@
 import SplitToggle from "./SplitToggle";
-import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ApiError,
   deleteMessage,
@@ -15,7 +15,7 @@ import {
 import { isDisguised } from "./boss/bossState";
 import Composer from "./Composer";
 import { compareIds, dayKey, formatDay, formatTime } from "./format";
-import MessageItem, { Avatar, MessageBody, type ReplyPreview } from "./MessageItem";
+import MessageItem, { Avatar, MessageBody, paraColor, type ReplyPreview } from "./MessageItem";
 import SheetView, { plainText } from "./SheetView";
 import type { Theme } from "./theme";
 import type { ChannelInfo, Message, RealtimeEvent } from "./types";
@@ -66,6 +66,35 @@ const reactionErrors: Record<string, string> = {
 
 function reactionErrorText(caught: unknown): string {
   return (caught instanceof ApiError && reactionErrors[caught.code]) || "반응을 달지 못했어요. 잠시 후 다시 해 주세요.";
+}
+
+/** Word 머리 줄: 최근에 쓴 사람들을 '편집 중' 동그라미(첫 글자)로. 프로필 사진은 쓰지 않는다 */
+function Coauthors({ messages, myUserId }: { messages: Message[]; myUserId: string }) {
+  const people: { id: string; name: string }[] = [];
+  for (const message of messages.slice(-40).reverse()) {
+    if (people.length >= 4) break;
+    const { author } = message;
+    if (isSystemMessage(message) || author.id === myUserId || message.web_sender_id === myUserId) continue;
+    if (!people.some((person) => person.id === author.id && person.name === author.name)) {
+      people.push({ id: author.id, name: author.name });
+    }
+  }
+  if (people.length === 0) return null;
+  return (
+    <div className="coauthors" aria-label={`편집 중: ${people.map((person) => person.name).join(", ")}`}>
+      {people.map((person) => (
+        <span
+          key={`${person.id}:${person.name}`}
+          className="coauthor"
+          title={`${person.name} 편집 중`}
+          style={{ "--who": paraColor(person.id) } as CSSProperties}
+          aria-hidden="true"
+        >
+          {person.name.slice(0, 1)}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function IconTable() {
@@ -378,7 +407,15 @@ export default function ChatRoom({
 
   const composer = channel ? (
     <Composer
-      placeholder={isThread ? (isForumPost ? "댓글 입력" : "스레드에 메시지 입력") : "메시지 입력"}
+      placeholder={
+        theme === "word"
+          ? "여기에 입력하고 Enter"
+          : isThread
+            ? isForumPost
+              ? "댓글 입력"
+              : "스레드에 메시지 입력"
+            : "메시지 입력"
+      }
       readOnlyText={
         isThread
           ? channel.locked
@@ -473,6 +510,7 @@ export default function ChatRoom({
             스레드
           </button>
         )}
+        {theme === "word" && <Coauthors messages={shownMessages} myUserId={myUserId} />}
         {menu}
       </header>
       {reactError && (
@@ -550,6 +588,13 @@ export default function ChatRoom({
           <div className="comment-divider">
             {isForumPost ? "댓글" : "스레드 메시지"} {shownMessages.length}
             {hasMore ? "+" : ""}개
+          </div>
+        )}
+        {theme === "word" && channel && !isThread && (
+          // Word 문서 첫머리: 채널 이름이 문서 제목
+          <div className="wd-head">
+            <h1 className="wd-title">{channel.name}</h1>
+            <p className="wd-sub">{channel.group_name} / 공동 작성 문서</p>
           </div>
         )}
         {theme === "note" && channel && (
@@ -637,7 +682,17 @@ export default function ChatRoom({
                 onReact={react}
                 myUserId={myUserId}
                 channelId={channel?.id}
-                layout={theme === "memo" ? "line" : theme === "note" ? "row" : isThread ? "comment" : "bubble"}
+                layout={
+                  theme === "memo"
+                    ? "line"
+                    : theme === "note"
+                      ? "row"
+                      : theme === "word"
+                        ? "para"
+                        : isThread
+                          ? "comment"
+                          : "bubble"
+                }
               />
             </div>
           );

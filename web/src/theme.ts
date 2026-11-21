@@ -2,7 +2,7 @@
 // 화면 어디에도 원래 서비스 이름이 드러나지 않게, 테마마다 평범한 문서처럼 보이는 제목·아이콘을 쓴다.
 import { isDisguised } from "./boss/bossState";
 
-export type Theme = "moon" | "night" | "sheet" | "memo" | "note";
+export type Theme = "moon" | "night" | "sheet" | "memo" | "note" | "word";
 
 export type BossTemplate = "weekly" | "sales" | "schedule" | "budget" | "myfile" | "image" | "text" | "url";
 
@@ -29,6 +29,8 @@ export interface Settings {
   guide_done: boolean;
   /** 아무것도 안 하면 잠기는 시간(분) */
   lock_minutes: number;
+  /** 메시지 작성자 프로필 사진 보이기(모든 테마) */
+  show_avatars: boolean;
 }
 
 export const LOCK_MINUTES = [5, 10, 15, 30, 60, 120, 240, 480];
@@ -56,6 +58,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notify_preview: false,
   guide_done: false,
   lock_minutes: 30,
+  show_avatars: true,
 };
 
 const BOSS_KEY_RE = /^(?:(?:Ctrl|Alt|Shift|Meta)\+){0,4}[A-Za-z][A-Za-z0-9]{0,24}(?:\*2)?$/;
@@ -66,6 +69,7 @@ export const THEMES: { id: Theme; name: string }[] = [
   { id: "sheet", name: "스프레드시트" },
   { id: "memo", name: "메모장" },
   { id: "note", name: "노션" },
+  { id: "word", name: "Word" },
 ];
 
 const DEFAULT_TITLES: Record<Theme, string> = {
@@ -74,6 +78,7 @@ const DEFAULT_TITLES: Record<Theme, string> = {
   sheet: "통합 문서1",
   memo: "제목 없음 - 메모장",
   note: "업무 노트",
+  word: "업무 정리.docx",
 };
 
 const svg = (body: string) =>
@@ -86,6 +91,8 @@ const FAVICONS: Record<Theme, string> = {
   memo: svg('<rect x="6" y="3" width="20" height="26" fill="#ffffff" stroke="#3b6fb6" stroke-width="2"/><path d="M10 10h12M10 15h12M10 20h8" stroke="#555" stroke-width="1.6"/>'),
   // 노션 페이지처럼 페이지 아이콘(이모지)을 탭 아이콘으로
   note: svg('<text x="16" y="26" font-size="26" text-anchor="middle">📝</text>'),
+  // 파란 문서 아이콘(글자 줄)
+  word: svg('<rect x="4" y="3" width="24" height="26" rx="3" fill="#185abd"/><path d="M9 10h14M9 15h14M9 20h14M9 25h8" stroke="#fff" stroke-width="2"/>'),
 };
 
 const CACHE_KEY = "mos.look"; // 잠금 화면에서도 같은 제목·아이콘을 쓰려고 이 브라우저에 기억
@@ -138,6 +145,8 @@ export function applyLook(settings: Settings): void {
   const root = document.documentElement;
   if (settings.theme === "moon") delete root.dataset.theme;
   else root.dataset.theme = settings.theme;
+  if (settings.show_avatars) delete root.dataset.avatars;
+  else root.dataset.avatars = "off";
   baseTitle = settings.tab_title || DEFAULT_TITLES[settings.theme];
   document.title = baseTitle;
   showTitle();
@@ -175,6 +184,7 @@ export function cachedLook(): Settings {
           guide_done: value.guide_done === true,
           lock_minutes:
             typeof value.lock_minutes === "number" && LOCK_MINUTES.includes(value.lock_minutes) ? value.lock_minutes : 30,
+          show_avatars: value.show_avatars !== false,
         };
       }
     }

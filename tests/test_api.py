@@ -1591,6 +1591,7 @@ def test_settings_per_account(env: Env) -> None:
         "notify_preview": False,
         "guide_done": False,
         "lock_minutes": 30,
+        "show_avatars": True,
     }
     assert env.client.get("/api/settings").json() == defaults
     changed = env.client.patch(
@@ -1603,6 +1604,10 @@ def test_settings_per_account(env: Env) -> None:
         headers=POST,
     ).json()
     assert (boss["boss_template"], boss["boss_auto"], boss["boss_relock"]) == ("budget", True, True)
+    look = env.client.patch(
+        "/api/settings", json={"theme": "word", "show_avatars": False}, headers=POST
+    ).json()
+    assert (look["theme"], look["show_avatars"]) == ("word", False)
     key = env.client.patch("/api/settings", json={"boss_key": "Ctrl+Shift+KeyK"}, headers=POST)
     assert key.json()["boss_key"] == "Ctrl+Shift+KeyK"
     for bad in (
@@ -1617,6 +1622,7 @@ def test_settings_per_account(env: Env) -> None:
         {"notify": "yes"},
         {"boss_key": "Ctrl+"},
         {"boss_key": 5},
+        {"show_avatars": "off"},
     ):
         assert env.client.patch("/api/settings", json=bad, headers=POST).status_code == 400
     assert (

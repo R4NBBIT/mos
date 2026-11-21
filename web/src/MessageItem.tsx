@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { type CSSProperties, memo, useState } from "react";
 import MessageContent from "./MessageContent";
 import { formatSize, formatTime, isDiscordMediaUrl, thumbnailUrl } from "./format";
 import type { Attachment, Message, Sticker } from "./types";
@@ -40,7 +40,7 @@ interface Props {
   channelId?: string;
   /** bubble: 채팅 말풍선(기본), comment: 포럼 글·스레드의 게시판식 댓글, line: 메모장 한 줄 기록 */
   /** bubble 말풍선, comment 게시판 댓글, line 메모장 한 줄, row 노션 표의 한 줄 */
-  layout?: "bubble" | "comment" | "line" | "row";
+  layout?: "bubble" | "comment" | "line" | "row" | "para";
 }
 
 /** 본문·임베드·첨부(말풍선과 댓글이 같이 쓴다) */
@@ -186,11 +186,20 @@ export function AttachmentView({ attachment }: { attachment: Attachment }) {
   );
 }
 
+// Word 테마: 사람마다 같은 색(본문 왼쪽 막대, 이름표)
+const PARA_COLORS = ["#1f5fa8", "#a3620a", "#2f6b2f", "#8a5a2b", "#7a3e9d", "#b03a48", "#0f7b7b", "#5c5c9e"];
+
+export function paraColor(id: string): string {
+  let hash = 0;
+  for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return PARA_COLORS[hash % PARA_COLORS.length] ?? "#1f5fa8";
+}
+
 export function Avatar({ url, name }: { url: string | null; name: string }) {
   if (isDiscordMediaUrl(url)) {
-    return <img className="avatar" src={url} alt="" loading="lazy" referrerPolicy="no-referrer" />;
+    return <img className="avatar author-avatar" src={url} alt="" loading="lazy" referrerPolicy="no-referrer" />;
   }
-  return <div className="avatar avatar-fallback">{name.slice(0, 1)}</div>;
+  return <div className="avatar avatar-fallback author-avatar">{name.slice(0, 1)}</div>;
 }
 
 function MessageItem({
@@ -222,6 +231,13 @@ function MessageItem({
 
   if (isSystemMessage(message)) {
     // 입장, 고정 같은 알림: 디스코드처럼 가운데 작은 글씨(표에서는 흐린 한 줄)
+    if (layout === "para") {
+      return (
+        <p className="para para-system">
+          {systemText(message)} <span className="para-system-time">{formatTime(message.created_at)}</span>
+        </p>
+      );
+    }
     if (layout === "row") {
       return (
         <div className="db-row db-row-system" role="row">
@@ -318,6 +334,44 @@ function MessageItem({
           <Reactions message={message} myUserId={myUserId} onReact={onReact} compact />
           {actions}
         </div>
+      </div>
+    );
+  }
+
+  if (layout === "para") {
+    // Word 공동 작성: 본문은 평범한 문단, 누가 썼는지는 왼쪽 색 막대와 마우스를 올리면 뜨는 이름표
+    const who = `${author.name}${isApp ? " (앱)" : ""}`;
+    const when = `${formatTime(message.created_at)}${message.edited_at ? " (수정됨)" : ""}`;
+    const paraClasses = ["para"];
+    if (selected) paraClasses.push("para-selected");
+    if (grouped && !message.reference_id) paraClasses.push("para-grouped");
+    if (mine) paraClasses.push("para-mine");
+    return (
+      <div className={paraClasses.join(" ")} style={{ "--who": paraColor(author.id) } as CSSProperties}>
+        <span className="para-bar" aria-hidden="true" />
+        <span className="para-flag">
+          {who}
+          <span className="para-flag-time"> {when}</span>
+        </span>
+        {message.reference_id && (
+          <div className="msg-reply">
+            ↪ {reply ? <><strong>{reply.author}</strong> {reply.text}</> : "이전 문단에 답장"}
+          </div>
+        )}
+        <div
+          className="para-body"
+          title={`${who} ${when}`}
+          onClick={hasActions ? () => onSelect(selected ? null : message.id) : undefined}
+        >
+          <MessageBody message={message} />
+        </div>
+        <Reactions message={message} myUserId={myUserId} onReact={onReact} compact />
+        {selected && (
+          <div className="para-meta">
+            {who}, {when}
+          </div>
+        )}
+        {actions}
       </div>
     );
   }
