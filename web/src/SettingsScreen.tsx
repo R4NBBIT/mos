@@ -1,5 +1,7 @@
 import { type ChangeEvent, type ReactNode, useEffect, useState } from "react";
 import { updateSettings } from "./api";
+import BossKeyPicker from "./BossKeyPicker";
+import { bossKeyLabel, parseBossKey } from "./boss/bossKey";
 import { clearMyFile, FileImportError, importMyFile, loadMyFile } from "./boss/myFile";
 import { TEMPLATE_NAMES } from "./boss/templates";
 import { defaultTitle, type Settings, THEMES, type Theme } from "./theme";
@@ -141,9 +143,10 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onSho
 
         <h2 className="list-section-title">위장 화면</h2>
         <p className="settings-note">
-          어느 화면에서든 Esc를 빠르게 두 번 누르면 업무 표로 바뀌고, 한 번 더 두 번 누르면 돌아와요. 화면 왼쪽 아래
-          모서리를 눌러도 돼요.
+          어느 화면에서든 보스키({bossKeyLabel(parseBossKey(settings.boss_key))})를 누르면 업무 표로 바뀌고, 한 번 더
+          누르면 돌아와요. 화면 왼쪽 아래 모서리를 눌러도 돼요.
         </p>
+        <BossKeyPicker value={settings.boss_key} onSave={(value) => void save({ boss_key: value })} />
         <div className="boss-choices" role="radiogroup" aria-label="위장 화면 표">
           {TEMPLATE_NAMES.map((item) => {
             const disabled = item.id === "myfile" && !myFile;

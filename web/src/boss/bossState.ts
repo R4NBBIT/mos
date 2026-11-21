@@ -8,3 +8,14 @@ export function setDisguised(value: boolean): void {
 export function isDisguised(): boolean {
   return disguised;
 }
+
+// 설정에서 새 보스키를 누르는 중에는 보스키로 반응하지 않는다
+let capturing = false;
+
+export function setCapturingKey(value: boolean): void {
+  capturing = value;
+}
+
+export function isCapturingKey(): boolean {
+  return capturing;
+}

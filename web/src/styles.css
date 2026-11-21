@@ -2538,3 +2538,90 @@ button.tag-chip:disabled {
 .app-root {
   height: 100%;
 }
+
+.boss-key-row {
+  margin: 8px 2px;
+}
+
+.boss-key-current {
+  flex: 1;
+  font-size: 14px;
+}
+
+.boss-key-panel {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.boss-key-listen {
+  display: block;
+  width: 100%;
+  margin: 8px 0;
+  padding: 10px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.boss-key-listening {
+  border-style: solid;
+  border-color: var(--ink);
+  font-weight: 700;
+}
+
+.boss-key-build {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  font-size: 14px;
+}
+
+.boss-key-build select {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font: inherit;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.boss-key-mod {
+  margin: 0;
+}
+
+.boss-key-warnings {
+  margin: 10px 0 4px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.boss-key-warnings li {
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.boss-key-blocked {
+  background: rgba(192, 57, 43, 0.1);
+  color: var(--danger);
+}
+
+.boss-key-caution {
+  background: var(--honey-soft);
+  color: var(--ink);
+}
+
+.boss-key-ok {
+  margin-top: 10px;
+}

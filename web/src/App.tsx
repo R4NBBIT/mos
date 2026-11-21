@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AccountMenu from "./AccountMenu";
 import BossScreen from "./boss/BossScreen";
-import { setDisguised } from "./boss/bossState";
+import { DOUBLE_PRESS_MS, keyFromEvent, parseBossKey, sameKey } from "./boss/bossKey";
+import { isCapturingKey, setDisguised } from "./boss/bossState";
 import { loadMyFile } from "./boss/myFile";
 import { buildTemplate, type Workbook } from "./boss/templates";
 import { fetchSession, fetchSettings, lock } from "./api";
@@ -306,8 +307,6 @@ function Screens({ look, setLook, refreshKey, onShowBoss, onFileChanged }: Scree
   return groupList;
 }
 
-const DOUBLE_ESC_MS = 450;
-
 /** 위장 화면에 쓸 표: 고른 템플릿(날짜는 오늘 기준) 또는 불러온 내 파일 */
 function pickWorkbook(
   template: BossTemplate,
@@ -359,20 +358,33 @@ export default function App() {
     [relock],
   );
 
-  // 보스키: Esc 두 번 빠르게(어느 화면에서나)
+  // 보스키(기본 Esc 두 번, 사람마다 바꿀 수 있음). 어느 화면에서나
+  const bossKey = look.boss_key;
   useEffect(() => {
+    const wanted = parseBossKey(bossKey);
     let last = 0;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.repeat) return;
-      const now = Date.now();
-      if (now - last <= DOUBLE_ESC_MS) {
+      if (event.repeat || isCapturingKey()) return;
+      const pressed = keyFromEvent(event);
+      if (!pressed || !sameKey(pressed, wanted)) {
         last = 0;
+        return;
+      }
+      if (!wanted.double) {
+        event.preventDefault();
+        toggle();
+        return;
+      }
+      const now = Date.now();
+      if (now - last <= DOUBLE_PRESS_MS) {
+        last = 0;
+        event.preventDefault();
         toggle();
       } else last = now;
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [toggle]);
+  }, [toggle, bossKey]);
 
   // 자동 위장(선택): 창에서 벗어나거나 마우스가 창 밖으로 나가면
   useEffect(() => {

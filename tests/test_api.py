@@ -1300,6 +1300,7 @@ def test_settings_per_account(env: Env) -> None:
         "boss_template": "weekly",
         "boss_auto": False,
         "boss_relock": False,
+        "boss_key": "Escape*2",
     }
     assert env.client.get("/api/settings").json() == defaults
     changed = env.client.patch(
@@ -1312,7 +1313,16 @@ def test_settings_per_account(env: Env) -> None:
         headers=POST,
     ).json()
     assert (boss["boss_template"], boss["boss_auto"], boss["boss_relock"]) == ("budget", True, True)
-    for bad in ({"boss_template": "../x"}, {"boss_auto": "yes"}, {"boss_relock": 1}):
+    key = env.client.patch("/api/settings", json={"boss_key": "Ctrl+Shift+KeyK"}, headers=POST)
+    assert key.json()["boss_key"] == "Ctrl+Shift+KeyK"
+    for bad in (
+        {"boss_template": "../x"},
+        {"boss_auto": "yes"},
+        {"boss_relock": 1},
+        {"boss_key": "<script>"},
+        {"boss_key": "Ctrl+"},
+        {"boss_key": 5},
+    ):
         assert env.client.patch("/api/settings", json=bad, headers=POST).status_code == 400
     assert (
         env.client.patch("/api/settings", json={"theme": "pink"}, headers=POST).status_code == 400

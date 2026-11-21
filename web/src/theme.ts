@@ -12,6 +12,8 @@ export interface Settings {
   boss_template: BossTemplate;
   boss_auto: boolean;
   boss_relock: boolean;
+  /** 보스키(boss/bossKey.ts 모양) */
+  boss_key: string;
 }
 
 const BOSS_TEMPLATES: BossTemplate[] = ["weekly", "sales", "schedule", "budget", "myfile"];
@@ -22,7 +24,10 @@ export const DEFAULT_SETTINGS: Settings = {
   boss_template: "weekly",
   boss_auto: false,
   boss_relock: false,
+  boss_key: "Escape*2",
 };
+
+const BOSS_KEY_RE = /^(?:(?:Ctrl|Alt|Shift|Meta)\+){0,4}[A-Za-z][A-Za-z0-9]{0,24}(?:\*2)?$/;
 
 export const THEMES: { id: Theme; name: string }[] = [
   { id: "moon", name: "달빛(기본)" },
@@ -97,6 +102,8 @@ export function cachedLook(): Settings {
             value.boss_template && BOSS_TEMPLATES.includes(value.boss_template) ? value.boss_template : "weekly",
           boss_auto: value.boss_auto === true,
           boss_relock: value.boss_relock === true,
+          boss_key:
+            typeof value.boss_key === "string" && BOSS_KEY_RE.test(value.boss_key) ? value.boss_key : "Escape*2",
         };
       }
     }
