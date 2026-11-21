@@ -483,23 +483,35 @@ button {
   min-width: 0;
 }
 
-/* 왼쪽 목록 접기·펼치기: 목록과 본문 사이 얇은 띠 */
-.split-toggle {
-  flex: 0 0 14px;
+/* 왼쪽 목록 접기·펼치기: 오른쪽 화면 머리 줄 맨 앞의 작은 아이콘 버튼 */
+.pane-toggle {
+  flex-shrink: 0;
   display: grid;
   place-items: center;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: 0;
-  border-right: 1px solid var(--line);
-  border-radius: 0;
-  background: var(--bg);
+  border-radius: 8px;
+  background: transparent;
   color: var(--sub);
   cursor: pointer;
 }
 
-.split-toggle:hover {
+.pane-toggle:hover {
   background: var(--tint);
   color: var(--ink);
+}
+
+.sheet-titlebar .pane-toggle {
+  width: 26px;
+  height: 26px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.sheet-titlebar .pane-toggle:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
 }
 
 .split .room {
@@ -509,7 +521,7 @@ button {
 .split-empty {
   display: grid;
   place-items: center;
-  height: 100%;
+  flex: 1;
   color: var(--sub);
 }
 

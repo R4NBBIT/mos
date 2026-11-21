@@ -1,3 +1,4 @@
+import SplitToggle from "./SplitToggle";
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ApiError,
@@ -372,6 +373,7 @@ export default function ChatRoom({
   return (
     <div className="room">
       <header className="room-header">
+        <SplitToggle />
         {showBack && (
           <button type="button" className="back-button" onClick={onBack} aria-label="채널 목록으로">
             ‹

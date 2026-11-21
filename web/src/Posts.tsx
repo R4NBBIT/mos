@@ -1,3 +1,4 @@
+import SplitToggle from "./SplitToggle";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, createPost, fetchThreads } from "./api";
 import { sendErrorText } from "./Composer";
@@ -377,6 +378,7 @@ export default function Posts({
   return (
     <div className="room">
       <header className="room-header">
+        <SplitToggle />
         {showBack && (
           <button type="button" className="back-button" onClick={() => onBack(parent)} aria-label="뒤로">
             ‹

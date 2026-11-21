@@ -10,6 +10,7 @@ import { ConnectScreen, PasswordSetup, ReconnectScreen, UnlockScreen } from "./A
 import { authText } from "./authText";
 import ChatRoom from "./ChatRoom";
 import Guide from "./Guide";
+import SplitToggle, { SplitContext } from "./SplitToggle";
 import { ChannelList, GroupList } from "./Lists";
 import Posts from "./Posts";
 import SettingsScreen from "./SettingsScreen";
@@ -251,22 +252,24 @@ function Screens({ look, setLook, refreshKey, onFileChanged }: ScreensProps) {
     };
     const openChannel = (groupId: string, channel: ChannelInfo) =>
       go(channel.kind === "forum" ? `#/g/${groupId}/p/${channel.id}` : `#/g/${groupId}/c/${channel.id}`);
-    const groupList = (
+    // 넓은 화면 왼쪽 목록에는 계정 메뉴·안내를 두지 않는다(계정 메뉴는 늘 오른쪽 위 같은 자리)
+    const listSide = { ...common, menu: null, notice: "" };
+    const groupList = (side = false) => (
       <GroupList
         key={active.id}
         onOpen={(groupId) => go(`#/g/${groupId}`)}
         onOpenChannel={openChannel}
-        {...common}
+        {...(side ? listSide : common)}
       />
     );
-    const channelList = (groupId: string, activeChannelId?: string) => (
+    const channelList = (groupId: string, activeChannelId?: string, side = false) => (
       <ChannelList
         key={`${active.id}:${groupId}`}
         groupId={groupId}
         activeChannelId={activeChannelId}
         onBack={() => go("#/")}
         onOpen={(channel) => openChannel(groupId, channel)}
-        {...common}
+        {...(side ? listSide : common)}
       />
     );
     const chatRoom = (groupId: string, channelId: string, inSplit: boolean, parentId?: string) => (
@@ -277,21 +280,21 @@ function Screens({ look, setLook, refreshKey, onFileChanged }: ScreensProps) {
         showBack={!inSplit || Boolean(parentId)}
         onBack={() => go(parentId ? `#/g/${groupId}/p/${parentId}` : `#/g/${groupId}`)}
         onOpenThreads={parentId ? undefined : () => go(`#/g/${groupId}/p/${channelId}`)}
-        menu={inSplit ? null : common.menu}
+        menu={common.menu}
         onAuthLost={changed}
-        notice={inSplit ? "" : notice}
+        notice={notice}
         onNoticeClose={common.onNoticeClose}
         theme={look.theme}
         onOpenChannel={(channel) => openChannel(groupId, channel)}
       />
     );
 
-    const posts = (groupId: string, parentId: string, inSplit: boolean) => (
+    const posts = (groupId: string, parentId: string) => (
       <Posts
         key={`${active.id}:${parentId}`}
         parentId={parentId}
         showBack
-        menu={inSplit ? null : common.menu}
+        menu={common.menu}
         onBack={(parent) =>
           go(parent && parent.kind !== "forum" ? `#/g/${groupId}/c/${parentId}` : `#/g/${groupId}`)
         }
@@ -317,57 +320,63 @@ function Screens({ look, setLook, refreshKey, onFileChanged }: ScreensProps) {
     // 목록 없이 한 화면(좁은 창, 또는 넓은 창에서 목록을 접었을 때)
     const single = () => {
       if (route.view === "chat") return chatRoom(route.groupId, route.channelId, false);
-      if (route.view === "posts") return posts(route.groupId, route.parentId, false);
+      if (route.view === "posts") return posts(route.groupId, route.parentId);
       if (route.view === "thread") return chatRoom(route.groupId, route.threadId, false, route.parentId);
       if (route.view === "channels") return channelList(route.groupId);
-      return groupList;
+      return groupList();
     };
     if (!wide) return single();
 
-    const toggle = (
-      <button
-        type="button"
-        className="split-toggle"
-        aria-expanded={listOpen}
-        aria-label={listOpen ? "왼쪽 목록 접기" : "왼쪽 목록 펼치기"}
-        title={listOpen ? "목록 접기" : "목록 펼치기"}
-        onClick={() => setListOpen(!listOpen)}
-      >
-        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
-          <path d={listOpen ? "M10 3 5 8l5 5" : "m6 3 5 5-5 5"} fill="none" stroke="currentColor" strokeWidth="1.8" />
-        </svg>
-      </button>
-    );
+    // 넓은 화면: 접고 펴는 버튼은 오른쪽 화면 머리 줄 맨 앞, 계정 메뉴는 오른쪽 위에 늘 같은 자리
+    const split = { open: listOpen, toggle: () => setListOpen(!listOpen) };
     if (!listOpen) {
       return (
-        <div className="split split-closed">
-          {toggle}
-          <main className="split-main">{single()}</main>
-        </div>
+        <SplitContext.Provider value={split}>
+          <div className="split">
+            <main className="split-main">{single()}</main>
+          </div>
+        </SplitContext.Provider>
       );
     }
     return (
       <div className="split">
         <aside className="split-list">
           {route.view === "groups"
-            ? groupList
+            ? groupList(true)
             : channelList(
                 route.groupId,
                 route.view === "chat" ? route.channelId : route.view === "channels" ? undefined : route.parentId,
+                true,
               )}
         </aside>
-        {toggle}
-        <main className="split-main">
-          {route.view === "chat" ? (
-            chatRoom(route.groupId, route.channelId, true)
-          ) : route.view === "posts" ? (
-            posts(route.groupId, route.parentId, true)
-          ) : route.view === "thread" ? (
-            chatRoom(route.groupId, route.threadId, true, route.parentId)
-          ) : (
-            <div className="split-empty">왼쪽에서 {route.view === "groups" ? "모임" : "채널"}을 골라 주세요.</div>
-          )}
-        </main>
+        <SplitContext.Provider value={split}>
+          <main className="split-main">
+            {route.view === "chat" ? (
+              chatRoom(route.groupId, route.channelId, true)
+            ) : route.view === "posts" ? (
+              posts(route.groupId, route.parentId)
+            ) : route.view === "thread" ? (
+              chatRoom(route.groupId, route.threadId, true, route.parentId)
+            ) : (
+              <div className="room">
+                <header className="room-header">
+                  <SplitToggle />
+                  <div className="room-title" />
+                  {common.menu}
+                </header>
+                {notice && (
+                  <div className="room-notice" role="status">
+                    <span>{notice}</span>
+                    <button type="button" className="text-button" onClick={common.onNoticeClose} aria-label="안내 닫기">
+                      닫기
+                    </button>
+                  </div>
+                )}
+                <div className="split-empty">왼쪽에서 {route.view === "groups" ? "모임" : "채널"}을 골라 주세요.</div>
+              </div>
+            )}
+          </main>
+        </SplitContext.Provider>
       </div>
     );
   };

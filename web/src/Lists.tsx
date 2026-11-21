@@ -1,3 +1,4 @@
+import SplitToggle from "./SplitToggle";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, fetchGroupChannels, fetchGroups, setPinned } from "./api";
 import { isDiscordMediaUrl } from "./format";
@@ -151,6 +152,7 @@ function Shell({
   return (
     <div className="room">
       <header className="room-header">
+        <SplitToggle />
         {onBack && (
           <button type="button" className="back-button" onClick={onBack} aria-label="뒤로">
             ‹

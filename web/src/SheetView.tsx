@@ -1,3 +1,4 @@
+import SplitToggle from "./SplitToggle";
 import { type ReactNode, type RefObject, useEffect, useState } from "react";
 import { fetchGroupChannels } from "./api";
 import { dayKey, formatDay } from "./format";
@@ -406,6 +407,7 @@ export function SheetFrame(props: FrameProps) {
   return (
     <div className={props.variant ? `room sheet sheet-${props.variant}` : "room sheet"}>
       <header className="sheet-titlebar">
+        <SplitToggle />
         {props.showBack && (
           <button type="button" className="sheet-back" onClick={props.onBack} aria-label="뒤로">
             ‹
