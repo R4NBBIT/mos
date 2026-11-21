@@ -1,19 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AccountMenu from "./AccountMenu";
 import BossScreen from "./boss/BossScreen";
 import { DOUBLE_PRESS_MS, keyFromEvent, parseBossKey, sameKey } from "./boss/bossKey";
 import { isCapturingKey, setDisguised } from "./boss/bossState";
 import { loadMyFile } from "./boss/myFile";
 import { buildTemplate, type Workbook } from "./boss/templates";
-import { fetchSession, fetchSettings, lock } from "./api";
+import { fetchSession, fetchSettings, lock, updateSettings } from "./api";
 import { ConnectScreen, PasswordSetup, ReconnectScreen, UnlockScreen } from "./AuthScreens";
 import { authText } from "./authText";
 import ChatRoom from "./ChatRoom";
+import Guide from "./Guide";
 import { ChannelList, GroupList } from "./Lists";
 import Posts from "./Posts";
 import SettingsScreen from "./SettingsScreen";
 import { applyDisguise, applyLook, type BossTemplate, cachedLook, type Settings } from "./theme";
 import type { ChannelInfo, SessionAccount, SessionState } from "./types";
+import { useNotifications } from "./useNotifications";
 
 // 서버의 자동 잠금(30분)과 같게. 조작이 없으면 화면도 잠금으로 간다
 const AUTO_LOCK_MS = 30 * 60 * 1000;
@@ -139,11 +141,10 @@ interface ScreensProps {
   setLook: (settings: Settings) => void;
   /** 바뀌면 세션을 다시 받는다(위장 화면에서 돌아오며 잠갔을 때) */
   refreshKey: number;
-  onShowBoss: () => void;
   onFileChanged: () => void;
 }
 
-function Screens({ look, setLook, refreshKey, onShowBoss, onFileChanged }: ScreensProps) {
+function Screens({ look, setLook, refreshKey, onFileChanged }: ScreensProps) {
   const [session, setSession] = useState<SessionState | null>(null);
   const [failed, setFailed] = useState(false);
   const [notice, setNotice] = useState(takeConnectError);
@@ -183,12 +184,16 @@ function Screens({ look, setLook, refreshKey, onShowBoss, onFileChanged }: Scree
   const open = Boolean(active && !active.locked && active.password_set && !active.disconnected);
   const openAccountId = open ? active?.id : undefined;
   // 열린 계정의 설정(테마·탭 제목)을 받아 온다. 계정을 바꾸면 그 계정 것으로
+  const [showGuide, setShowGuide] = useState(false);
   useEffect(() => {
     if (!openAccountId) return;
     let stopped = false;
+    setShowGuide(false);
     fetchSettings()
       .then((value) => {
-        if (!stopped) setLook(value);
+        if (stopped) return;
+        setLook(value);
+        if (!value.guide_done) setShowGuide(true); // 이 계정으로 처음 들어왔으면 사용 안내
       })
       .catch(() => {});
     return () => {
@@ -196,6 +201,20 @@ function Screens({ look, setLook, refreshKey, onShowBoss, onFileChanged }: Scree
     };
   }, [openAccountId]);
   useIdleLock(open && !active?.kept, changed);
+  const closeGuide = useCallback(() => {
+    setShowGuide(false);
+    if (look.guide_done) return;
+    setLook({ ...look, guide_done: true });
+    updateSettings({ guide_done: true }).catch(() => {}); // 못 남기면 다음에 한 번 더 보일 뿐
+  }, [look, setLook]);
+  useNotifications({
+    enabled: open && look.notify,
+    scope: look.notify_scope,
+    preview: look.notify_preview,
+    accountId: openAccountId,
+    currentChannel: route.view === "chat" ? route.channelId : route.view === "thread" ? route.threadId : null,
+    onOpen: go,
+  });
 
   if (session === null) {
     return (
@@ -216,140 +235,148 @@ function Screens({ look, setLook, refreshKey, onShowBoss, onFileChanged }: Scree
   if (active.locked) {
     return <UnlockScreen session={session} account={active} notice={notice} onChanged={changed} />;
   }
-  const common = {
-    menu: (
-      <AccountMenu
-        session={session}
-        account={active}
-        onChanged={changed}
-        onOpenSettings={() => go("#/settings")}
-      />
-    ),
-    onAuthLost: changed,
-    notice,
-    onNoticeClose: () => setNotice(""),
-  };
-  const openChannel = (groupId: string, channel: ChannelInfo) =>
-    go(channel.kind === "forum" ? `#/g/${groupId}/p/${channel.id}` : `#/g/${groupId}/c/${channel.id}`);
-  const groupList = (
-    <GroupList
-      key={active.id}
-      onOpen={(groupId) => go(`#/g/${groupId}`)}
-      onOpenChannel={openChannel}
-      {...common}
-    />
-  );
-  const channelList = (groupId: string, activeChannelId?: string) => (
-    <ChannelList
-      key={`${active.id}:${groupId}`}
-      groupId={groupId}
-      activeChannelId={activeChannelId}
-      onBack={() => go("#/")}
-      onOpen={(channel) => openChannel(groupId, channel)}
-      {...common}
-    />
-  );
-  const chatRoom = (groupId: string, channelId: string, inSplit: boolean, parentId?: string) => (
-    <ChatRoom
-      key={`${active.id}:${channelId}`}
-      channelId={channelId}
-      myUserId={active.user_id}
-      showBack={!inSplit || Boolean(parentId)}
-      onBack={() => go(parentId ? `#/g/${groupId}/p/${parentId}` : `#/g/${groupId}`)}
-      onOpenThreads={parentId ? undefined : () => go(`#/g/${groupId}/p/${channelId}`)}
-      menu={inSplit ? null : common.menu}
-      onAuthLost={changed}
-      notice={inSplit ? "" : notice}
-      onNoticeClose={common.onNoticeClose}
-      theme={look.theme}
-      onOpenChannel={(channel) => openChannel(groupId, channel)}
-    />
-  );
-
-  const posts = (groupId: string, parentId: string, inSplit: boolean) => (
-    <Posts
-      key={`${active.id}:${parentId}`}
-      parentId={parentId}
-      showBack
-      menu={inSplit ? null : common.menu}
-      onBack={(parent) =>
-        go(parent && parent.kind !== "forum" ? `#/g/${groupId}/c/${parentId}` : `#/g/${groupId}`)
-      }
-      onOpen={(threadId) => go(`#/g/${groupId}/p/${parentId}/t/${threadId}`)}
-      onAuthLost={changed}
-      theme={look.theme}
-      onOpenChannel={(channel) => openChannel(groupId, channel)}
-    />
-  );
-
-  if (route.view === "settings") {
-    return (
-      <SettingsScreen
-        settings={look}
-        onChange={setLook}
-        onBack={() => window.history.back()}
-        menu={common.menu}
-        onShowBoss={onShowBoss}
-        onFileChanged={onFileChanged}
+  const screen = (): ReactNode => {
+    const common = {
+      menu: (
+        <AccountMenu
+          session={session}
+          account={active}
+          onChanged={changed}
+          onOpenSettings={() => go("#/settings")}
+        onOpenGuide={() => setShowGuide(true)}
+        />
+      ),
+      onAuthLost: changed,
+      notice,
+      onNoticeClose: () => setNotice(""),
+    };
+    const openChannel = (groupId: string, channel: ChannelInfo) =>
+      go(channel.kind === "forum" ? `#/g/${groupId}/p/${channel.id}` : `#/g/${groupId}/c/${channel.id}`);
+    const groupList = (
+      <GroupList
+        key={active.id}
+        onOpen={(groupId) => go(`#/g/${groupId}`)}
+        onOpenChannel={openChannel}
+        {...common}
       />
     );
-  }
+    const channelList = (groupId: string, activeChannelId?: string) => (
+      <ChannelList
+        key={`${active.id}:${groupId}`}
+        groupId={groupId}
+        activeChannelId={activeChannelId}
+        onBack={() => go("#/")}
+        onOpen={(channel) => openChannel(groupId, channel)}
+        {...common}
+      />
+    );
+    const chatRoom = (groupId: string, channelId: string, inSplit: boolean, parentId?: string) => (
+      <ChatRoom
+        key={`${active.id}:${channelId}`}
+        channelId={channelId}
+        myUserId={active.user_id}
+        showBack={!inSplit || Boolean(parentId)}
+        onBack={() => go(parentId ? `#/g/${groupId}/p/${parentId}` : `#/g/${groupId}`)}
+        onOpenThreads={parentId ? undefined : () => go(`#/g/${groupId}/p/${channelId}`)}
+        menu={inSplit ? null : common.menu}
+        onAuthLost={changed}
+        notice={inSplit ? "" : notice}
+        onNoticeClose={common.onNoticeClose}
+        theme={look.theme}
+        onOpenChannel={(channel) => openChannel(groupId, channel)}
+      />
+    );
 
-  // 목록 없이 한 화면(좁은 창, 또는 넓은 창에서 목록을 접었을 때)
-  const single = () => {
-    if (route.view === "chat") return chatRoom(route.groupId, route.channelId, false);
-    if (route.view === "posts") return posts(route.groupId, route.parentId, false);
-    if (route.view === "thread") return chatRoom(route.groupId, route.threadId, false, route.parentId);
-    if (route.view === "channels") return channelList(route.groupId);
-    return groupList;
-  };
-  if (!wide) return single();
+    const posts = (groupId: string, parentId: string, inSplit: boolean) => (
+      <Posts
+        key={`${active.id}:${parentId}`}
+        parentId={parentId}
+        showBack
+        menu={inSplit ? null : common.menu}
+        onBack={(parent) =>
+          go(parent && parent.kind !== "forum" ? `#/g/${groupId}/c/${parentId}` : `#/g/${groupId}`)
+        }
+        onOpen={(threadId) => go(`#/g/${groupId}/p/${parentId}/t/${threadId}`)}
+        onAuthLost={changed}
+        theme={look.theme}
+        onOpenChannel={(channel) => openChannel(groupId, channel)}
+      />
+    );
 
-  const toggle = (
-    <button
-      type="button"
-      className="split-toggle"
-      aria-expanded={listOpen}
-      aria-label={listOpen ? "왼쪽 목록 접기" : "왼쪽 목록 펼치기"}
-      title={listOpen ? "목록 접기" : "목록 펼치기"}
-      onClick={() => setListOpen(!listOpen)}
-    >
-      <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
-        <path d={listOpen ? "M10 3 5 8l5 5" : "m6 3 5 5-5 5"} fill="none" stroke="currentColor" strokeWidth="1.8" />
-      </svg>
-    </button>
-  );
-  if (!listOpen) {
+    if (route.view === "settings") {
+      return (
+        <SettingsScreen
+          settings={look}
+          onChange={setLook}
+          onBack={() => window.history.back()}
+          menu={common.menu}
+          onFileChanged={onFileChanged}
+        />
+      );
+    }
+
+    // 목록 없이 한 화면(좁은 창, 또는 넓은 창에서 목록을 접었을 때)
+    const single = () => {
+      if (route.view === "chat") return chatRoom(route.groupId, route.channelId, false);
+      if (route.view === "posts") return posts(route.groupId, route.parentId, false);
+      if (route.view === "thread") return chatRoom(route.groupId, route.threadId, false, route.parentId);
+      if (route.view === "channels") return channelList(route.groupId);
+      return groupList;
+    };
+    if (!wide) return single();
+
+    const toggle = (
+      <button
+        type="button"
+        className="split-toggle"
+        aria-expanded={listOpen}
+        aria-label={listOpen ? "왼쪽 목록 접기" : "왼쪽 목록 펼치기"}
+        title={listOpen ? "목록 접기" : "목록 펼치기"}
+        onClick={() => setListOpen(!listOpen)}
+      >
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+          <path d={listOpen ? "M10 3 5 8l5 5" : "m6 3 5 5-5 5"} fill="none" stroke="currentColor" strokeWidth="1.8" />
+        </svg>
+      </button>
+    );
+    if (!listOpen) {
+      return (
+        <div className="split split-closed">
+          {toggle}
+          <main className="split-main">{single()}</main>
+        </div>
+      );
+    }
     return (
-      <div className="split split-closed">
+      <div className="split">
+        <aside className="split-list">
+          {route.view === "groups"
+            ? groupList
+            : channelList(
+                route.groupId,
+                route.view === "chat" ? route.channelId : route.view === "channels" ? undefined : route.parentId,
+              )}
+        </aside>
         {toggle}
-        <main className="split-main">{single()}</main>
+        <main className="split-main">
+          {route.view === "chat" ? (
+            chatRoom(route.groupId, route.channelId, true)
+          ) : route.view === "posts" ? (
+            posts(route.groupId, route.parentId, true)
+          ) : route.view === "thread" ? (
+            chatRoom(route.groupId, route.threadId, true, route.parentId)
+          ) : (
+            <div className="split-empty">왼쪽에서 {route.view === "groups" ? "모임" : "채널"}을 골라 주세요.</div>
+          )}
+        </main>
       </div>
     );
-  }
+  };
   return (
-    <div className="split">
-      <aside className="split-list">
-        {route.view === "groups"
-          ? groupList
-          : channelList(
-              route.groupId,
-              route.view === "chat" ? route.channelId : route.view === "channels" ? undefined : route.parentId,
-            )}
-      </aside>
-      {toggle}
-      <main className="split-main">
-        {route.view === "chat" ? (
-          chatRoom(route.groupId, route.channelId, true)
-        ) : route.view === "posts" ? (
-          posts(route.groupId, route.parentId, true)
-        ) : route.view === "thread" ? (
-          chatRoom(route.groupId, route.threadId, true, route.parentId)
-        ) : (
-          <div className="split-empty">왼쪽에서 {route.view === "groups" ? "모임" : "채널"}을 골라 주세요.</div>
-        )}
-      </main>
-    </div>
+    <>
+      {screen()}
+      {showGuide && <Guide settings={look} wide={wide} onClose={closeGuide} />}
+    </>
   );
 }
 
@@ -457,7 +484,6 @@ export default function App() {
           look={look}
           setLook={setLook}
           refreshKey={refreshKey}
-          onShowBoss={() => toggle(true)}
           onFileChanged={() => setFileVersion((version) => version + 1)}
         />
       </div>

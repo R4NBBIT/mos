@@ -194,6 +194,24 @@ export default function ChatRoom({
     }
   }, [messages]);
 
+  // 맨 아래를 보고 있으면, 목록 크기가 바뀌거나(휴대폰 키보드·입력창 높이) 그림이 늦게 떠도 맨 아래 유지
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const keep = () => {
+      if (stickToBottom.current && keepOffset.current === null) list.scrollTop = list.scrollHeight;
+    };
+    const observer = new ResizeObserver(keep);
+    observer.observe(list);
+    list.addEventListener("load", keep, true); // 그림은 이벤트가 위로 안 올라와 잡아채기로
+    window.visualViewport?.addEventListener("resize", keep);
+    return () => {
+      observer.disconnect();
+      list.removeEventListener("load", keep, true);
+      window.visualViewport?.removeEventListener("resize", keep);
+    };
+  }, [channel?.id, theme]);
+
   const onScroll = () => {
     const list = listRef.current;
     if (!list) return;
@@ -206,6 +224,7 @@ export default function ChatRoom({
 
   const submit = async (text: string, nonce: string, files: File[]) => {
     if (!channel) return;
+    if (!editing) stickToBottom.current = true; // 보내면 내 글이 보이게 맨 아래로(먼저 도착하는 실시간 이벤트 포함)
     if (editing) {
       const saved = await editMessage(editing.id, text);
       setMessages((current) => mergeMessages(current, [saved]));

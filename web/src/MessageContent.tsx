@@ -121,6 +121,15 @@ function safeHref(raw: string): string | null {
   }
 }
 
+const discordLinkPattern =
+  /^https:\/\/(?:www\.|ptb\.|canary\.)?discord(?:app)?\.com\/channels\/(\d{15,21})\/(\d{15,21})(?:\/\d{15,21})?\/?$/;
+
+/** 디스코드 채널·메시지 주소면 ㅁㅇㅅ 화면 주소(#/g/모임/c/채널), 아니면 null */
+export function insideRoute(href: string): string | null {
+  const match = discordLinkPattern.exec(href);
+  return match ? `#/g/${match[1]}/c/${match[2]}` : null;
+}
+
 function Link({
   href,
   children,
@@ -130,6 +139,15 @@ function Link({
   children: ReactNode;
   title?: string;
 }) {
+  // 디스코드 채널·메시지 주소는 디스코드를 열지 않고 ㅁㅇㅅ 안의 그 채널로
+  const inside = insideRoute(href);
+  if (inside) {
+    return (
+      <a className="md-link" href={inside} onClick={(event) => event.stopPropagation()}>
+        {children}
+      </a>
+    );
+  }
   return (
     <a
       className="md-link"

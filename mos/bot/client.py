@@ -47,6 +47,7 @@ THREAD_CACHE_MAX = 2000
 DELETE_COMMAND_NAME = "ㅁㅇㅅ 메시지 삭제"
 UNKNOWN_WEBHOOK = 10015
 UNKNOWN_MESSAGE = 10008
+WEB_SENT_GRACE_SEC = 2.0  # 웹훅 메시지의 '웹에서 보낸 기록'을 기다리는 시간
 
 
 def build_intents() -> discord.Intents:
@@ -172,6 +173,7 @@ class MosBot(discord.Client):
         self._history_done: set[int] = set()
         self._sync_locks: dict[int, asyncio.Lock] = {}
         self._thread_cache: dict[int, tuple[float, ChannelInfo]] = {}
+        self._notify_tasks: set[asyncio.Task[None]] = set()
 
     async def setup_hook(self) -> None:
         self.tree.add_command(
@@ -467,6 +469,21 @@ class MosBot(discord.Client):
         row = await self.repo.get(message.id)
         if row is not None:
             await self.hub.publish(message.channel.id, event_type, row_to_api(row))
+            if event_type == "message_create":
+                task = asyncio.create_task(self._notify(message.channel.id, row))
+                self._notify_tasks.add(task)
+                task.add_done_callback(self._notify_tasks.discard)
+
+    async def _notify(self, channel_id: int, row: dict[str, Any]) -> None:
+        """알림을 켠 사람에게. 웹에서 보낸 메시지는 보낸 기록이 조금 늦게 남을 수 있어
+        잠깐 기다렸다 다시 읽는다(내가 보낸 글이 나에게 알림으로 오지 않게)."""
+        try:
+            if row["webhook_id"] is not None and row.get("web_sender_id") is None:
+                await asyncio.sleep(WEB_SENT_GRACE_SEC)
+                row = await self.repo.get(row["id"]) or row
+            await self.hub.notify(channel_id, row_to_api(row))
+        except Exception:
+            log.exception("알림 보내기 실패")
 
 
 class DeleteConfirmView(discord.ui.View):

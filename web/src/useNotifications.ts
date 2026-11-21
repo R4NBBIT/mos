@@ -1,0 +1,200 @@
+// 알림: 나를 부른 메시지(그리고 고르면 고정한 채널의 새 메시지)를 실시간 연결로 받아
+// 탭 제목 앞 숫자와 브라우저 알림 창으로 알려 준다.
+// 위장 화면 중에는 알림 창을 띄우지 않고, 내용은 설정에서 켠 경우에만 보인다.
+import { useCallback, useEffect, useRef, useState } from "react";
+import { isDisguised } from "./boss/bossState";
+import { currentBaseTitle, currentIcon, type NotifyScope, setTitleBadge } from "./theme";
+
+const MAX_RETRY_MS = 30_000;
+const PING_INTERVAL_MS = 30_000;
+const POLICY_VIOLATION = 1008;
+const PREVIEW_LIMIT = 80;
+
+export interface NotifyEvent {
+  message_id: string;
+  channel_id: string;
+  group_id: string;
+  parent_id: string | null;
+  channel_name: string;
+  group_name: string;
+  author_name: string;
+  content: string;
+  extra: string;
+  mentioned: boolean;
+}
+
+export type PopupSupport = "granted" | "default" | "denied" | "unsupported";
+
+/** 이 브라우저가 알림 창을 띄울 수 있는지. 안드로이드 크롬·아이폰 사파리(홈 화면 앱이 아닐 때)는 못 띄운다 */
+export function popupSupport(): PopupSupport {
+  if (!("Notification" in window) || /Android/i.test(navigator.userAgent)) return "unsupported";
+  return Notification.permission as PopupSupport;
+}
+
+/** 알림 창 허용 묻기(버튼을 눌렀을 때만 부른다) */
+export async function askPopupPermission(): Promise<PopupSupport> {
+  if (popupSupport() === "unsupported") return "unsupported";
+  try {
+    return (await Notification.requestPermission()) as PopupSupport;
+  } catch {
+    return popupSupport();
+  }
+}
+
+/** 알림 창에 넣을 한 줄: 디스코드 코드·서식 기호를 뺀다 */
+function previewText(event: NotifyEvent): string {
+  const text = event.content
+    .replace(/^> ↪ .*\n/, "")
+    .replace(/<@[!&]?\d+>/g, "@멘션")
+    .replace(/<#\d+>/g, "#채널")
+    .replace(/<a?:(\w+):\d+>/g, ":$1:")
+    .replace(/<t:-?\d+(?::[tTdDfFR])?>/g, "(시간)")
+    .replace(/\|\|[\s\S]+?\|\|/g, "(스포일러)")
+    .replace(/\*\*|__|~~|`/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const shown = text.length > PREVIEW_LIMIT ? `${text.slice(0, PREVIEW_LIMIT)}…` : text;
+  return shown || (event.extra ? `(${event.extra})` : "");
+}
+
+/** 알림을 누르면 갈 화면 주소 */
+export function notifyRoute(event: NotifyEvent): string {
+  return event.parent_id
+    ? `#/g/${event.group_id}/p/${event.parent_id}/t/${event.channel_id}`
+    : `#/g/${event.group_id}/c/${event.channel_id}`;
+}
+
+interface Options {
+  /** 알림을 켰고 계정이 열려 있을 때만 */
+  enabled: boolean;
+  scope: NotifyScope;
+  preview: boolean;
+  /** 열린 계정이 바뀌면 다시 연결 */
+  accountId: string | undefined;
+  /** 지금 보고 있는 채널(보고 있는 채널의 새 글은 세지 않는다) */
+  currentChannel: string | null;
+  onOpen: (route: string) => void;
+}
+
+export function useNotifications({ enabled, scope, preview, accountId, currentChannel, onOpen }: Options): void {
+  const [counts, setCountsState] = useState<Record<string, number>>({});
+  const countsRef = useRef<Record<string, number>>({});
+  const setCounts = useCallback((next: Record<string, number>) => {
+    countsRef.current = next;
+    setCountsState(next);
+  }, []);
+  const optionsRef = useRef({ scope, preview, currentChannel, onOpen });
+  optionsRef.current = { scope, preview, currentChannel, onOpen };
+  const socketRef = useRef<WebSocket | null>(null);
+  const popupRef = useRef<Notification | null>(null);
+
+  const sendScope = useCallback((socket: WebSocket | null) => {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: "notify", scope: optionsRef.current.scope }));
+    }
+  }, []);
+
+  const clearChannel = useCallback((channelId: string | null) => {
+    if (!channelId || !(channelId in countsRef.current)) return;
+    const next = { ...countsRef.current };
+    delete next[channelId];
+    setCounts(next);
+  }, [setCounts]);
+
+  const showPopup = useCallback((event: NotifyEvent, total: number) => {
+    if (isDisguised() || popupSupport() !== "granted") return;
+    if (document.visibilityState === "visible" && document.hasFocus()) return; // 화면을 보고 있으면 숫자만
+    const showContent = optionsRef.current.preview;
+    const title = showContent ? `${event.author_name} · #${event.channel_name}` : currentBaseTitle();
+    const body = showContent ? previewText(event) : `새 알림 ${total}건`;
+    try {
+      popupRef.current?.close();
+      const popup = new Notification(title, { body, icon: currentIcon(), tag: "mos-notify", silent: false });
+      popup.onclick = () => {
+        window.focus();
+        optionsRef.current.onOpen(notifyRoute(event));
+        popup.close();
+      };
+      popupRef.current = popup;
+    } catch {
+      // 알림 창을 못 만드는 브라우저(모바일 등)면 탭 제목 숫자만
+    }
+  }, []);
+
+  // 연결: 알림을 켠 동안만. 끊기면 1초→…→30초 간격으로 다시
+  useEffect(() => {
+    if (!enabled || !accountId) return;
+    let retryMs = 1000;
+    let retryTimer: number | undefined;
+    let pingTimer: number | undefined;
+    let stopped = false;
+
+    const connect = () => {
+      const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+      const socket = new WebSocket(`${scheme}://${window.location.host}/ws`);
+      socketRef.current = socket;
+      socket.onopen = () => {
+        retryMs = 1000;
+        sendScope(socket);
+        pingTimer = window.setInterval(() => socket.send("ping"), PING_INTERVAL_MS);
+      };
+      socket.onmessage = (message) => {
+        if (typeof message.data !== "string" || message.data === "pong") return;
+        let parsed: { type?: string; data?: NotifyEvent };
+        try {
+          parsed = JSON.parse(message.data) as { type?: string; data?: NotifyEvent };
+        } catch {
+          return;
+        }
+        const event = parsed.data;
+        if (parsed.type !== "notify" || !event || !/^\d+$/.test(event.channel_id)) return;
+        const watching =
+          optionsRef.current.currentChannel === event.channel_id &&
+          document.visibilityState === "visible" &&
+          !isDisguised();
+        if (watching) return;
+        const current = countsRef.current;
+        const next = { ...current, [event.channel_id]: (current[event.channel_id] ?? 0) + 1 };
+        setCounts(next);
+        showPopup(event, Object.values(next).reduce((sum, value) => sum + value, 0));
+      };
+      socket.onclose = (event) => {
+        window.clearInterval(pingTimer);
+        if (stopped || event.code === POLICY_VIOLATION) return; // 잠김·계정 바뀜이면 화면이 다시 연결한다
+        retryTimer = window.setTimeout(connect, retryMs);
+        retryMs = Math.min(retryMs * 2, MAX_RETRY_MS);
+      };
+    };
+
+    connect();
+    return () => {
+      stopped = true;
+      window.clearTimeout(retryTimer);
+      window.clearInterval(pingTimer);
+      socketRef.current?.close();
+      socketRef.current = null;
+      setCounts({});
+    };
+  }, [enabled, accountId, sendScope, showPopup, setCounts]);
+
+  // 범위를 바꾸면 연결은 그대로 두고 알려만 준다
+  useEffect(() => sendScope(socketRef.current), [scope, sendScope]);
+
+  // 채널을 열면(그리고 탭으로 돌아오면) 그 채널 숫자는 지운다
+  useEffect(() => {
+    clearChannel(currentChannel);
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      clearChannel(optionsRef.current.currentChannel);
+      popupRef.current?.close();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [currentChannel, clearChannel]);
+
+  // 탭 제목 숫자
+  const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
+  useEffect(() => {
+    setTitleBadge(enabled ? total : 0);
+  }, [enabled, total]);
+}

@@ -41,7 +41,7 @@ from mos.services.egress import EgressMeter
 from mos.services.emojis import EmojiService
 from mos.services.messages import row_to_api
 from mos.services.permissions import ChannelAccess, PermissionService
-from mos.services.realtime import RealtimeHub
+from mos.services.realtime import RealtimeHub, Subscriber
 from mos.services.sender import (
     MAX_FILES,
     MAX_FILES_BYTES,
@@ -67,6 +67,8 @@ OLDER_FETCH_LIMIT = 100
 MAX_PINNED_GROUPS = 5
 MAX_PINNED_CHANNELS = 10
 NONCE_PATTERN = r"^[A-Za-z0-9-]{8,64}$"
+NOTIFY_KINDS = {0, 19, 20, 23}  # 보통·답장·명령 응답(입장·고정 같은 시스템 알림은 알리지 않음)
+NOTIFY_TEXT_LIMIT = 300  # 알림에 보내는 본문 앞부분
 SNOWFLAKE_PATTERN = r"^[0-9]{15,21}$"
 UPLOAD_CHUNK = 64 * 1024
 THREAD_PAGE = 25
@@ -186,6 +188,53 @@ def create_app(
     cipher = TokenCipher(settings.secret_key)
     emojis = EmojiService(directory, perms)
     lists = ListsRepo(db)
+
+    async def notify_rule(
+        subscriber: Subscriber, channel_id: int, message: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """알림 조건: 남이 쓴 보통 메시지 중 나를 부른 것(멘션·내 글에 답장),
+        범위가 'pinned'면 고정한 채널(그 채널의 스레드 포함)의 새 메시지도."""
+        user = subscriber.user_id
+        if int(message.get("kind") or 0) not in NOTIFY_KINDS:
+            return None
+        if message["author"]["id"] == str(user) or message.get("web_sender_id") == str(user):
+            return None
+        channel = directory.channel(channel_id)
+        if channel is None:
+            return None
+        mentioned = str(user) in message["mentions"]["users"]
+        if not mentioned and message.get("reference_id"):
+            original = await repo.get(int(message["reference_id"]))
+            mentioned = original is not None and user in (
+                original["author_id"],
+                original.get("web_sender_id"),
+            )
+        if not mentioned:
+            if subscriber.notify_scope != "pinned":
+                return None
+            pinned = {
+                int(pin["target_id"])
+                for pin in await lists.pins(subscriber.account_id)
+                if pin["kind"] == "channel"
+            }
+            if channel_id not in pinned and channel.parent_id not in pinned:
+                return None
+        guild = directory.guild(channel.guild_id)
+        stickers = message.get("stickers") or []
+        return {
+            "message_id": message["id"],
+            "channel_id": str(channel_id),
+            "group_id": str(channel.guild_id),
+            "parent_id": str(channel.parent_id) if channel.parent_id else None,
+            "channel_name": channel.name,
+            "group_name": guild.name if guild else "",
+            "author_name": message["author"]["name"],
+            "content": message["content"][:NOTIFY_TEXT_LIMIT],
+            "extra": "스티커" if stickers else "첨부" if message.get("attachments") else "",
+            "mentioned": mentioned,
+        }
+
+    hub.set_notify_rule(notify_rule)
     settings_store = SettingsStore(db, clock=clock)
     egress = EgressMeter(lists, settings.egress_limit_bytes, notify=notify_operator, clock=clock)
     sender = (
@@ -753,7 +802,7 @@ def create_app(
             await websocket.close(code=WS_POLICY_VIOLATION)
             return
         await websocket.accept()
-        hub.add(websocket, account.discord_user_id)
+        hub.add(websocket, account.discord_user_id, account.account_id)
 
         async def watch_session() -> None:
             # 다른 탭에서 잠그거나 계정을 바꾸면, 열려 있던 연결도 끊는다(잠금 시간은 늘리지 않음)
@@ -791,10 +840,15 @@ def create_app(
     async def handle_client_message(
         websocket: WebSocket, account: ActiveAccount, text: str
     ) -> None:
-        """화면이 보는 채널을 알려 준다: {"type": "subscribe", "channel_id": "123" | null}"""
+        """화면이 보는 채널: {"type": "subscribe", "channel_id": "123" | null}
+        알림 받기: {"type": "notify", "scope": "mentions" | "pinned" | null}"""
         try:
             message = json.loads(text)
         except ValueError:
+            return
+        if isinstance(message, dict) and message.get("type") == "notify":
+            scope = message.get("scope")
+            hub.set_notify(websocket, scope if isinstance(scope, str) else None)
             return
         if not isinstance(message, dict) or message.get("type") != "subscribe":
             return

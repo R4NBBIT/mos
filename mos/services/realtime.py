@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 SEND_TIMEOUT_SEC = 5
 
 AccessCheck = Callable[[int, int], Awaitable[bool]]  # (사용자 ID, 채널 ID) → 볼 수 있나
+NOTIFY_SCOPES = ("mentions", "pinned")  # 나를 부른 것만 · 나를 부른 것 + 고정한 채널
 
 
 class JsonSocket(Protocol):
@@ -26,6 +27,19 @@ class JsonSocket(Protocol):
 class Subscriber:
     user_id: int
     channel_id: int | None = None
+    account_id: int = 0
+    # 알림을 받겠다고 한 접속만 범위가 있다(None이면 알림 안 보냄)
+    notify_scope: str | None = None
+
+
+# (구독자, 채널 ID, 메시지) → 알림으로 보낼 내용 또는 None(이 사람에게는 안 보냄)
+NotifyRule = Callable[[Subscriber, int, dict[str, Any]], Awaitable[dict[str, Any] | None]]
+
+
+async def _notify_nothing(
+    _subscriber: Subscriber, _channel_id: int, _message: dict[str, Any]
+) -> dict[str, Any] | None:
+    return None
 
 
 async def _allow_nothing(_user_id: int, _channel_id: int) -> bool:
@@ -36,16 +50,25 @@ class RealtimeHub:
     def __init__(self) -> None:
         self._sockets: dict[JsonSocket, Subscriber] = {}
         self._access_check: AccessCheck = _allow_nothing
+        self._notify_rule: NotifyRule = _notify_nothing
 
     def set_access_check(self, check: AccessCheck) -> None:
         self._access_check = check
+
+    def set_notify_rule(self, rule: NotifyRule) -> None:
+        self._notify_rule = rule
 
     @property
     def count(self) -> int:
         return len(self._sockets)
 
-    def add(self, socket: JsonSocket, user_id: int) -> None:
-        self._sockets[socket] = Subscriber(user_id=user_id)
+    def add(self, socket: JsonSocket, user_id: int, account_id: int = 0) -> None:
+        self._sockets[socket] = Subscriber(user_id=user_id, account_id=account_id)
+
+    def set_notify(self, socket: JsonSocket, scope: str | None) -> None:
+        subscriber = self._sockets.get(socket)
+        if subscriber is not None:
+            subscriber.notify_scope = scope if scope in NOTIFY_SCOPES else None
 
     def remove(self, socket: JsonSocket) -> None:
         self._sockets.pop(socket, None)
@@ -72,11 +95,44 @@ class RealtimeHub:
         if not sockets:
             return
         payload = {"type": event_type, "data": data}
+        await self._send_all([(socket, payload) for socket in sockets])
+
+    async def notify(self, channel_id: int, message: dict[str, Any]) -> None:
+        """새 메시지를 알림을 켠 접속에 알린다. 볼 수 있는지와 알림 조건은 사람마다 따로 본다."""
+        targets = [
+            (socket, subscriber)
+            for socket, subscriber in list(self._sockets.items())
+            if subscriber.notify_scope is not None
+        ]
+        if not targets:
+            return
+
+        async def decide(subscriber: Subscriber) -> dict[str, Any] | None:
+            if not await self._access_check(subscriber.user_id, channel_id):
+                return None
+            return await self._notify_rule(subscriber, channel_id, message)
+
+        decided = await asyncio.gather(
+            *(decide(subscriber) for _, subscriber in targets), return_exceptions=True
+        )
+        sends = [
+            (socket, {"type": "notify", "data": data})
+            for (socket, _), data in zip(targets, decided, strict=True)
+            if isinstance(data, dict)
+        ]
+        for result in decided:
+            if isinstance(result, Exception):
+                log.warning("알림 조건 확인 실패: %s", type(result).__name__)
+        await self._send_all(sends)
+
+    async def _send_all(self, sends: list[tuple[JsonSocket, dict[str, Any]]]) -> None:
+        if not sends:
+            return
         results = await asyncio.gather(
-            *(asyncio.wait_for(socket.send_json(payload), SEND_TIMEOUT_SEC) for socket in sockets),
+            *(asyncio.wait_for(socket.send_json(data), SEND_TIMEOUT_SEC) for socket, data in sends),
             return_exceptions=True,
         )
-        for socket, result in zip(sockets, results, strict=True):
+        for (socket, _), result in zip(sends, results, strict=True):
             if isinstance(result, Exception):
                 # 느리거나 끊긴 접속은 빼고, 다시 붙으면 처음부터 받아 간다
                 self.remove(socket)

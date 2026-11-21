@@ -15,7 +15,10 @@ MAX_TAB_TITLE = 40
 # 위장 화면(SCR-12) 템플릿: 주간 업무 보고 · 매출 요약 · 프로젝트 일정표 · 예산 집행 현황 · 내 파일
 # 내 파일 내용은 서버로 보내지 않는다(브라우저에만). 여기에는 '내 파일을 쓴다'는 선택만 남는다
 BOSS_TEMPLATES = ("weekly", "sales", "schedule", "budget", "myfile")
-BOOL_KEYS = ("boss_auto", "boss_relock")  # 자동 위장, 돌아올 때 잠그기
+# 자동 위장, 돌아올 때 잠그기, 알림, 알림에 내용 보이기, 처음 사용 안내를 봤는지
+BOOL_KEYS = ("boss_auto", "boss_relock", "notify", "notify_preview", "guide_done")
+# 알림 범위: 나를 부른 것만 · 나를 부른 것 + 고정한 채널의 새 메시지
+NOTIFY_SCOPES = ("mentions", "pinned")
 # 보스키: 보조키 + 키 위치 이름(KeyboardEvent.code), '*2'면 빠르게 두 번.
 # 예: Escape*2, Ctrl+Shift+KeyK
 BOSS_KEY_RE = re.compile(r"(?:(?:Ctrl|Alt|Shift|Meta)\+){0,4}[A-Za-z][A-Za-z0-9]{0,24}(?:\*2)?")
@@ -26,6 +29,10 @@ DEFAULTS: dict[str, Any] = {
     "boss_auto": False,
     "boss_relock": False,
     "boss_key": "Escape*2",
+    "notify": True,
+    "notify_scope": "pinned",
+    "notify_preview": False,
+    "guide_done": False,
 }
 
 
@@ -51,6 +58,10 @@ def clean(update: dict[str, Any]) -> dict[str, Any]:
         elif key == "boss_template":
             if value not in BOSS_TEMPLATES:
                 raise SettingsError("bad_boss_template")
+            result[key] = value
+        elif key == "notify_scope":
+            if value not in NOTIFY_SCOPES:
+                raise SettingsError("bad_notify_scope")
             result[key] = value
         elif key == "boss_key":
             if not isinstance(value, str) or not BOSS_KEY_RE.fullmatch(value):

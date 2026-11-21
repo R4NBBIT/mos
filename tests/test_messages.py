@@ -108,3 +108,18 @@ def test_stickers_kept() -> None:
     old = message_to_row(fake_message())
     del old["stickers_json"]
     assert row_to_api(old)["stickers"] == []
+
+
+def test_old_web_reply_quote_hidden() -> None:
+    # 보낸 기록(web_sent)이 없는 예전 웹 답장도 인용 줄을 떼고 원문 ID로 답장 표시
+    content = (
+        "> ↪ **ㅁㅁ**: 헐 진짜 된다 [원문](https://discord.com/channels/1/2/1573319705849102499)\n"
+        "오옹"
+    )
+    row = message_to_row(fake_message(content=content, webhook_id=99, reference=None))
+    api = row_to_api(row)
+    assert api["content"] == "오옹"
+    assert api["reference_id"] == "1573319705849102499"
+    # 사람이 직접 쓴 같은 모양의 글은 그대로 둔다
+    plain = row_to_api(message_to_row(fake_message(content=content, reference=None)))
+    assert plain["content"] == content

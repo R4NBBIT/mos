@@ -4,7 +4,16 @@ import BossKeyPicker from "./BossKeyPicker";
 import { bossKeyLabel, parseBossKey } from "./boss/bossKey";
 import { clearMyFile, FileImportError, importMyFile, loadMyFile } from "./boss/myFile";
 import { TEMPLATE_NAMES } from "./boss/templates";
+import { isTouchOnly } from "./device";
 import { defaultTitle, type Settings, THEMES, type Theme } from "./theme";
+import { askPopupPermission, popupSupport, type PopupSupport } from "./useNotifications";
+
+const POPUP_TEXT: Record<PopupSupport, string> = {
+  granted: "이 브라우저에서 알림 창을 띄울 수 있어요.",
+  default: "알림 창을 띄우려면 이 브라우저에서 한 번 허용해 주세요.",
+  denied: "이 브라우저에서 알림 창이 막혀 있어요. 주소창 왼쪽 자물쇠(사이트 설정)에서 알림을 '허용'으로 바꿔 주세요.",
+  unsupported: "이 브라우저(휴대폰 등)에서는 알림 창을 띄울 수 없어요. 탭 제목 숫자로만 알려요.",
+};
 
 // 테마 고르기 카드의 작은 미리보기(화면명세서 SCR-10)
 function Preview({ theme }: { theme: Theme }) {
@@ -41,18 +50,18 @@ interface Props {
   onChange: (settings: Settings) => void;
   onBack: () => void;
   menu: ReactNode;
-  /** 위장 화면 미리 보기 */
-  onShowBoss: () => void;
   /** 내 파일을 불러오거나 지웠을 때 */
   onFileChanged: () => void;
 }
 
-export default function SettingsScreen({ settings, onChange, onBack, menu, onShowBoss, onFileChanged }: Props) {
+export default function SettingsScreen({ settings, onChange, onBack, menu, onFileChanged }: Props) {
   const [title, setTitle] = useState(settings.tab_title ?? "");
   const [error, setError] = useState("");
   const [myFile, setMyFile] = useState(() => loadMyFile()?.fileName ?? null);
   const [fileBusy, setFileBusy] = useState(false);
   const [fileError, setFileError] = useState("");
+  const [popup, setPopup] = useState<PopupSupport>(popupSupport);
+  const touchOnly = isTouchOnly();
 
   const pickFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -146,11 +155,89 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onSho
         </section>
 
         <section className="settings-card">
+          <h2 className="settings-title">알림</h2>
+          <label className="settings-toggle">
+            <span>
+              <strong>알림 받기</strong>
+              <small>새 알림이 오면 탭 제목 앞에 숫자를 붙이고, 다른 창을 보고 있으면 알림 창을 띄워요</small>
+            </span>
+            <input
+              type="checkbox"
+              className="switch"
+              checked={settings.notify}
+              onChange={(event) => void save({ notify: event.target.checked })}
+            />
+          </label>
+          {settings.notify && (
+            <>
+              <h3 className="settings-sub">알려 줄 메시지</h3>
+              <div className="boss-choices" role="radiogroup" aria-label="알려 줄 메시지">
+                <label className="boss-choice">
+                  <input
+                    type="radio"
+                    name="notify-scope"
+                    checked={settings.notify_scope === "pinned"}
+                    onChange={() => void save({ notify_scope: "pinned" })}
+                  />
+                  나를 부른 메시지 + 고정한(★) 채널의 새 메시지
+                </label>
+                <label className="boss-choice">
+                  <input
+                    type="radio"
+                    name="notify-scope"
+                    checked={settings.notify_scope === "mentions"}
+                    onChange={() => void save({ notify_scope: "mentions" })}
+                  />
+                  나를 부른 메시지만
+                </label>
+              </div>
+              <p className="settings-note">나를 부른 메시지는 @내 이름이 들어간 글과 내 글에 단 답장이에요.</p>
+              <label className="settings-toggle">
+                <span>
+                  <strong>알림 창에 보낸 사람·내용 보이기</strong>
+                  <small>끄면 탭 제목과 '새 알림 n건'만 보여서 옆에서 봐도 티가 덜 나요</small>
+                </span>
+                <input
+                  type="checkbox"
+                  className="switch"
+                  checked={settings.notify_preview}
+                  onChange={(event) => void save({ notify_preview: event.target.checked })}
+                />
+              </label>
+              <p className="settings-note">{POPUP_TEXT[popup]}</p>
+              {popup === "default" && (
+                <div className="settings-buttons">
+                  <button
+                    type="button"
+                    className="pill-button pill-button-strong"
+                    onClick={() => void askPopupPermission().then(setPopup)}
+                  >
+                    이 브라우저에서 알림 허용하기
+                  </button>
+                </div>
+              )}
+              <p className="settings-note">
+                이 화면이 탭으로 열려 있는 동안만 알려요(탭을 닫으면 알림이 오지 않아요). 위장 화면 중에는 알림 창을
+                띄우지 않아요.
+              </p>
+            </>
+          )}
+        </section>
+
+        <section className="settings-card">
           <h2 className="settings-title">위장 화면</h2>
-          <p className="settings-note settings-lead">
-            어느 화면에서든 보스키({bossKeyLabel(parseBossKey(settings.boss_key))})를 누르면 업무 표로 바뀌고, 한 번 더
-            누르면 돌아와요. 화면 왼쪽 아래 모서리를 눌러도 돼요.
-          </p>
+          {touchOnly && (
+            <p className="settings-warn">
+              휴대폰·태블릿에는 키보드가 없어 보스키를 쓸 수 없어요. 대신 화면 왼쪽 아래 모서리를 누르면 위장 화면으로
+              바뀌어요. 아래 보스키 설정은 컴퓨터에서 쓸 때 적용돼요.
+            </p>
+          )}
+          {!touchOnly && (
+            <p className="settings-note settings-lead">
+              어느 화면에서든 보스키({bossKeyLabel(parseBossKey(settings.boss_key))})를 누르면 업무 표로 바뀌고, 한 번 더
+              누르면 돌아와요. 화면 왼쪽 아래 모서리를 눌러도 돼요.
+            </p>
+          )}
           <BossKeyPicker value={settings.boss_key} onSave={(value) => void save({ boss_key: value })} />
 
           <h3 className="settings-sub">보여 줄 표</h3>
@@ -190,9 +277,6 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onSho
                 내 파일 지우기
               </button>
             )}
-            <button type="button" className="pill-button pill-button-strong" onClick={onShowBoss}>
-              지금 보기
-            </button>
           </div>
           {fileError && <p className="list-error">{fileError}</p>}
           <p className="settings-note">

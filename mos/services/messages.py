@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 # 웹에 넘기는 첨부 정보(필요한 것만)
@@ -106,6 +107,19 @@ def _load_mentions(raw: str | None) -> dict[str, dict[str, str]]:
 REPLY_QUOTE_MARK = "> ↪ "
 
 
+# 인용 줄 끝의 원문 링크(디스코드 메시지 주소)에서 원문 메시지 ID를 꺼낸다
+_QUOTE_LINK_RE = re.compile(r"\]\(https://discord\.com/channels/\d+/\d+/(\d{15,21})\)\s*$")
+
+
+def quoted_reply_id(content: str) -> int | None:
+    """ㅁㅇㅅ 답장 인용 줄이면 원문 메시지 ID. 아니면 None."""
+    if not content.startswith(REPLY_QUOTE_MARK):
+        return None
+    first_line = content.partition("\n")[0]
+    match = _QUOTE_LINK_RE.search(first_line)
+    return int(match.group(1)) if match else None
+
+
 def strip_reply_quote(content: str) -> str:
     if not content.startswith(REPLY_QUOTE_MARK):
         return content
@@ -126,6 +140,12 @@ def row_to_api(row: dict[str, Any]) -> dict[str, Any]:
     if web_reply is not None:
         content = strip_reply_quote(content)
         reference = web_reply
+    elif row["webhook_id"] is not None:
+        # 보낸 기록이 없는 예전 웹 메시지도 인용 줄(디스코드 원문 링크)은 떼고 일반 답장처럼
+        quoted = quoted_reply_id(content)
+        if quoted is not None:
+            content = strip_reply_quote(content)
+            reference = reference or quoted
     return {
         "id": str(row["id"]),
         "channel_id": str(row["channel_id"]),

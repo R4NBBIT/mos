@@ -1,5 +1,6 @@
 // 테마 적용: <html data-theme>, 탭 제목, 파비콘. 화면명세서 SCR-10·T-01
 // 화면 어디에도 원래 서비스 이름이 드러나지 않게, 테마마다 평범한 문서처럼 보이는 제목·아이콘을 쓴다.
+import { isDisguised } from "./boss/bossState";
 
 export type Theme = "moon" | "night" | "sheet" | "memo";
 
@@ -14,7 +15,15 @@ export interface Settings {
   boss_relock: boolean;
   /** 보스키(boss/bossKey.ts 모양) */
   boss_key: string;
+  /** 알림(기본 켬): 범위는 나를 부른 것만 / 나를 부른 것 + 고정한 채널, 내용 보이기는 기본 끔 */
+  notify: boolean;
+  notify_scope: NotifyScope;
+  notify_preview: boolean;
+  /** 처음 사용 안내를 봤는지 */
+  guide_done: boolean;
 }
+
+export type NotifyScope = "mentions" | "pinned";
 
 const BOSS_TEMPLATES: BossTemplate[] = ["weekly", "sales", "schedule", "budget", "myfile"];
 
@@ -25,6 +34,10 @@ export const DEFAULT_SETTINGS: Settings = {
   boss_auto: false,
   boss_relock: false,
   boss_key: "Escape*2",
+  notify: true,
+  notify_scope: "pinned",
+  notify_preview: false,
+  guide_done: false,
 };
 
 const BOSS_KEY_RE = /^(?:(?:Ctrl|Alt|Shift|Meta)\+){0,4}[A-Za-z][A-Za-z0-9]{0,24}(?:\*2)?$/;
@@ -69,6 +82,30 @@ function setIcon(href: string): void {
   icon.href = href;
 }
 
+// 탭 제목 앞에 붙는 알림 숫자. 위장 화면에서는 붙이지 않는다
+let baseTitle = "";
+let titleBadge = 0;
+
+function showTitle(): void {
+  if (isDisguised() || !baseTitle) return;
+  document.title = titleBadge > 0 ? `(${titleBadge > 99 ? "99+" : titleBadge}) ${baseTitle}` : baseTitle;
+}
+
+export function setTitleBadge(count: number): void {
+  titleBadge = Math.max(0, count);
+  showTitle();
+}
+
+/** 지금 탭 아이콘(알림 창 아이콘으로 쓴다) */
+export function currentIcon(): string {
+  return document.querySelector<HTMLLinkElement>('link[rel="icon"]')?.href ?? "";
+}
+
+/** 지금 탭 제목(숫자 빼고) */
+export function currentBaseTitle(): string {
+  return baseTitle || document.title;
+}
+
 /** 위장 화면: 파일 이름을 탭 제목으로, 시트 아이콘 */
 export function applyDisguise(fileName: string): void {
   document.title = fileName;
@@ -79,7 +116,9 @@ export function applyLook(settings: Settings): void {
   const root = document.documentElement;
   if (settings.theme === "moon") delete root.dataset.theme;
   else root.dataset.theme = settings.theme;
-  document.title = settings.tab_title || DEFAULT_TITLES[settings.theme];
+  baseTitle = settings.tab_title || DEFAULT_TITLES[settings.theme];
+  document.title = baseTitle;
+  showTitle();
   setIcon(FAVICONS[settings.theme]);
   try {
     window.localStorage.setItem(CACHE_KEY, JSON.stringify(settings));
@@ -104,6 +143,10 @@ export function cachedLook(): Settings {
           boss_relock: value.boss_relock === true,
           boss_key:
             typeof value.boss_key === "string" && BOSS_KEY_RE.test(value.boss_key) ? value.boss_key : "Escape*2",
+          notify: value.notify !== false,
+          notify_scope: value.notify_scope === "mentions" ? "mentions" : "pinned",
+          notify_preview: value.notify_preview === true,
+          guide_done: value.guide_done === true,
         };
       }
     }

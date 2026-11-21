@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,6 +26,7 @@ from mos.services.directory import (
     Overwrite,
 )
 from mos.services.discord_oauth import DiscordUser, OAuthError, TokenSet
+from mos.services.messages import row_to_api
 from mos.services.permissions import (
     MENTION_EVERYONE,
     READ_MESSAGE_HISTORY,
@@ -647,6 +649,50 @@ def test_websocket_only_gets_subscribed_and_permitted_channels(env: Env) -> None
         env.client.portal.call(env.hub.publish, CHANNEL, "message_create", {"id": "2"})
         ws.send_text("ping")
         assert ws.receive_text() == "pong"  # 그 사이 아무것도 안 왔다
+
+
+def notify_message(message_id: int, author: int = 5, mention: int | None = None) -> dict:
+    row = make_row(message_id, channel_id=CHANNEL, content="점심 뭐 먹어?")
+    row["author_id"] = author
+    if mention is not None:
+        row["mentions_json"] = json.dumps({"users": {str(mention): "모카"}})
+    return row_to_api(row)
+
+
+def test_notify_only_mentions_or_pinned_channels(env: Env) -> None:
+    signed_up(env, "latte")  # 라떼(43): 서버 A 멤버지만 비밀 채널은 못 봄
+    with env.client.websocket_connect(
+        "/ws", headers={"origin": ORIGIN, "cookie": ws_cookie(env)}
+    ) as ws:
+        ws.send_text('{"type": "notify", "scope": "mentions"}')
+        ws.send_text("ping")
+        assert ws.receive_text() == "pong"
+        # 나를 안 부른 글, 내가 쓴 글, 볼 수 없는 채널은 알리지 않는다
+        env.client.portal.call(env.hub.notify, CHANNEL, notify_message(1))
+        env.client.portal.call(env.hub.notify, CHANNEL, notify_message(2, author=43, mention=43))
+        env.client.portal.call(env.hub.notify, SECRET, notify_message(3, mention=43))
+        env.client.portal.call(env.hub.notify, CHANNEL, notify_message(4, mention=43))
+        event = ws.receive_json()
+        assert event["type"] == "notify"
+        assert event["data"]["message_id"] == "4" and event["data"]["mentioned"] is True
+        assert event["data"]["group_id"] == str(GUILD)
+
+        # 고정한 채널이면 부르지 않은 새 글도 알린다(범위 pinned)
+        assert pin(env, "channel", CHANNEL) == 204
+        env.client.portal.call(env.hub.notify, CHANNEL, notify_message(5))
+        ws.send_text('{"type": "notify", "scope": "pinned"}')
+        ws.send_text("ping")
+        assert ws.receive_text() == "pong"
+        env.client.portal.call(env.hub.notify, CHANNEL, notify_message(6))
+        assert ws.receive_json()["data"]["message_id"] == "6"
+
+        # 알림을 끄면 아무것도 오지 않는다
+        ws.send_text('{"type": "notify", "scope": null}')
+        ws.send_text("ping")
+        assert ws.receive_text() == "pong"
+        env.client.portal.call(env.hub.notify, CHANNEL, notify_message(7, mention=43))
+        ws.send_text("ping")
+        assert ws.receive_text() == "pong"
 
 
 def test_open_websocket_is_closed_after_lock(env: Env, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1306,6 +1352,10 @@ def test_settings_per_account(env: Env) -> None:
         "boss_auto": False,
         "boss_relock": False,
         "boss_key": "Escape*2",
+        "notify": True,
+        "notify_scope": "pinned",
+        "notify_preview": False,
+        "guide_done": False,
     }
     assert env.client.get("/api/settings").json() == defaults
     changed = env.client.patch(
@@ -1325,6 +1375,8 @@ def test_settings_per_account(env: Env) -> None:
         {"boss_auto": "yes"},
         {"boss_relock": 1},
         {"boss_key": "<script>"},
+        {"notify_scope": "all"},
+        {"notify": "yes"},
         {"boss_key": "Ctrl+"},
         {"boss_key": 5},
     ):
