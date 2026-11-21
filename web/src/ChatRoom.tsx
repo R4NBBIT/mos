@@ -72,6 +72,19 @@ export default function ChatRoom({
   const [hasMore, setHasMore] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [connected, setConnected] = useState(false);
+  // 접속 표시는 두지 않고, 5초 넘게 끊겨 있을 때만 알린다(처음 연결 중에는 조용히)
+  const [lostLong, setLostLong] = useState(false);
+  const everConnected = useRef(false);
+  useEffect(() => {
+    if (connected) {
+      everConnected.current = true;
+      setLostLong(false);
+      return;
+    }
+    if (!everConnected.current) return;
+    const timer = window.setTimeout(() => setLostLong(true), 5000);
+    return () => window.clearTimeout(timer);
+  }, [connected]);
   const [unseen, setUnseen] = useState(0);
   const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -396,9 +409,13 @@ export default function ChatRoom({
             스레드
           </button>
         )}
-        <span className={connected ? "dot dot-on" : "dot"} title={connected ? "실시간 연결됨" : "연결 중"} />
         {menu}
       </header>
+      {lostLong && (
+        <div className="room-notice room-notice-quiet" role="status">
+          <span>연결이 끊겨 다시 연결하는 중이에요. 그동안 새 글이 늦게 보일 수 있어요.</span>
+        </div>
+      )}
       {notice && (
         <div className="room-notice" role="status">
           <span>{notice}</span>

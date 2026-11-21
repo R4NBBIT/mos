@@ -9,7 +9,7 @@ import type { Mentions } from "./types";
 //   <t:초> <t:초:형식>      시간 표시
 // ID는 숫자만 받으므로 이모지 주소를 만들 때 다른 값이 끼어들 수 없다.
 const tokenPattern =
-  /<(a?):([A-Za-z0-9_]{1,32}):(\d{15,21})>|<@!?(\d{15,21})>|<@&(\d{15,21})>|<#(\d{15,21})>|<t:(-?\d{1,13})(?::([tTdDfFR]))?>/g;
+  /<(a?):([A-Za-z0-9_]{1,32}):(\d{15,21})>|<@!?(\d{15,21})>|<@&(\d{15,21})>|<#(\d{15,21})>|<t:(-?\d{1,13})(?::([tTdDfFR]))?>|<\/([\p{L}\p{N}_-]{1,32}(?: [\p{L}\p{N}_-]{1,32}){0,2}):\d{15,21}>/gu;
 
 const emojiOnlyLimit = 27; // 디스코드처럼 이모지만 있으면 크게(최대 27개)
 
@@ -201,6 +201,7 @@ function renderTokens(text: string, ctx: Ctx): ReactNode[] {
       channelId,
       timeValue,
       timeStyle,
+      commandName,
     ] = match;
     const key = ctx.key.n++;
     if (emojiId) {
@@ -239,6 +240,13 @@ function renderTokens(text: string, ctx: Ctx): ReactNode[] {
         <time key={key} className="timestamp">
           {formatted || raw}
         </time>,
+      );
+    } else if (commandName) {
+      // 명령 버튼(디스코드 앱에서는 눌러 실행). 여기서는 실행할 수 없어 이름만
+      parts.push(
+        <span key={key} className="mention" title="디스코드 앱에서 쓰는 명령이에요">
+          /{commandName}
+        </span>,
       );
     } else {
       parts.push(raw);

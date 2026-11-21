@@ -48,6 +48,7 @@ function previewText(event: NotifyEvent): string {
     .replace(/<@[!&]?\d+>/g, "@멘션")
     .replace(/<#\d+>/g, "#채널")
     .replace(/<a?:(\w+):\d+>/g, ":$1:")
+    .replace(/<\/([^:>]{1,100}):\d+>/g, "/$1")
     .replace(/<t:-?\d+(?::[tTdDfFR])?>/g, "(시간)")
     .replace(/\|\|[\s\S]+?\|\|/g, "(스포일러)")
     .replace(/\*\*|__|~~|`/g, "")

@@ -28,6 +28,7 @@ export function plainText(message: Message): string {
     .replace(/<@&(\d+)>/g, (_, id: string) => `@${message.mentions.roles[id] ?? "역할"}`)
     .replace(/<#(\d+)>/g, (_, id: string) => `#${message.mentions.channels[id] ?? "채널"}`)
     .replace(/<a?:(\w+):\d+>/g, ":$1:")
+    .replace(/<\/([^:>]{1,100}):\d+>/g, "/$1")
     .replace(/<t:(-?\d+)(?::[tTdDfFR])?>/g, (_, sec: string) => new Date(Number(sec) * 1000).toLocaleString("ko-KR"))
     .replace(/\|\|[\s\S]+?\|\|/g, "(스포일러)")
     .replace(/\*\*|__|~~|`/g, "")
@@ -254,7 +255,7 @@ export default function SheetView(props: Props) {
     <SheetFrame
       showBack={props.showBack}
       onBack={props.onBack}
-      connected={props.connected}
+
       menu={props.menu}
       menuExtra={
         props.onOpenThreads && channel && channel.kind !== "thread" ? (
@@ -378,7 +379,6 @@ export default function SheetView(props: Props) {
 interface FrameProps {
   showBack: boolean;
   onBack: () => void;
-  connected?: boolean;
   menu: ReactNode | null;
   /** 메뉴 줄 오른쪽의 진짜 버튼(스레드, 새 글) */
   menuExtra?: ReactNode;
@@ -414,12 +414,6 @@ export function SheetFrame(props: FrameProps) {
           </button>
         )}
         <span className="sheet-doc">{document.title}</span>
-        {props.connected !== undefined && (
-          <span
-            className={props.connected ? "dot dot-on" : "dot"}
-            title={props.connected ? "실시간 연결됨" : "연결 중"}
-          />
-        )}
         {props.menu}
       </header>
       <div className="sheet-menus">
