@@ -21,7 +21,7 @@ const MAX_FILES = 10;
 const MAX_FILES_BYTES = 10 * 1024 * 1024;
 
 const sendErrors: Record<string, string> = {
-  sticker_not_allowed: "이 스티커는 쓸 수 없어요(다른 모임 스티커는 니트로가 필요해요).",
+  sticker_not_allowed: "이 스티커는 쓸 수 없어요(다른 서버 스티커는 니트로가 필요해요).",
   cannot_send: "이 채널에는 보낼 수 없어요.",
   not_found: "볼 수 없거나 지워진 메시지나 채널이에요.",
   reply_not_found: "답장할 메시지를 찾을 수 없어요.",
@@ -31,7 +31,7 @@ const sendErrors: Record<string, string> = {
   duplicate: "보내는 중이에요.",
   bot_cannot_send: "이 채널에 보낼 권한이 없어요. 관리자에게 봇의 '웹후크 관리' 권한을 부탁해 주세요.",
   rejected: "보내지 못했어요. 내용을 확인해 주세요.",
-  emoji_not_allowed: "쓸 수 없는 이모지가 있어요(움직이는 이모지와 다른 모임 이모지는 니트로가 필요해요).",
+  emoji_not_allowed: "쓸 수 없는 이모지가 있어요(움직이는 이모지와 다른 서버 이모지는 니트로가 필요해요).",
   too_many_files: "파일은 한 번에 10개까지 보낼 수 있어요.",
   files_too_large: "파일은 합쳐서 10MB까지 보낼 수 있어요.",
   egress_limit: "이번 달 전송량이 거의 다 차서 사진과 파일 보내기를 잠시 막았어요. 글은 보낼 수 있어요.",

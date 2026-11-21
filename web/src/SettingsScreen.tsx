@@ -4,7 +4,16 @@ import BossKeyPicker from "./BossKeyPicker";
 import { bossKeyLabel, parseBossKey } from "./boss/bossKey";
 import DisguiseSettings from "./boss/DisguiseSettings";
 import { isTouchOnly } from "./device";
-import { defaultTitle, LOCK_MINUTES, lockLabel, type Settings, THEMES, type Theme } from "./theme";
+import {
+  defaultTitle,
+  LOCK_MINUTES,
+  lockLabel,
+  type ReactionsView,
+  type Settings,
+  type StickersView,
+  THEMES,
+  type Theme,
+} from "./theme";
 import { askPopupPermission, popupSupport, type PopupSupport } from "./useNotifications";
 import { disablePush, enablePush, pushState, type PushState } from "./webPush";
 
@@ -126,7 +135,7 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
           ‹
         </button>
         <div className="room-title">
-          <strong>설정</strong>
+          <strong>{settings.theme === "word" ? "옵션" : "설정"}</strong>
         </div>
         {menu}
       </header>
@@ -152,6 +161,10 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
             ))}
           </div>
           <p className="settings-note">고르는 즉시 바뀌고, 이 계정에 기억돼요. 탭 제목과 아이콘도 테마에 맞춰 바뀌어요.</p>
+        </section>
+
+        <section className="settings-card">
+          <h2 className="settings-title">표시</h2>
           <label className="settings-toggle">
             <span>
               <strong>작성자 프로필 사진 보이기</strong>
@@ -163,6 +176,38 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
               checked={settings.show_avatars}
               onChange={(event) => void save({ show_avatars: event.target.checked })}
             />
+          </label>
+          <label className="settings-toggle">
+            <span>
+              <strong>반응</strong>
+              <small>작게 고르면 반응 수만 흐린 '+3'으로 보이고, 누르면 펼쳐져요</small>
+            </span>
+            <select
+              className="settings-select"
+              aria-label="반응 표시"
+              value={settings.reactions_view}
+              onChange={(event) => void save({ reactions_view: event.target.value as ReactionsView })}
+            >
+              <option value="full">그대로</option>
+              <option value="compact">작게(+3)</option>
+              <option value="hidden">숨기기</option>
+            </select>
+          </label>
+          <label className="settings-toggle">
+            <span>
+              <strong>스티커와 큰 이모지</strong>
+              <small>작게 고르면 스티커는 작은 그림, 이모지는 글자 크기로, 움직이는 이모지는 멈춰요. 숨기면 이름 글자로만 보여요</small>
+            </span>
+            <select
+              className="settings-select"
+              aria-label="스티커와 큰 이모지 표시"
+              value={settings.stickers_view}
+              onChange={(event) => void save({ stickers_view: event.target.value as StickersView })}
+            >
+              <option value="full">그대로</option>
+              <option value="small">작게</option>
+              <option value="hidden">숨기기</option>
+            </select>
           </label>
         </section>
 

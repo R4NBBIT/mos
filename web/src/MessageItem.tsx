@@ -1,4 +1,5 @@
 import { type CSSProperties, memo, useState } from "react";
+import { useLook } from "./lookContext";
 import MessageContent from "./MessageContent";
 import { formatSize, formatTime, isDiscordMediaUrl, thumbnailUrl } from "./format";
 import type { Attachment, Message, Sticker } from "./types";
@@ -80,9 +81,19 @@ function stickerUrl(sticker: Sticker): string | null {
 
 /** 스티커: 그림으로, 그림이 없는 형식이면 이름만 */
 export function StickerView({ sticker }: { sticker: Sticker }) {
+  const view = useLook().settings.stickers_view;
   const src = stickerUrl(sticker);
-  if (!src) return <span className="sticker-text">[스티커] {sticker.name}</span>;
-  return <img className="sticker" src={src} alt={`[스티커] ${sticker.name}`} title={sticker.name} loading="lazy" referrerPolicy="no-referrer" />;
+  if (!src || view === "hidden") return <span className="sticker-text">[스티커] {sticker.name}</span>;
+  return (
+    <img
+      className={view === "small" ? "sticker sticker-small" : "sticker"}
+      src={src}
+      alt={`[스티커] ${sticker.name}`}
+      title={sticker.name}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+    />
+  );
 }
 
 /** 글자만 보이는 테마(메모장·시트): "[사진] 파일명" 링크 */

@@ -60,7 +60,7 @@ function mergeMessages(current: Message[], incoming: Message[]): Message[] {
 
 const reactionErrors: Record<string, string> = {
   reacted_in_discord: "디스코드 앱에서 단 반응은 디스코드에서 빼 주세요.",
-  emoji_not_allowed: "이 이모지는 반응으로 쓸 수 없어요(움직이는 이모지와 다른 모임 이모지는 니트로가 필요해요).",
+  emoji_not_allowed: "이 이모지는 반응으로 쓸 수 없어요(움직이는 이모지와 다른 서버 이모지는 니트로가 필요해요).",
   no_permission: "이 채널에서는 반응을 달 수 없어요.",
   bad_emoji: "디스코드에서 쓸 수 없는 이모지예요.",
   rate_limited: "너무 빨리 눌렀어요. 잠깐 뒤에 다시 해 주세요.",

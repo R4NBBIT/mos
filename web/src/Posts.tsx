@@ -4,6 +4,8 @@ import { ApiError, createPost, fetchThreads } from "./api";
 import { sendErrorText, withPastedName } from "./Composer";
 import { formatDay, formatTime } from "./format";
 import { formatBytes, prepareImage } from "./imageResize";
+import EditableText from "./EditableText";
+import { useLook } from "./lookContext";
 import { SheetFrame } from "./SheetView";
 import type { Theme } from "./theme";
 import type { ChannelInfo, ForumTag, ThreadPage, ThreadSummary } from "./types";
@@ -196,6 +198,10 @@ export default function Posts({
   onOpenChannel,
 }: Props) {
   const [page, setPage] = useState<ThreadPage | null>(null);
+  const {
+    settings: { doc_titles: docTitles },
+    save: saveLook,
+  } = useLook();
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [error, setError] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
@@ -408,7 +414,28 @@ export default function Posts({
         )}
         {menu}
       </header>
-      <div className="list-body">
+      <div className="list-body posts-body">
+        {theme === "word" && parent && (
+          // Word: 글 목록도 문서처럼, 제목과 부제목은 바로 고칠 수 있다(위장용)
+          <div className="wd-head">
+            <EditableText
+              as="h1"
+              className="wd-title"
+              value={docTitles[parent.id] ?? parent.name}
+              fallback={parent.name}
+              label="문서 제목"
+              onSave={(text) => void saveLook({ doc_titles: { [parent.id]: text } })}
+            />
+            <EditableText
+              as="p"
+              className="wd-sub"
+              value={docTitles[`${parent.id}:sub`] ?? (isForum ? "문서 목록" : "하위 문서")}
+              fallback={isForum ? "문서 목록" : "하위 문서"}
+              label="문서 부제목"
+              onSave={(text) => void saveLook({ doc_titles: { [`${parent.id}:sub`]: text } })}
+            />
+          </div>
+        )}
         {writing && parent && (
           <NewPost forum={parent} onCreated={onOpen} onCancel={() => setWriting(false)} />
         )}
@@ -445,7 +472,7 @@ export default function Posts({
             )}
             {thread.preview && <span className="post-preview">{thread.preview}</span>}
             <span className="post-meta">
-              <span>💬 {thread.message_count}</span>
+              <span>{theme === "word" ? `댓글 ${thread.message_count}` : `💬 ${thread.message_count}`}</span>
               <span>{when(thread.last_message_at)}</span>
               {thread.private && <span className="post-archived">비공개</span>}
               {thread.archived && <span className="post-archived">보관됨</span>}

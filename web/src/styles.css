@@ -4587,3 +4587,214 @@ button.tag-chip:disabled {
   max-width: 100%;
   outline-color: rgba(255, 255, 255, 0.7);
 }
+
+/* ------------------------------------------------------------ 설정: 반응과 스티커를 작게 또는 숨기기 */
+.sticker.sticker-small,
+.inline-pics .sticker.sticker-small,
+.sheet-pics .sticker.sticker-small {
+  width: 48px;
+  height: 48px;
+}
+
+.emoji-text {
+  color: var(--sub);
+}
+
+.reactions-mini {
+  display: inline-block;
+  margin: 2px 0 0 4px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--sub);
+  font-size: 11.5px;
+  line-height: 18px;
+  opacity: 0.8;
+}
+
+.reactions-mini:hover {
+  background: var(--tint);
+  opacity: 1;
+}
+
+.msg-main > .reactions-mini,
+.comment-main > .reactions-mini,
+.para > .reactions-mini {
+  display: block;
+  width: fit-content;
+  margin-left: 0;
+}
+
+.msg-mine .msg-main > .reactions-mini {
+  margin-left: auto;
+}
+
+/* Word 문단: 반응은 본문 시작 줄에 맞춰(앞의 이름과 시각 칸 = 12px x 9.5 + 간격 10px) */
+.para > .reactions,
+.para > .reactions-mini,
+.para > .msg-actions {
+  margin-left: 124px;
+}
+
+@container roomlist (max-width: 480px) {
+  .para > .reactions,
+  .para > .reactions-mini,
+  .para > .msg-actions {
+    margin-left: 0;
+  }
+}
+
+/* ------------------------------------------------------------ Word: 글 목록, 글(스레드), 설정도 문서처럼 */
+:root[data-theme="word"] .posts-body,
+:root[data-theme="word"] .settings {
+  padding: 0 var(--word-pad) 28px;
+  background: var(--word-paper);
+}
+
+:root[data-theme="word"] .settings {
+  padding-top: 28px;
+}
+
+:root[data-theme="word"] .post-item {
+  margin: 0;
+  padding: 12px 2px;
+  border: 0;
+  border-bottom: 1px solid #ebebeb;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root[data-theme="word"] .post-item:hover {
+  background: #f6f8fc;
+}
+
+:root[data-theme="word"] .post-title {
+  color: #2f5496;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+:root[data-theme="word"] .post-preview {
+  color: #424242;
+}
+
+:root[data-theme="word"] .post-meta {
+  color: #8a8886;
+  font-size: 12px;
+}
+
+:root[data-theme="word"] .tag-chip {
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: #616161;
+  font-size: 12px;
+}
+
+:root[data-theme="word"] .tag-chip::before {
+  content: "[";
+}
+
+:root[data-theme="word"] .tag-chip::after {
+  content: "]";
+}
+
+:root[data-theme="word"] .tag-chip-on {
+  color: #185abd;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+:root[data-theme="word"] .tag-filter {
+  margin: 4px 0 6px;
+}
+
+:root[data-theme="word"] .post-archived {
+  border: 0;
+  background: none;
+  color: #8a8886;
+}
+
+/* 글 본문: 카드 대신 문서 첫머리 */
+:root[data-theme="word"] .post-card {
+  margin: 0;
+  padding: 40px 0 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+:root[data-theme="word"] .post-card-title {
+  font-size: 26px;
+  font-weight: 700;
+}
+
+:root[data-theme="word"] .post-card-author {
+  gap: 6px;
+  font-size: 12px;
+  color: #8a8886;
+}
+
+:root[data-theme="word"] .post-card-author strong {
+  color: #8a8886;
+  font-weight: 400;
+}
+
+:root[data-theme="word"] .post-card-author .avatar {
+  display: none;
+}
+
+:root[data-theme="word"] .post-card-body {
+  font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+:root[data-theme="word"] .comment-divider {
+  margin: 18px 0 8px;
+  padding: 0;
+  border: 0;
+  color: #2f5496;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+:root[data-theme="word"] .post-sticky {
+  background: var(--word-bg);
+  border-bottom: 0;
+}
+
+:root[data-theme="word"] .room-footer {
+  border-top: 0;
+  background: var(--word-paper);
+  color: #8a8886;
+}
+
+/* 설정(옵션): 카드 대신 구분선으로 나눈 문단 */
+:root[data-theme="word"] .settings .settings-card {
+  margin: 0;
+  padding: 18px 0;
+  border: 0;
+  border-bottom: 1px solid #ebebeb;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root[data-theme="word"] .settings-title {
+  color: #2f5496;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+:root[data-theme="word"] .switch:checked,
+:root[data-theme="word"] .switch-look-on {
+  background: #185abd;
+}
+
+:root[data-theme="word"] .theme-card {
+  border-radius: 4px;
+}

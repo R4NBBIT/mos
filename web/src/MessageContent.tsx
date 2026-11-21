@@ -1,5 +1,7 @@
 import { type ReactNode, useState } from "react";
 import type { Mentions } from "./types";
+import { useLook } from "./lookContext";
+import type { StickersView } from "./theme";
 
 // 디스코드 본문 속 특수 코드:
 //   <:이름:ID> <a:이름:ID>  사용자 이모지(a는 움직이는 것)
@@ -91,7 +93,7 @@ function isEmojiOnly(content: string): boolean {
 // ------------------------------------------------------------ 서식(디스코드 마크다운)
 // HTML로 넣지 않고 React 요소로만 만든다(XSS 방지). 링크는 http·https만.
 
-type Ctx = { mentions: Mentions; jumbo: boolean; key: { n: number } };
+type Ctx = { mentions: Mentions; jumbo: boolean; stickers: StickersView; key: { n: number } };
 
 const inlinePattern = new RegExp(
   [
@@ -204,12 +206,19 @@ function renderTokens(text: string, ctx: Ctx): ReactNode[] {
       commandName,
     ] = match;
     const key = ctx.key.n++;
-    if (emojiId) {
+    if (emojiId && ctx.stickers === "hidden") {
+      // 설정 '숨기기': 서버 이모지는 이름 글자로만
+      parts.push(
+        <span key={key} className="emoji-text">
+          :{emojiName}:
+        </span>,
+      );
+    } else if (emojiId) {
       parts.push(
         <img
           key={key}
           className={ctx.jumbo ? "emoji emoji-jumbo" : "emoji"}
-          src={emojiUrl(emojiId, animated === "a")}
+          src={emojiUrl(emojiId, animated === "a" && ctx.stickers === "full")}
           alt={`:${emojiName}:`}
           title={`:${emojiName}:`}
           loading="lazy"
@@ -446,8 +455,10 @@ interface Props {
 }
 
 export default function MessageContent({ content, mentions }: Props) {
-  const jumbo = isEmojiOnly(content);
-  const ctx: Ctx = { mentions, jumbo, key: { n: 0 } };
+  // 설정 '작게'나 '숨기기'면 이모지만 있어도 크게 하지 않고, 움직이는 이모지는 멈춘 그림으로
+  const stickers = useLook().settings.stickers_view;
+  const jumbo = stickers === "full" && isEmojiOnly(content);
+  const ctx: Ctx = { mentions, jumbo, stickers, key: { n: 0 } };
   return (
     <div className={jumbo ? "msg-text msg-jumbo" : "msg-text"}>
       {renderMarkdown(content, ctx)}

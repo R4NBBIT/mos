@@ -19,6 +19,10 @@ MAX_TAB_TITLE = 40
 BOSS_TEMPLATES = ("weekly", "sales", "schedule", "budget", "myfile", "image", "text", "url")
 BOSS_FITS = ("cover", "contain")  # 사진: 화면에 꽉 채우기(가장자리 잘림) · 다 보이게
 MAX_BOSS_URL = 300
+# 반응: 그대로, 작게('+2'), 숨기기
+# 스티커와 큰 이모지: 그대로, 작게(움직이는 이모지는 멈춤), 숨기기
+REACTION_VIEWS = ("full", "compact", "hidden")
+STICKER_VIEWS = ("full", "small", "hidden")
 # 화면에서 바로 고친 문서 제목(채널 ID → 제목, 'ID:sub' → 부제목).
 # 계정에 저장해 다른 브라우저에서도 그대로
 DOC_TITLE_KEY_RE = re.compile(r"[0-9]{15,21}(?::sub)?")
@@ -57,6 +61,8 @@ DEFAULTS: dict[str, Any] = {
     "guide_done": False,
     "lock_minutes": 30,
     "show_avatars": True,
+    "reactions_view": "full",
+    "stickers_view": "full",
     "doc_titles": {},
 }
 
@@ -120,6 +126,14 @@ def clean(update: dict[str, Any]) -> dict[str, Any]:
             result[key] = value
         elif key == "boss_url":
             result[key] = _clean_url(value)
+        elif key == "reactions_view":
+            if value not in REACTION_VIEWS:
+                raise SettingsError("bad_reactions_view")
+            result[key] = value
+        elif key == "stickers_view":
+            if value not in STICKER_VIEWS:
+                raise SettingsError("bad_stickers_view")
+            result[key] = value
         elif key == "doc_titles":
             result[key] = _clean_doc_titles(value)
         elif key == "lock_minutes":

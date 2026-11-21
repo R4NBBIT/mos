@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import EmojiPicker from "./EmojiPicker";
+import { useLook } from "./lookContext";
 import type { Message, Reaction } from "./types";
 
 const PICKER_WIDTH = 360;
@@ -39,8 +40,27 @@ interface Props {
 }
 
 export default function Reactions({ message, myUserId, onReact, compact = false }: Props) {
+  const view = useLook().settings.reactions_view;
+  const [opened, setOpened] = useState(false);
   const list = message.reactions ?? [];
-  if (list.length === 0) return null;
+  if (list.length === 0 || view === "hidden") return null;
+  if (view === "compact" && !opened) {
+    // 설정 '작게': 반응 수만 흐린 '+3'으로, 누르면 펼쳐 본다
+    const total = list.reduce((sum, reaction) => sum + reaction.count, 0);
+    return (
+      <button
+        type="button"
+        className="reactions-mini"
+        aria-label={`반응 ${total}개, 눌러서 보기`}
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpened(true);
+        }}
+      >
+        +{total}
+      </button>
+    );
+  }
   return (
     <span className={compact ? "reactions reactions-compact" : "reactions"}>
       {list.map((reaction) => {

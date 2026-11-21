@@ -48,7 +48,7 @@ function useLoad<T>(
           return;
         }
         if (caught instanceof ApiError && caught.status === 404) {
-          setLoad({ state: "error", message: "볼 수 없는 모임이에요. 목록으로 돌아가 주세요." });
+          setLoad({ state: "error", message: "볼 수 없는 서버예요. 목록으로 돌아가 주세요." });
           return;
         }
         setLoad((current) =>
@@ -131,7 +131,7 @@ function usePinToggle(
       .then(reload)
       .catch((caught: unknown) => {
         if (caught instanceof ApiError && caught.code === "pin_limit") {
-          setMessage(kind === "group" ? "모임은 5개까지 고정할 수 있어요." : "채널은 10개까지 고정할 수 있어요.");
+          setMessage(kind === "group" ? "서버는 5개까지 고정할 수 있어요." : "채널은 10개까지 고정할 수 있어요.");
         } else {
           setMessage("고정하지 못했어요.");
         }
@@ -244,7 +244,7 @@ export function GroupList({
   const [load, reload] = useLoad<GroupListData>(fetchGroups, [], common.onAuthLost);
   const [pinError, togglePin] = usePinToggle(reload);
   return (
-    <Shell title="모임" menu={common.menu} notice={common.notice} onNoticeClose={common.onNoticeClose}>
+    <Shell title="서버" menu={common.menu} notice={common.notice} onNoticeClose={common.onNoticeClose}>
       {pinError && <p className="list-error">{pinError}</p>}
       {load.state === "loading" && <p className="list-note">불러오는 중…</p>}
       {load.state === "error" && <p className="list-note">{load.message}</p>}
@@ -263,11 +263,11 @@ export function GroupList({
         </section>
       )}
       {load.state === "ok" && load.value.groups.length === 0 && (
-        <p className="list-note">이 계정으로 볼 수 있는 모임이 없어요.</p>
+        <p className="list-note">이 계정으로 볼 수 있는 서버가 없어요.</p>
       )}
       {load.state === "ok" && load.value.groups.length > 0 && (
         <section className="list-section">
-          {load.value.pinned_channels.length > 0 && <h2 className="list-section-title">모임</h2>}
+          {load.value.pinned_channels.length > 0 && <h2 className="list-section-title">서버</h2>}
           {load.value.groups.map((group) => (
             <div
               key={group.id}

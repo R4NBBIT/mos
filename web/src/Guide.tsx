@@ -98,16 +98,16 @@ function buildCards(
   if (situation === null) {
     cards.push({
       id: "groups",
-      title: "모임 살펴보는 중…",
-      body: <p>볼 수 있는 모임과 채널을 확인하고 있어요.</p>,
+      title: "서버 살펴보는 중…",
+      body: <p>볼 수 있는 서버와 채널을 확인하고 있어요.</p>,
     });
   } else if (situation.failed) {
     cards.push({
       id: "groups",
-      title: "모임 → 채널 → 대화",
+      title: "서버 → 채널 → 대화",
       body: (
         <p>
-          디스코드 서버는 여기서 '모임'이라고 불러요. 모임을 고르고, 채널을 고르면 대화가 열려요. (지금은 모임 목록을
+          서버를 고르고, 채널을 고르면 대화가 열려요. (지금은 서버 목록을
           불러오지 못해서 자세한 안내는 건너뛸게요.)
         </p>
       ),
@@ -115,10 +115,10 @@ function buildCards(
   } else if (situation.groupCount === 0) {
     cards.push({
       id: "groups",
-      title: "아직 볼 수 있는 모임이 없어요",
+      title: "아직 볼 수 있는 서버가 없어요",
       body: (
         <>
-          <p>ㅁㅇㅅ 봇이 들어가 있는 디스코드 서버에 나도 들어가 있어야 모임이 보여요.</p>
+          <p>ㅁㅇㅅ 봇이 들어가 있는 디스코드 서버에 나도 들어가 있어야 여기에 보여요.</p>
           <ul>
             <li>서버 관리자에게 ㅁㅇㅅ 봇 초대를 부탁해 주세요.</li>
             <li>봇이 들어오거나 내가 그 서버에 들어가면, 잠시 뒤 목록에 저절로 나타나요.</li>
@@ -135,14 +135,14 @@ function buildCards(
       : "목록에서 하나씩 눌러 들어가고, 맨 위 ‹ 버튼으로 돌아와요.";
     cards.push({
       id: "groups",
-      title: `볼 수 있는 모임 ${situation.groupCount}곳`,
+      title: `볼 수 있는 서버 ${situation.groupCount}곳`,
       body: (
         <>
-          <p>디스코드 서버를 여기서는 '모임'이라고 불러요. 모임 → 채널 → 대화 순서로 들어가요. {where}</p>
+          <p>서버 → 채널 → 대화 순서로 들어가요. {where}</p>
           <ul>
-            <li>목록에 마우스를 올리면 나오는 압정 버튼으로 자주 가는 모임과 채널을 맨 위에 고정할 수 있어요.</li>
+            <li>목록에 마우스를 올리면 나오는 압정 버튼으로 자주 가는 서버와 채널을 맨 위에 고정할 수 있어요.</li>
             <li>안 읽은 글 수가 숫자로, 나를 부른 글은 빨간 '@ 숫자'로 보여요.</li>
-            {settings.theme === "sheet" && <li>스프레드시트 테마에서는 같은 모임의 채널이 아래 시트 탭으로 나와요.</li>}
+            {settings.theme === "sheet" && <li>스프레드시트 테마에서는 같은 서버의 채널이 아래 시트 탭으로 나와요.</li>}
             {empty.length > 0 && (
               <li>
                 {names(empty)}에는 볼 수 있는 채널이 없어요. 채널이 아직 없거나, ㅁㅇㅅ 봇이 그 채널을 볼 수 없어서예요.
@@ -159,7 +159,7 @@ function buildCards(
               </li>
             )}
             {situation.groupCount > situation.scanned.length && (
-              <li>모임이 많아 앞의 {situation.scanned.length}곳만 살펴봤어요.</li>
+              <li>서버가 많아 앞의 {situation.scanned.length}곳만 살펴봤어요.</li>
             )}
           </ul>
         </>
@@ -181,7 +181,7 @@ function buildCards(
             </li>
             <li>＋로 사진이나 파일(한 번에 10개, 합쳐서 10MB)을, 웃는 얼굴로 이모지를 넣어요. 복사한 사진은 붙여넣기만 해도 돼요.</li>
             <li>웃는 얼굴 맨 위의 스티커는 누르면 바로 보내지고, 디스코드에서는 사진으로 보여요.</li>
-            <li>움직이는 이모지와 다른 모임 이모지는 니트로가 필요해요. 니트로가 있으면 계정 메뉴에서 '니트로 있어요'를 켜 주세요.</li>
+            <li>움직이는 이모지와 다른 서버 이모지는 니트로가 필요해요. 니트로가 있으면 계정 메뉴에서 '니트로 있어요'를 켜 주세요.</li>
             <li>/로 시작하는 다른 봇 명령은 글자로만 올라가고 실행되지 않아요.</li>
           </ul>
         ),

@@ -180,7 +180,7 @@ export default function EmojiPicker({ channelId, onPick, onClose, onPickSticker 
         {!term && (
           <div className="emoji-tabs" role="tablist" aria-label="이모지 분류">
             {byGroup.size > 0 && (
-              <button type="button" title="모임 이모지" onClick={() => jump("server")}>
+              <button type="button" title="서버 이모지" onClick={() => jump("server")}>
                 ⭐
               </button>
             )}
@@ -258,7 +258,7 @@ export default function EmojiPicker({ channelId, onPick, onClose, onPickSticker 
             ))}
             {custom !== null && nitro === "none" && (
               <p className="emoji-note">
-                움직이는 이모지와 다른 모임 이모지는 니트로가 있어야 쓸 수 있어요. 니트로가 있으면 계정 메뉴에서 '니트로
+                움직이는 이모지와 다른 서버 이모지는 니트로가 있어야 쓸 수 있어요. 니트로가 있으면 계정 메뉴에서 '니트로
                 있어요'를 켜 주세요.
               </p>
             )}
@@ -268,7 +268,7 @@ export default function EmojiPicker({ channelId, onPick, onClose, onPickSticker 
                 주세요(확인되면 7일 동안 유지돼요).
               </p>
             )}
-            {failed && <p className="emoji-note">모임 이모지를 불러오지 못했어요.</p>}
+            {failed && <p className="emoji-note">서버 이모지를 불러오지 못했어요.</p>}
             {unicode === null && <p className="emoji-note">기본 이모지를 불러오는 중이에요…</p>}
             {(unicode ?? []).map((group, index) => (
               <section key={group.name} data-section={`u${index}`}>

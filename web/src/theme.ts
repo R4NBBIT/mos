@@ -31,9 +31,16 @@ export interface Settings {
   lock_minutes: number;
   /** 메시지 작성자 프로필 사진 보이기(모든 테마) */
   show_avatars: boolean;
+  /** 반응 표시: 그대로, 작게('+2'), 숨기기 */
+  reactions_view: ReactionsView;
+  /** 스티커와 큰 이모지: 그대로, 작게(움직이는 이모지는 멈춤), 숨기기 */
+  stickers_view: StickersView;
   /** 화면에서 바로 고친 문서 제목: 채널 ID → 제목, 'ID:sub' → 부제목 */
   doc_titles: Record<string, string>;
 }
+
+export type ReactionsView = "full" | "compact" | "hidden";
+export type StickersView = "full" | "small" | "hidden";
 
 export const LOCK_MINUTES = [5, 10, 15, 30, 60, 120, 240, 480];
 
@@ -61,6 +68,8 @@ export const DEFAULT_SETTINGS: Settings = {
   guide_done: false,
   lock_minutes: 30,
   show_avatars: true,
+  reactions_view: "full",
+  stickers_view: "full",
   doc_titles: {},
 };
 
@@ -198,6 +207,10 @@ export function cachedLook(): Settings {
           lock_minutes:
             typeof value.lock_minutes === "number" && LOCK_MINUTES.includes(value.lock_minutes) ? value.lock_minutes : 30,
           show_avatars: value.show_avatars !== false,
+          reactions_view:
+            value.reactions_view === "compact" || value.reactions_view === "hidden" ? value.reactions_view : "full",
+          stickers_view:
+            value.stickers_view === "small" || value.stickers_view === "hidden" ? value.stickers_view : "full",
           doc_titles: cleanTitles(value.doc_titles),
         };
       }
