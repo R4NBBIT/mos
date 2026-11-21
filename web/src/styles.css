@@ -5495,3 +5495,84 @@ button.tag-chip:disabled {
   height: 26px;
   color: rgba(255, 255, 255, 0.85);
 }
+
+/* ------------------------------------------------------------ 설정 간격 정리: 항목 위아래 12px로 고르게 */
+.settings-card {
+  padding: 16px 18px;
+}
+
+.settings-title {
+  margin: 0 0 4px;
+}
+
+.settings-card > .settings-toggle,
+.settings-card > .settings-item {
+  padding: 12px 0;
+}
+
+.settings-card > .settings-title + .settings-toggle,
+.settings-card > .settings-title + .settings-item,
+.settings-card > .settings-title + .settings-lead + .settings-item {
+  padding-top: 8px;
+  border-top: 0;
+}
+
+.settings-card > .settings-toggle:last-child,
+.settings-card > .settings-item:last-child {
+  padding-bottom: 0;
+}
+
+.settings-card > .settings-title + .theme-grid,
+.settings-card > .settings-title + .settings-row {
+  margin-top: 8px;
+}
+
+.settings-card > .settings-note {
+  margin: 10px 2px 0;
+}
+
+.settings-card > .settings-lead {
+  margin: 4px 0 4px;
+}
+
+.settings-card > .settings-sub-line {
+  margin: 12px 0 0;
+  padding-top: 16px;
+}
+
+.settings-card > .settings-sub-line + .settings-toggle {
+  padding-top: 8px;
+  border-top: 0;
+}
+
+/* Word(옵션): 카드 사이 빈 간격 없이 구분선만 */
+:root[data-theme="word"] .settings {
+  gap: 0;
+}
+
+:root[data-theme="word"] .settings .settings-card {
+  padding: 22px 0;
+}
+
+/* 위장 화면 고르기: 선택지와 그 아래 버튼 사이를 붙이고, 선택지끼리는 같은 간격 */
+.boss-group {
+  gap: 4px;
+}
+
+.boss-group .boss-choice-block {
+  gap: 4px;
+}
+
+.boss-group .boss-choice-extra {
+  margin: 0 0 4px 7px;
+}
+
+.boss-group-title {
+  margin: 12px 0 2px;
+}
+
+/* '더 숨기기'도 다른 소제목과 같은 모양 */
+.settings-card > .settings-sub-line {
+  color: var(--ink);
+  font-size: 14px;
+}
