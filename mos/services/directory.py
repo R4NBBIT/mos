@@ -74,6 +74,17 @@ class ChannelInfo:
 
 
 @dataclass(frozen=True)
+class StickerInfo:
+    """모임 스티커. format: 1 PNG, 2 APNG, 3 Lottie(그림 파일 없음), 4 GIF"""
+
+    id: int
+    name: str
+    format: int
+    guild_id: int
+    available: bool = True
+
+
+@dataclass(frozen=True)
 class EmojiInfo:
     id: int
     name: str
@@ -112,6 +123,14 @@ class Directory(Protocol):
         ...
 
     def emojis(self, guild_id: int) -> list[EmojiInfo]: ...
+
+    def stickers(self, guild_id: int) -> list[StickerInfo]:
+        """그 모임의 스티커(봇이 받은 목록)."""
+        ...
+
+    async def sticker_image(self, sticker: StickerInfo) -> bytes:
+        """스티커 그림 파일(PNG·APNG는 .png, GIF는 .gif). 디스코드 CDN에서 받는다."""
+        ...
 
     async def fetch_member(self, guild_id: int, user_id: int) -> MemberInfo | None:
         """서버에 없으면 None. 캐시하지 않는다(PermissionService가 캐시)."""

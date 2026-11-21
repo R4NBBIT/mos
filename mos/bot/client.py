@@ -29,6 +29,7 @@ from mos.services.directory import (
     GuildInfo,
     MemberInfo,
     Overwrite,
+    StickerInfo,
 )
 from mos.services.messages import message_to_row, row_to_api
 from mos.services.realtime import RealtimeHub
@@ -238,6 +239,31 @@ class MosBot(discord.Client):
                 if channel is not None:
                     break
         return channel_to_info(channel) if channel is not None else None
+
+    def stickers_info(self, guild_id: int) -> list[StickerInfo]:
+        guild = self.get_guild(guild_id)
+        if guild is None:
+            return []
+        return [
+            StickerInfo(
+                id=sticker.id,
+                name=sticker.name,
+                format=int(sticker.format.value),
+                guild_id=guild_id,
+                available=bool(getattr(sticker, "available", True)),
+            )
+            for sticker in guild.stickers
+        ]
+
+    async def sticker_image(self, info: StickerInfo) -> bytes:
+        guild = self.get_guild(info.guild_id)
+        sticker = discord.utils.get(guild.stickers, id=info.id) if guild else None
+        if sticker is None:
+            raise DirectoryError("sticker not found")
+        try:
+            return await sticker.read()
+        except discord.HTTPException as error:
+            raise DirectoryError(f"sticker download failed: HTTP {error.status}") from error
 
     def emojis_info(self, guild_id: int) -> list[EmojiInfo]:
         guild = self.get_guild(guild_id)
@@ -796,6 +822,12 @@ class BotDirectory:
 
     def emojis(self, guild_id: int) -> list[EmojiInfo]:
         return self.bot.emojis_info(guild_id)
+
+    def stickers(self, guild_id: int) -> list[StickerInfo]:
+        return self.bot.stickers_info(guild_id)
+
+    async def sticker_image(self, sticker: StickerInfo) -> bytes:
+        return await self.bot.sticker_image(sticker)
 
     async def fetch_channel(self, channel_id: int) -> ChannelInfo | None:
         return await self.bot.fetch_channel_info(channel_id)

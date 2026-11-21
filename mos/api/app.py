@@ -75,6 +75,8 @@ MAX_PINNED_CHANNELS = 10
 NONCE_PATTERN = r"^[A-Za-z0-9-]{8,64}$"
 NOTIFY_KINDS = {0, 19, 20, 23}  # 보통·답장·명령 응답(입장·고정 같은 시스템 알림은 알리지 않음)
 NOTIFY_TEXT_LIMIT = 300  # 알림에 보내는 본문 앞부분
+STICKER_MAX_BYTES = 2 * 1024 * 1024
+GIF_STICKER = 4
 # 테마별 탭 제목(웹 theme.ts와 같게). 웹 푸시 알림 제목에 쓴다
 DEFAULT_TITLES = {
     "moon": "작업 메모",
@@ -167,6 +169,12 @@ class SendBody(BaseModel):
     # 화면이 메시지마다 만드는 무작위 값. 같은 값으로 다시 오면 다시 보내지 않는다
     nonce: str = Field(pattern=r"^[A-Za-z0-9-]{8,64}$")
     reply_to: str | None = Field(default=None, pattern=r"^[0-9]{15,21}$")
+
+
+class StickerBody(BaseModel):
+    sticker_id: str = Field(pattern=SNOWFLAKE_PATTERN)
+    nonce: str = Field(pattern=NONCE_PATTERN)
+    reply_to: str | None = Field(default=None, pattern=SNOWFLAKE_PATTERN)
 
 
 class PushBody(BaseModel):
@@ -804,6 +812,56 @@ def create_app(
             files=outgoing,
         )
         await egress.record(total, force=True)
+        return message
+
+    @app.get("/api/channels/{channel_id}/stickers")
+    async def channel_stickers(channel_id: int, request: Request) -> dict[str, Any]:
+        account = await require_account(request)
+        require_ready()
+        access = await require_channel(account, channel_id)
+        items = await emojis.usable_stickers(account.discord_user_id, account.premium, access)
+        return {
+            "stickers": [
+                {
+                    "id": str(item.sticker.id),
+                    "name": item.sticker.name,
+                    "format": item.sticker.format,
+                    "group_name": item.group_name,
+                }
+                for item in items
+            ]
+        }
+
+    @app.post("/api/channels/{channel_id}/stickers")
+    async def send_sticker(channel_id: int, body: StickerBody, request: Request) -> dict[str, Any]:
+        """스티커 보내기. 웹훅은 진짜 스티커를 못 보내서, 스티커 그림을 사진으로 보낸다."""
+        account = await require_account(request)
+        require_ready()
+        access = await require_channel(account, channel_id)
+        if not await egress.attachments_allowed():
+            raise HTTPException(status_code=403, detail="egress_limit")
+        usable = await emojis.usable_stickers(account.discord_user_id, account.premium, access)
+        found = next(
+            (item.sticker for item in usable if str(item.sticker.id) == body.sticker_id), None
+        )
+        if found is None:
+            raise HTTPException(status_code=403, detail="sticker_not_allowed")
+        data = await directory.sticker_image(found)
+        if len(data) > STICKER_MAX_BYTES:
+            raise HTTPException(status_code=413, detail="files_too_large")
+        extension = "gif" if found.format == GIF_STICKER else "png"
+        service = require_sender(account)
+        message = await service.send(
+            account.account_id,
+            account.discord_user_id,
+            channel_id,
+            "",
+            body.nonce,
+            int(body.reply_to) if body.reply_to else None,
+            premium=account.premium,
+            files=[OutgoingFile(safe_filename(f"{found.name}.{extension}"), data)],
+        )
+        await egress.record(len(data), force=True)
         return message
 
     @app.post("/api/channels/{channel_id}/posts")

@@ -9,6 +9,7 @@ import {
   markRead,
   sendFiles,
   sendMessage,
+  sendSticker,
   toggleReaction,
 } from "./api";
 import { isDisguised } from "./boss/bossState";
@@ -375,6 +376,12 @@ export default function ChatRoom({
         setEditing(null);
       }}
       onSubmit={submit}
+      onSticker={async (stickerId) => {
+        const sent = await sendSticker(channel.id, stickerId, crypto.randomUUID(), replyTo?.id ?? null);
+        stickToBottom.current = true;
+        setMessages((current) => mergeMessages(current, [sent]));
+        setReplyTo(null);
+      }}
     />
   ) : null;
 

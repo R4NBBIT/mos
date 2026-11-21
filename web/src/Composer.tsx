@@ -21,6 +21,7 @@ const MAX_FILES = 10;
 const MAX_FILES_BYTES = 10 * 1024 * 1024;
 
 const sendErrors: Record<string, string> = {
+  sticker_not_allowed: "이 스티커는 쓸 수 없어요(다른 모임 스티커는 니트로가 필요해요).",
   cannot_send: "이 채널에는 보낼 수 없어요.",
   not_found: "볼 수 없거나 지워진 메시지·채널이에요.",
   reply_not_found: "답장할 메시지를 찾을 수 없어요.",
@@ -84,6 +85,8 @@ interface Props {
   onCancel: () => void;
   /** 보내기·고치기. 실패하면 던진다(입력 내용은 그대로 둔다) */
   onSubmit: (text: string, nonce: string, files: File[]) => Promise<void>;
+  /** 스티커 보내기(없으면 스티커를 고를 수 없음) */
+  onSticker?: (stickerId: string) => Promise<void>;
 }
 
 export default function Composer({
@@ -95,6 +98,7 @@ export default function Composer({
   editing,
   onCancel,
   onSubmit,
+  onSticker,
 }: Props) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -278,7 +282,20 @@ export default function Composer({
       )}
       {error && <p className="composer-error">{error}</p>}
       {pickerOpen && (
-        <EmojiPicker channelId={channelId} onPick={insertText} onClose={() => setPickerOpen(false)} />
+        <EmojiPicker
+          channelId={channelId}
+          onPick={insertText}
+          onClose={() => setPickerOpen(false)}
+          onPickSticker={
+            onSticker && !editing
+              ? (sticker) => {
+                  setPickerOpen(false);
+                  setError("");
+                  onSticker(sticker.id).catch((caught: unknown) => setError(sendErrorText(caught)));
+                }
+              : undefined
+          }
+        />
       )}
       {files.length > 0 && (
         <div className="composer-files">

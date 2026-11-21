@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type ChannelEmoji, fetchEmojis } from "./api";
+import { type ChannelEmoji, type ChannelSticker, fetchEmojis, fetchStickers } from "./api";
 
 // 기본(유니코드) 이모지 전체. 처음 열 때만 따로 받아 온다(약 60KB)
 interface UnicodeGroup {
@@ -67,9 +67,29 @@ interface Props {
   channelId: string;
   onPick: (text: string) => void;
   onClose: () => void;
+  /** 있으면 모임 스티커도 보여 주고, 고르면 바로 보낸다 */
+  onPickSticker?: (sticker: ChannelSticker) => void;
 }
 
-export default function EmojiPicker({ channelId, onPick, onClose }: Props) {
+function stickerImage(sticker: ChannelSticker): string {
+  return `https://media.discordapp.net/stickers/${sticker.id}.${sticker.format === 4 ? "gif" : "png"}?size=160`;
+}
+
+export default function EmojiPicker({ channelId, onPick, onClose, onPickSticker }: Props) {
+  const [stickers, setStickers] = useState<ChannelSticker[]>([]);
+  const wantStickers = Boolean(onPickSticker);
+  useEffect(() => {
+    if (!wantStickers) return;
+    let stopped = false;
+    fetchStickers(channelId)
+      .then((list) => {
+        if (!stopped) setStickers(list.filter((item) => /^\d{15,21}$/.test(item.id)));
+      })
+      .catch(() => {});
+    return () => {
+      stopped = true;
+    };
+  }, [channelId, wantStickers]);
   const [custom, setCustom] = useState<ChannelEmoji[] | null>(null);
   const [nitro, setNitro] = useState<"none" | "pending" | "verified">("none");
   const [failed, setFailed] = useState(false);
@@ -169,6 +189,11 @@ export default function EmojiPicker({ channelId, onPick, onClose }: Props) {
                 🕘
               </button>
             )}
+            {stickers.length > 0 && (
+              <button type="button" title="스티커" onClick={() => jump("stickers")}>
+                🏷️
+              </button>
+            )}
             {(unicode ?? []).map((group, index) => (
               <button key={group.name} type="button" title={group.name} onClick={() => jump(`u${index}`)}>
                 {GROUP_ICONS[index] ?? "•"}
@@ -196,6 +221,23 @@ export default function EmojiPicker({ channelId, onPick, onClose }: Props) {
                 <div className="emoji-grid">
                   {recentShown.map((value) => (
                     <EmojiButton key={value} value={value} title={value} onPick={pick} />
+                  ))}
+                </div>
+              </section>
+            )}
+            {stickers.length > 0 && onPickSticker && (
+              <section data-section="stickers">
+                <h3>스티커(사진으로 보내져요)</h3>
+                <div className="sticker-grid">
+                  {stickers.map((sticker) => (
+                    <button
+                      key={sticker.id}
+                      type="button"
+                      title={`${sticker.name} (${sticker.group_name})`}
+                      onClick={() => onPickSticker(sticker)}
+                    >
+                      <img src={stickerImage(sticker)} alt={sticker.name} loading="lazy" referrerPolicy="no-referrer" />
+                    </button>
                   ))}
                 </div>
               </section>

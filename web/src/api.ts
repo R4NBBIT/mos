@@ -119,6 +119,31 @@ export async function sendMessage(
   return response.json() as Promise<Message>;
 }
 
+export interface ChannelSticker {
+  id: string;
+  name: string;
+  format: number;
+  group_name: string;
+}
+
+export async function fetchStickers(channelId: string): Promise<ChannelSticker[]> {
+  const response = await request(`/api/channels/${encodeURIComponent(channelId)}/stickers`);
+  return ((await response.json()) as { stickers: ChannelSticker[] }).stickers;
+}
+
+/** 스티커 보내기(디스코드에는 스티커 그림이 사진으로 올라간다) */
+export async function sendSticker(
+  channelId: string,
+  stickerId: string,
+  nonce: string,
+  replyTo: string | null,
+): Promise<Message> {
+  const body: Record<string, string> = { sticker_id: stickerId, nonce };
+  if (replyTo) body.reply_to = replyTo;
+  const response = await postJson(`/api/channels/${encodeURIComponent(channelId)}/stickers`, body);
+  return response.json() as Promise<Message>;
+}
+
 export async function editMessage(messageId: string, content: string): Promise<Message> {
   const response = await request(`/api/messages/${encodeURIComponent(messageId)}`, {
     method: "PATCH",

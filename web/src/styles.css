@@ -3511,3 +3511,29 @@ button.tag-chip:disabled {
   align-items: center;
   gap: 6px;
 }
+
+.sticker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 4px;
+}
+
+.sticker-grid button {
+  display: grid;
+  place-items: center;
+  height: 76px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+}
+
+.sticker-grid button:hover {
+  background: var(--tint);
+}
+
+.sticker-grid img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+}

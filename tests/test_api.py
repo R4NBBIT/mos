@@ -128,6 +128,19 @@ class FakeDirectory:
     async def fetch_channel(self, channel_id: int) -> ChannelInfo | None:
         return self.archived_map.get(channel_id)  # 캐시에 없는 보관 스레드
 
+    def stickers(self, guild_id: int) -> list:
+        from mos.services.directory import StickerInfo
+
+        if guild_id != GUILD:
+            return []
+        return [
+            StickerInfo(1573320336554852901, "빙글", 4, GUILD),
+            StickerInfo(1573320336554852902, "벡터", 3, GUILD),  # Lottie: 못 보냄
+        ]
+
+    async def sticker_image(self, sticker: Any) -> bytes:
+        return b"GIF89a" + b"x" * 100
+
     async def is_thread_member(self, thread_id: int, user_id: int) -> bool:
         self.thread_lookups += 1
         return (thread_id, user_id) in self.thread_members
@@ -861,6 +874,26 @@ def test_web_push_when_no_tab_is_open(env: Env) -> None:
         env.client.portal.call(env.hub.notify, CHANNEL, notify_message(10, mention=43))
         assert ws.receive_json()["type"] == "notify"
     assert len(posted) == 1
+
+
+def test_sticker_sent_as_picture(env: Env) -> None:
+    signed_up(env)
+    listed = env.client.get(f"/api/channels/{CHANNEL}/stickers").json()["stickers"]
+    assert [item["name"] for item in listed] == ["빙글"]  # Lottie는 빠진다
+    sent = env.client.post(
+        f"/api/channels/{CHANNEL}/stickers",
+        json={"sticker_id": "1573320336554852901", "nonce": "sticker-0001"},
+        headers=POST,
+    )
+    assert sent.status_code == 200
+    _hook, message = env.messenger.sent[-1]
+    assert message.content == "" and message.files[0].filename == "빙글.gif"
+    blocked = env.client.post(
+        f"/api/channels/{CHANNEL}/stickers",
+        json={"sticker_id": "1573320336554852902", "nonce": "sticker-0002"},
+        headers=POST,
+    )
+    assert blocked.status_code == 403
 
 
 def test_open_websocket_is_closed_after_lock(env: Env, monkeypatch: pytest.MonkeyPatch) -> None:
