@@ -73,6 +73,15 @@ def test_menu_commands(env: Env) -> None:
     assert unknown.status_code == 400
 
 
+def ok(env: Env, text: str) -> str:
+    """바꾸는 일은 [확인] [취소]로 묻는다: 확인을 눌러 결과 글을 돌려준다."""
+    asked = run(env, text)
+    labels = [c["label"] for c in asked.get("choices") or []]
+    assert labels[-2:] == ["확인", "취소"], asked
+    assert asked["text"].endswith("이대로 할까요?")
+    return run(env, asked["choices"][-2]["text"])["text"]
+
+
 def test_todo_commands(env: Env) -> None:
     signed_up(env, "mocha")
     env.client.get("/api/todo/categories")
@@ -85,27 +94,66 @@ def test_todo_commands(env: Env) -> None:
     # 카테고리는 말하지 않았으면 하나뿐이어도 무조건 묻는다
     assert which["text"] == "어느 카테고리에 넣을까요?"
     assert [c["label"] for c in which["choices"]] == ["TODO"]
-    added = run(env, which["choices"][0]["text"])["text"]
+    confirm = run(env, which["choices"][0]["text"])
+    assert confirm["text"].startswith("넣을까요?") and "15:00" in confirm["text"]
+    # 취소하면 아무것도 바뀌지 않는다
+    assert "취소했어요" in run(env, confirm["choices"][1]["text"])["text"]
+    assert "없어요" in run(env, "/todo 오늘 뭐 있어")["text"]
+    added = run(env, confirm["choices"][0]["text"])["text"]
     assert added.startswith("✅ 넣었어요") and "치과" in added and "15:00" in added
-    added = run(env, "/todo 강남역에서 장보기 //우유 [TODO]")["text"]
+    added = ok(env, "/todo 강남역에서 장보기 //우유 [TODO]")
     assert "| 강남역" in added and "@" not in added and "메모: 우유" in added
     view = run(env, "/todo 오늘 뭐 있어?")["text"]
     assert "1. ⬜ 치과 | 15:00" in view and "2. ⬜ 장보기 | 강남역" in view
-    assert run(env, "/todo 1번 완료")["text"] == "✅ 완료: 치과"
-    assert run(env, "/todo 치과 완료 취소")["text"] == "↩️ 완료 취소: 치과"
-    assert run(env, "/todo 장보기 다 했어")["text"] == "✅ 완료: 장보기"
-    moved = run(env, "/todo 치과 내일로 미뤄줘")["text"]
-    assert moved.startswith("📅 옮겼어요: 치과")
+    assert ok(env, "/todo 1번 완료") == "✅ 완료: 치과"
+    assert ok(env, "/todo 치과 완료 취소") == "↩️ 완료 취소: 치과"
+    assert ok(env, "/todo 장보기 다 했어") == "✅ 완료: 장보기"
+    assert ok(env, "/todo 치과 내일로 미뤄줘").startswith("📅 옮겼어요: 치과")
     assert "치과" in run(env, "/todo 내일 뭐 있어")["text"]
     asked = run(env, "/todo 장보기 삭제해줘")
     assert asked["text"].startswith("삭제할까요?") and "장보기" in asked["text"]
     assert [c["label"] for c in asked["choices"]] == ["삭제", "취소"]
-    assert run(env, asked["choices"][1]["text"])["text"] == "삭제하지 않았어요."
+    assert "취소했어요" in run(env, asked["choices"][1]["text"])["text"]
     assert run(env, asked["choices"][0]["text"])["text"].startswith("🗑️ 삭제했어요")
     assert "장보기" not in run(env, "/todo 오늘 뭐 있어")["text"]
     assert "이미 삭제" in run(env, asked["choices"][0]["text"])["text"]
     missing = run(env, "/todo [없는것] 회의 넣어줘")
     assert "없어요" in missing["text"] and missing["choices"]
+
+
+def test_todo_commands_more(env: Env) -> None:
+    signed_up(env, "mocha")
+    env.client.get("/api/todo/categories")
+    # 카테고리
+    assert "'운동' 카테고리를 만들었어요" in ok(env, "/todo 운동 카테고리 만들어줘")
+    assert "운동" in run(env, "/todo 카테고리 보여줘")["text"]
+    # 고치기
+    ok(env, "/todo 내일 저녁 7시 헬스 넣어줘 [운동]")
+    assert "바꿨어요" in ok(env, "/todo 내일 헬스 장소 동네 헬스장으로 바꿔줘")
+    assert "바꿨어요" in ok(env, "/todo 내일 헬스 시각 20:00으로")
+    view = run(env, "/todo 내일 뭐 있어")["text"]
+    assert "헬스 | 20:00 | 동네 헬스장" in view
+    # 반복
+    asked = run(env, "/todo 평일 9시 반 출근 반복 만들어줘 [TODO]")
+    assert asked["text"] == "9시 30분이 오전인가요, 오후인가요?"
+    made = ok(env, asked["choices"][0]["text"])
+    assert "출근 | 평일마다 | 09:30" in made
+    assert "출근" in run(env, "/todo 반복 보여줘")["text"]
+    ended = run(env, "/todo 출근 반복 끝내기")
+    assert [c["label"] for c in ended["choices"]] == ["끝내기", "취소"]
+    assert "오늘까지만" in run(env, ended["choices"][0]["text"])["text"]
+    # 카테고리 끝내기는 묻고 나서
+    closing = run(env, "/todo 운동 카테고리 끝내기")
+    assert "끝낼까요" in closing["text"]
+    assert "끝냈어요" in run(env, closing["choices"][0]["text"])["text"]
+    # 휴지통
+    asked = run(env, "/todo 내일 헬스 삭제")
+    run(env, asked["choices"][0]["text"])
+    trash = run(env, "/todo 휴지통 보여줘")["text"]
+    assert "1. 헬스" in trash
+    assert ok(env, "/todo 휴지통 1번 되살려줘").startswith("♻️ 되살렸어요")
+    # 친구 이름이 없으면 찾지 못했다고
+    assert "찾지 못했어요" in run(env, "/todo 없는사람에게 친구 요청")["text"]
 
 
 def test_understand_words() -> None:

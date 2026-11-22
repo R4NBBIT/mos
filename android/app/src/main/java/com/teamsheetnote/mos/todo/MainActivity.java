@@ -27,6 +27,8 @@ import java.security.SecureRandom;
 public class MainActivity extends Activity {
     private TextView status;
     private Button action;
+    /** 토큰을 받는 중(이때는 화면을 다시 그리지 않는다) */
+    private volatile boolean loggingIn;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -49,7 +51,18 @@ public class MainActivity extends Activity {
         layout.addView(lookPicker(pad));
         setContentView(layout);
         handle(getIntent());
-        render();
+        if (!loggingIn) {
+            render();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // 브라우저에서 돌아왔을 때 '준비하는 중…' 같은 글이 남지 않게 지금 상태로 다시 그린다
+        if (!loggingIn) {
+            render();
+        }
     }
 
     @Override
@@ -60,7 +73,7 @@ public class MainActivity extends Activity {
 
     private void render() {
         if (Store.signedIn(this)) {
-            status.setText("로그인했어요. 홈 화면을 길게 눌러 위젯 › TODO를 추가하세요.");
+            status.setText("✅ 로그인돼 있어요. 홈 화면을 길게 눌러 위젯 › TODO를 추가하세요. 위젯이 안 바뀌면 위젯의 ↻를 눌러 주세요.");
             action.setText("로그아웃");
             action.setOnClickListener(view -> {
                 Store.signOut(this);
@@ -68,7 +81,7 @@ public class MainActivity extends Activity {
                 render();
             });
         } else {
-            status.setText("ㅁㅇㅅ에 로그인하면 오늘 TODO가 위젯에 보여요.");
+            status.setText("아직 로그인하지 않았어요. ㅁㅇㅅ에 로그인하면 오늘 TODO가 위젯에 보여요. 브라우저에서 '연결'을 누르면 이 앱으로 돌아와요.");
             action.setText("ㅁㅇㅅ로 로그인");
             action.setOnClickListener(view -> startLogin());
         }
@@ -193,6 +206,7 @@ public class MainActivity extends Activity {
         }
         prefs.edit().remove("verifier").remove("state").apply();
         status.setText("로그인하는 중…");
+        loggingIn = true;
         new Thread(() -> {
             try {
                 int[] status = new int[1];
@@ -209,8 +223,10 @@ public class MainActivity extends Activity {
                 }
                 Api.saveTokens(this, new JSONObject(reply));
                 TodoWidget.refreshAll(this);
+                loggingIn = false;
                 runOnUiThread(this::render);
             } catch (Exception error) {
+                loggingIn = false;
                 runOnUiThread(() -> this.status.setText("로그인하지 못했어요. 다시 해 주세요."));
             }
         }).start();

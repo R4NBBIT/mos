@@ -744,6 +744,9 @@ def create_app(
     # 디스코드 슬래시 명령과 웹 입력칸이 같이 쓴다
     menu = MenuService(db, clock)
     commands = BotCommands(db, menu, todo_service, todo_access, settings.operator_discord_id)
+    commands.more.friends = todo_friends
+    commands.more.trash_list = todo_actions.trash
+    commands.more.trash_restore = todo_actions.restore
     app.state.menu = menu
     app.state.commands = commands
     register_command_routes(

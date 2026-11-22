@@ -427,11 +427,14 @@ export default function TodoCategories({
   onBack,
   menu,
   onChanged,
+  onTrash,
 }: {
   showBack: boolean;
   onBack: () => void;
   menu: ReactNode;
   onChanged?: () => void;
+  /** 휴지통 화면(#/todo/trash). 휴지통은 따로 화면(2026-11-23 사용자 요청) */
+  onTrash?: () => void;
 }) {
   const [items, setItems] = useState<TodoCategory[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -559,6 +562,17 @@ export default function TodoCategories({
               void load();
             }}
           />
+          {onTrash && (
+            <button type="button" className="list-item todo-friends-link todo-trash-link" onClick={onTrash}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6" />
+              </svg>
+              <span className="todo-person-name">휴지통</span>
+              <svg className="todo-friends-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 6l6 6-6 6" />
+              </svg>
+            </button>
+          )}
         </section>
       </div>
     </div>

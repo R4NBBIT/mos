@@ -10,6 +10,8 @@ export default function TodoConnect({ requestId, onLeave }: { requestId: string;
   const [info, setInfo] = useState<{ client_name: string; redirect_host: string } | null>(null);
   const [problem, setProblem] = useState("");
   const [busy, setBusy] = useState(false);
+  // 휴대폰 앱(위젯)으로 돌아가는 주소: 브라우저가 자동으로 못 열면 눌러서 열게 남겨 둔다
+  const [backTo, setBackTo] = useState("");
 
   useEffect(() => {
     fetchConnectRequest(requestId)
@@ -29,9 +31,14 @@ export default function TodoConnect({ requestId, onLeave }: { requestId: string;
     try {
       const { redirect } = await decideConnectRequest(requestId, allow);
       forgetConnect();
-      // 서버가 등록된 주소(https)만 돌려준다. 그 앱으로 돌아간다
-      if (/^https?:\/\//.test(redirect)) window.location.assign(redirect);
-      else onLeave();
+      // 서버가 그 앱에 등록된 주소만 돌려준다(https, 또는 휴대폰 앱의 com.예.앱:/경로).
+      // 예전에는 https만 따라가서 위젯 앱으로 돌아가지 못하고 TODO 화면으로만 갔다(2026-11-23 고침)
+      const web = /^https?:\/\//.test(redirect);
+      const app = /^[a-z][a-z0-9+.-]*:\/[^/]/i.test(redirect) && !/^(javascript|data|vbscript|file):/i.test(redirect);
+      if (web || app) {
+        if (app) setBackTo(redirect);
+        window.location.assign(redirect);
+      } else onLeave();
     } catch (error) {
       setBusy(false);
       setProblem(
@@ -45,7 +52,20 @@ export default function TodoConnect({ requestId, onLeave }: { requestId: string;
   return (
     <div className="todo-connect">
       <div className="todo-connect-card" role="dialog" aria-labelledby="todo-connect-title">
-        {problem ? (
+        {backTo ? (
+          <>
+            <h1 id="todo-connect-title">연결했어요</h1>
+            <p>앱으로 돌아가지 않으면 아래 단추를 눌러 주세요.</p>
+            <div className="todo-connect-actions">
+              <a className="todo-small-button todo-primary" href={backTo}>
+                앱으로 돌아가기
+              </a>
+              <button type="button" className="todo-small-button" onClick={onLeave}>
+                닫기
+              </button>
+            </div>
+          </>
+        ) : problem ? (
           <>
             <h1 id="todo-connect-title">연결할 수 없어요</h1>
             <p>{problem}</p>

@@ -58,13 +58,12 @@ def _read_egress_limit(environ: Mapping[str, str]) -> int:
 def _read_todo_users(environ: Mapping[str, str]) -> frozenset[int] | None:
     """TODO 기능을 쓸 수 있는 디스코드 ID. None이면 모두, 빈 묶음이면 운영자만.
 
-    공개 전 기능이라 잘못 적었을 때 앱을 멈추지 않고 '운영자만'으로 둔다.
+    2026-11-23 공개: 비우면(또는 all) 모두. 몇 사람만 쓰게 하려면 쉼표로 ID를 적는다.
+    잘못 적었을 때는 앱을 멈추지 않고 '운영자만'으로 둔다.
     """
     raw = environ.get("TODO_USERS", "").strip()
-    if raw.lower() == "all":
+    if raw.lower() == "all" or not raw:
         return None
-    if not raw:
-        return frozenset()
     ids: set[int] = set()
     for part in raw.split(","):
         item = part.strip()
@@ -89,7 +88,7 @@ class Settings:
     # 월 송신량 한도(구글 무료 1GB). 80% 알림, 95% 첨부 막기
     egress_limit_bytes: int = 1024 * 1024 * 1024
     # TODO 기능(공개 전): None = 모두, 빈 묶음 = 운영자만, 그 밖 = 적힌 사람 + 운영자
-    todo_users: frozenset[int] | None = frozenset()
+    todo_users: frozenset[int] | None = None
 
     @property
     def cookie_secure(self) -> bool:

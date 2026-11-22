@@ -2,16 +2,17 @@
 import { type ReactNode, useCallback } from "react";
 import BackIcon from "../BackIcon";
 import SplitToggle from "../SplitToggle";
-import TodoAiPanel from "./TodoAi";
+import TodoAiPanel, { AiRequests } from "./TodoAi";
 import TodoAlertPanel from "./TodoAlerts";
 import { TODO_NEWS_EVENT } from "./todoApi";
 import "./todo.css";
 
-export type TodoPanelKind = "alerts" | "ai";
+export type TodoPanelKind = "alerts" | "ai" | "trash";
 
 const TITLES: Record<TodoPanelKind, { title: string; sub: string }> = {
   alerts: { title: "알림", sub: "소식과 알림 설정" },
   ai: { title: "AI 연결", sub: "Claude, ChatGPT에서 TODO 넣기" },
+  trash: { title: "휴지통", sub: "삭제한 것은 7일 동안 되돌릴 수 있어요" },
 };
 
 export default function TodoPanelPage({
@@ -52,7 +53,15 @@ export default function TodoPanelPage({
         {menu}
       </header>
       <div className="todo-body todo-page-body">
-        {kind === "alerts" ? <TodoAlertPanel onSeen={seen} /> : <TodoAiPanel onChanged={onChanged} />}
+        {kind === "alerts" ? (
+          <TodoAlertPanel onSeen={seen} />
+        ) : kind === "trash" ? (
+          <section className="todo-alerts todo-alerts-page" aria-label="휴지통">
+            <AiRequests show="trash" onChanged={onChanged} />
+          </section>
+        ) : (
+          <TodoAiPanel onChanged={onChanged} />
+        )}
       </div>
     </div>
   );

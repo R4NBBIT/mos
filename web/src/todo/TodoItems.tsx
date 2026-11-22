@@ -417,8 +417,8 @@ function TodoMenu({
         <div className="todo-confirm" role="group" aria-label="삭제 확인">
           <span>
             {item.repeat
-              ? "반복 TODO예요. 이날 것만 삭제할까요, 앞으로 것까지 삭제할까요? 어느 쪽이든 휴지통(카테고리 화면 아래)에서 7일 동안 되살릴 수 있어요."
-              : "이 TODO를 삭제할까요? 휴지통(카테고리 화면 아래)에서 7일 동안 되살릴 수 있어요."}
+              ? "반복 TODO예요. 이날 것만 삭제할까요, 앞으로 것까지 삭제할까요? 어느 쪽이든 휴지통(카테고리 화면 › 휴지통)에서 7일 동안 되살릴 수 있어요."
+              : "이 TODO를 삭제할까요? 휴지통(카테고리 화면 › 휴지통)에서 7일 동안 되살릴 수 있어요."}
           </span>
           <div className="todo-confirm-buttons">
             <button type="button" className="todo-small-button" onClick={() => setConfirming(false)}>

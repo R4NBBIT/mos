@@ -76,10 +76,7 @@ def _clean_name(raw: object) -> str:
 
 def live_text(roll: MenuRoll, who: str = "") -> str:
     head = f"{who}\n" if who else ""
-    return (
-        f"{head}🍽️ 오늘의 추천 메뉴는 **{roll.history[-1]}**입니다, 마스터 🧐\n"
-        f"└ 🎲 리롤: {roll.rerolls}회"
-    )
+    return f"{head}🍽️ 오늘의 추천 메뉴는 **{roll.history[-1]}**!\n└ 🎲 리롤: {roll.rerolls}회"
 
 
 def final_text(roll: MenuRoll, who: str = "") -> str:
@@ -88,7 +85,7 @@ def final_text(roll: MenuRoll, who: str = "") -> str:
     history = ", ".join(f"{m} x{counts[m]}" if counts[m] > 1 else m for m in ordered)
     text = f"{live_text(roll, who)}\n\n📜 추천 기록\n{history}\n"
     if roll.rerolls > 0:
-        text += "\n_이쯤 되면 그냥 드십시오, 마스터._"
+        text += "\n_이쯤 되면 그냥 먹자!_"
     return text
 
 
@@ -213,7 +210,7 @@ class MenuService:
         if roll is None:
             raise MenuError("추천이 이미 끝났어요. 다시 /점메추를 써 주세요.")
         if user_id != roll.author_id:
-            raise MenuError("⛔ 명령어를 사용하신 마스터만 사용하실 수 있습니다.")
+            raise MenuError("⛔ /점메추를 쓴 사람만 다시 뽑을 수 있어요!")
         roll.rerolls += 1
         roll.history.append(secrets.choice(roll.menus))
         self._arm(roll)

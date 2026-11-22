@@ -20,7 +20,14 @@ function dayLabel(at: number | null): string {
 }
 
 /** AI가 만든 요청 중 ㅁㅇㅅ에서 승인해야 하는 것, 휴지통(7일, 직접 지운 것과 AI가 지운 것) */
-export function AiRequests({ onChanged }: { onChanged: () => void }) {
+export function AiRequests({
+  onChanged,
+  show = "pending",
+}: {
+  onChanged: () => void;
+  /** pending: 승인 기다리는 요청만, trash: 휴지통만(휴지통은 따로 화면, 2026-11-23 사용자 요청) */
+  show?: "pending" | "trash";
+}) {
   const [state, setState] = useState<{ pending: TodoAiPending[]; trash: TodoAiTrash[] } | null>(null);
   const [message, setMessage] = useState("");
   const load = () =>
@@ -52,7 +59,7 @@ export function AiRequests({ onChanged }: { onChanged: () => void }) {
   if (state === null) return null;
   return (
     <>
-      {state.pending.length > 0 && (
+      {show === "pending" && state.pending.length > 0 && (
         <>
           <div className="todo-alerts-head todo-alerts-sub">
             <strong>승인 기다리는 요청</strong>
@@ -76,12 +83,12 @@ export function AiRequests({ onChanged }: { onChanged: () => void }) {
           </ul>
         </>
       )}
-      {state.trash.length > 0 && (
+      {show === "trash" && state.trash.length === 0 && <p className="todo-setting-help">휴지통이 비어 있어요.</p>}
+      {show === "trash" && state.trash.length > 0 && (
         <>
-          <div className="todo-alerts-head todo-alerts-sub">
-            <strong>휴지통</strong>
-          </div>
-          <p className="todo-setting-help">지운 TODO는 7일 동안 되돌릴 수 있어요.</p>
+          <p className="todo-setting-help">
+            삭제한 TODO, 반복, 카테고리, 친구 그룹은 7일 동안 여기서 되돌릴 수 있어요. 7일이 지나면 완전히 지워져요.
+          </p>
           <ul className="todo-news">
             {state.trash.map((item) => (
               <li key={item.id} className="todo-ai-item">
@@ -171,7 +178,7 @@ export default function TodoAiPanel({ onChanged }: { onChanged: () => void }) {
               <span className="todo-ai-app-text">
                 <strong>{connection.name}</strong>
                 <span>
-                  {dayLabel(connection.created_at)} 연결, 마지막 사용 {dayLabel(connection.last_used_at)}
+                  {dayLabel(connection.created_at)} 연결 | 마지막 사용 {dayLabel(connection.last_used_at)}
                 </span>
               </span>
               {confirming === connection.id ? (

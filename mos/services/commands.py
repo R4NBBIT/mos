@@ -23,6 +23,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from mos.db.database import Database
+from mos.services.command_more import MoreCommands, Reply
 from mos.services.menu import EMPTY, MenuError, MenuService
 from mos.services.todo import TodoError, TodoService
 from mos.services.todo_access import TodoAccess
@@ -88,6 +89,8 @@ class BotCommands:
         self.access = access
         self.operator_id = operator_id
         self.display_name: Callable[[int], Awaitable[str]] | None = None
+        # 카테고리, 반복, 친구, 휴지통, 고치기(app.py가 friends, 휴지통 함수를 채운다)
+        self.more = MoreCommands(todo)
 
     # ------------------------------------------------------------ 공용
 
@@ -245,20 +248,48 @@ class BotCommands:
         except CommandError as error:
             return CommandResult(str(error))
         categories = [c for c in await self.todo.categories(account_id) if c["closed_at"] is None]
-        # 삭제 확인 단추가 보내는 말(사람이 쓰는 말이 아님)
-        confirm = DELETE_CONFIRM.fullmatch(raw.strip())
+        said = raw.strip()
+        # 단추가 보내는 말(사람이 쓰는 말이 아님): 삭제 확인, 취소, '실행 <원래 말>'(확인 뒤)
+        confirm = DELETE_CONFIRM.fullmatch(said)
         if confirm:
             return await self._delete(account_id, confirm[1])
-        if raw.strip() == "삭제 취소":
-            return CommandResult("삭제하지 않았어요.")
-        words = understand(raw, today, [str(c["name"]) for c in categories])
+        if said in ("취소", "삭제 취소"):
+            return CommandResult("취소했어요. 아무것도 바꾸지 않았어요.")
+        # 바꾸는 일은 모두 한 번 보여 주고 [확인] [취소]로 묻는다(2026-11-23 사용자 요청)
+        run = said.startswith("실행 ")
+        if run:
+            said = said[3:].strip()
+
+        def ask(text: str) -> Reply:
+            return Reply(
+                f"{text}\n이대로 할까요?", [("확인", f"/todo 실행 {said}"), ("취소", "/todo 취소")]
+            )
+
+        more = await self.more.handle(
+            account_id,
+            today,
+            said,
+            lambda day, title: self._find_reply(account_id, day, title),
+            None if run else ask,
+        )
+        if more is not None:
+            return CommandResult(more.text, choices=more.choices)
+        words = understand(said, today, [str(c["name"]) for c in categories])
         if words.action == "view":
             return await self._view(account_id, words.days[0] if words.days else today)
         if words.action == "delete":
             return await self._ask_delete(account_id, today, words)
         if words.action in ("done", "undo", "move"):
-            return await self._change(account_id, today, words)
-        return await self._add(account_id, today, raw, words, categories)
+            return await self._change(account_id, today, words, None if run else ask)
+        return await self._add(account_id, today, said, words, categories, None if run else ask)
+
+    async def _find_reply(
+        self, account_id: int, day: str, title: str
+    ) -> tuple[dict[str, Any] | None, Reply | None]:
+        words = understand(title, day)
+        words.action = "edit"
+        found, reply = await self._find(account_id, day, words)
+        return found, (Reply(reply.text, reply.choices) if reply else None)
 
     async def _add(
         self,
@@ -267,13 +298,15 @@ class BotCommands:
         raw: str,
         words: Understood,
         categories: list[dict[str, Any]],
+        ask: Callable[[str], Reply] | None = None,
     ) -> CommandResult:
         if not words.title:
             return CommandResult("무엇을 넣을지 이름을 써 주세요.")
         if words.ask is not None:
             hour = words.ask.label.split("시")[0]
+            particle = "이" if words.ask.label.endswith("분") else "가"
             return CommandResult(
-                f"{words.ask.label}가 오전인가요, 오후인가요?",
+                f"{words.ask.label}{particle} 오전인가요, 오후인가요?",
                 choices=[
                     (f"오전 ({words.ask.am})", "/todo " + self._half(raw, hour, "오전")),
                     (f"오후 ({words.ask.pm})", "/todo " + self._half(raw, hour, "오후")),
@@ -306,12 +339,15 @@ class BotCommands:
             "memo": words.memo or "",
             "category_id": str(category["id"]),
         }
+        parts = [self._day_word(day), str(category["name"]), words.title, words.time, words.place]
+        memo = "\n메모: " + words.memo if words.memo else ""
+        if ask:
+            reply = ask("넣을까요? " + " | ".join(p for p in parts if p) + memo)
+            return CommandResult(reply.text, choices=reply.choices)
         try:
             await self.todo.add_item(account_id, body)
         except TodoError as error:
             return CommandResult(f"넣지 못했어요({error.code}).")
-        parts = [self._day_word(day), str(category["name"]), words.title, words.time, words.place]
-        memo = "\n메모: " + words.memo if words.memo else ""
         return CommandResult("✅ 넣었어요: " + " | ".join(p for p in parts if p) + memo)
 
     @staticmethod
@@ -354,7 +390,7 @@ class BotCommands:
         if not done:
             return CommandResult("이미 삭제했거나 찾지 못했어요.")
         return CommandResult(
-            "🗑️ 삭제했어요. 휴지통(TODO 카테고리 화면 아래)에서 7일 동안 되살릴 수 있어요."
+            "🗑️ 삭제했어요. 휴지통(TODO 카테고리 화면 › 휴지통)에서 7일 동안 되살릴 수 있어요."
         )
 
     async def _find(
@@ -382,7 +418,13 @@ class BotCommands:
         view = await self._view(account_id, day)
         return None, CommandResult(f"{self._day_word(day)}에서 찾지 못했어요.\n{view.text}")
 
-    async def _change(self, account_id: int, today: str, words: Understood) -> CommandResult:
+    async def _change(
+        self,
+        account_id: int,
+        today: str,
+        words: Understood,
+        ask: Callable[[str], Reply] | None = None,
+    ) -> CommandResult:
         if words.action == "move":
             if len(words.days) >= 2:
                 source, target = words.days[0], words.days[-1]
@@ -393,6 +435,14 @@ class BotCommands:
         found, reply = await self._find(account_id, source, words)
         if found is None:
             return reply or CommandResult("무엇을 할지 이름이나 번호를 써 주세요.")
+        if ask:
+            what = {
+                "move": f"옮길까요? {found['title']} → {self._day_word(target or today)}",
+                "done": f"완료로 할까요? {found['title']}",
+                "undo": f"완료를 취소할까요? {found['title']}",
+            }[words.action]
+            reply = ask(what)
+            return CommandResult(reply.text, choices=reply.choices)
         if words.action == "move":
             try:
                 await self.todo.update_item(account_id, found["id"], {"day": target})

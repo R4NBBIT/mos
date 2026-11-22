@@ -133,7 +133,7 @@ def test_todo_users_setting() -> None:
     def users(raw: str) -> frozenset[int] | None:
         return load_settings({**BASE_ENV, "TODO_USERS": raw}).todo_users
 
-    assert users("") == frozenset()
+    assert users("") is None  # 2026-11-23 공개: 비우면 모두
     assert users("all") is None
     assert users("1557254393902923793, 1573318317446529064") == {
         1557254393902923793,
@@ -145,7 +145,13 @@ def test_todo_users_setting() -> None:
 def test_operator_is_always_allowed() -> None:
     from mos.services.todo_access import TodoAccess
 
-    settings = load_settings({**BASE_ENV, "OPERATOR_DISCORD_ID": "1557254393902923793"})
+    settings = load_settings(
+        {
+            **BASE_ENV,
+            "OPERATOR_DISCORD_ID": "1557254393902923793",
+            "TODO_USERS": "1557254393902923799",
+        }
+    )
     access = TodoAccess(settings)
     assert access.allowed(1557254393902923793)
     assert not access.allowed(1573318317446529064)
