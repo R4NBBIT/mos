@@ -6642,3 +6642,20 @@ body.sorting * {
     padding: 16px 14px 28px;
   }
 }
+
+/* 노션: 지금 서버 아래 '다른 서버' 묶음(누르면 펼침, 서버를 고르면 그 서버로) */
+.tree-others {
+  margin-top: 6px;
+  color: var(--sub);
+}
+
+.tree-others-count {
+  margin-left: 6px;
+  color: #a5a29a;
+  font-size: 12px;
+}
+
+/* 묶음 안 서버 아이콘이 '다른 서버' 글자와 같은 세로줄(10 + 꺾쇠 10 + 간격 8) */
+:root[data-theme="note"] .tree-others-list .list-item {
+  padding-left: 28px;
+}

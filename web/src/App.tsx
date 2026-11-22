@@ -324,7 +324,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           tree
           openGroupId={groupId}
           activeChannelId={activeChannelId}
-          onOpen={(id) => go(`#/g/${id}`)}
+          onOpen={(id) => (side ? browseTo(id) : go(`#/g/${id}`))}
           onOpenChannel={openChannel}
           onOpenVoice={openVoice}
           {...(side ? listSide : common)}

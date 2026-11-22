@@ -375,7 +375,7 @@ function MemberPanel({
   skin,
 }: {
   data: GroupMembers;
-  channel: ChannelInfo | undefined;
+  channel: { id: string; name: string } | undefined;
   skin: ListSkin;
 }) {
   const [open, setOpen] = useState(readMembersOpen);
@@ -497,14 +497,28 @@ function TreeChannels({
           <ResetOrder keys={[orderKey]} what="이 서버 페이지" />
         </div>
       )}
-      {members && (
-        <MemberPanel
-          data={members}
-          channel={load.value.channels.find((channel) => channel.id === activeChannelId)}
-          skin={skin}
-        />
-      )}
     </>
+  );
+}
+
+/** 노션: 지금 서버의 인원은 트리 맨 아래에 따로(다른 서버 사이에 끼지 않게) */
+function TreeMembers({
+  groupId,
+  activeChannelId,
+  skin,
+  onAuthLost,
+}: {
+  groupId: string;
+  activeChannelId?: string;
+  skin: ListSkin;
+  onAuthLost: () => void;
+}) {
+  const members = useMembers(groupId, onAuthLost);
+  const [load] = useLoad<GroupChannels>(() => fetchGroupChannels(groupId), [groupId], onAuthLost);
+  if (!members) return null;
+  const channels = load.state === "ok" ? load.value.channels : [];
+  return (
+    <MemberPanel data={members} channel={channels.find((channel) => channel.id === activeChannelId)} skin={skin} />
   );
 }
 
@@ -537,6 +551,41 @@ export function GroupList({
   }, [openGroupId]);
   const toggle = (groupId: string) =>
     setExpanded((current) => (current.includes(groupId) ? current.filter((id) => id !== groupId) : [...current, groupId]));
+  const ordered = load.state === "ok" ? applyOrder(load.value.groups, settings.list_order.groups) : [];
+  // 노션에서 서버를 연 때(순서 바꾸기 중이 아니면): 지금 서버와 다른 서버 묶음으로 나눈다
+  const current = tree && openGroupId && !editing ? ordered.find((group) => group.id === openGroupId) : undefined;
+  const others = current ? ordered.filter((group) => group.id !== current.id) : [];
+  const [othersOpen, setOthersOpen] = useState(false);
+  useEffect(() => setOthersOpen(false), [openGroupId]);
+  const toggleOthers = () => setOthersOpen((value) => !value);
+  const treeGroup = (group: Group, handle: ReactNode) => {
+    const open = tree && expanded.includes(group.id);
+    return (
+      <>
+        <GroupRow
+          group={group}
+          skin={skin}
+          handle={handle}
+          expanded={tree ? open : undefined}
+          onOpen={() => (tree ? toggle(group.id) : onOpen(group.id))}
+          onPin={() => togglePin("group", group.id, !group.pinned)}
+        />
+        {tree && (
+          <Collapse open={open}>
+            <TreeChannels
+              groupId={group.id}
+              activeChannelId={activeChannelId}
+              skin={skin}
+              editing={editing}
+              onOpen={(channel) => onOpenChannel(group.id, channel)}
+              onOpenVoice={(voice) => onOpenVoice(group.id, voice)}
+              onAuthLost={common.onAuthLost}
+            />
+          </Collapse>
+        )}
+      </>
+    );
+  };
   return (
     <Shell
       title={skin.groupsTitle}
@@ -573,48 +622,77 @@ export function GroupList({
       {load.state === "ok" && load.value.groups.length === 0 && (
         <p className="list-note">이 계정으로 볼 수 있는 서버가 없어요.</p>
       )}
-      {load.state === "ok" && load.value.groups.length > 0 && (
+      {load.state === "ok" && current && (
+        // 노션에서 서버를 연 때: 지금 서버만 펼치고, 다른 서버는 '다른 서버' 묶음에 접어 둔다
+        <section className="list-section">
+          {skin.allTitle && <h2 className="list-section-title">{skin.allTitle}</h2>}
+          {treeGroup(current, null)}
+          {others.length > 0 && (
+            <>
+              <div
+                className="list-item tree-others"
+                role="button"
+                tabIndex={0}
+                aria-expanded={othersOpen}
+                onClick={() => toggleOthers()}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") toggleOthers();
+                }}
+              >
+                <span className="tree-chevron" aria-hidden="true">
+                  {othersOpen ? "▾" : "▸"}
+                </span>
+                <span className="list-name">
+                  다른 서버<span className="tree-others-count">{others.length}</span>
+                </span>
+                {!othersOpen && (
+                  <Badge
+                    unread={others.reduce((sum, group) => sum + (group.unread ?? 0), 0)}
+                    mentions={others.reduce((sum, group) => sum + (group.mentions ?? 0), 0)}
+                    look={skin.badge}
+                  />
+                )}
+              </div>
+              <Collapse open={othersOpen}>
+                <div className="tree-others-list">
+                  {others.map((group) => (
+                    <GroupRow
+                      key={group.id}
+                      group={group}
+                      skin={skin}
+                      onOpen={() => onOpen(group.id)}
+                      onPin={() => togglePin("group", group.id, !group.pinned)}
+                    />
+                  ))}
+                </div>
+              </Collapse>
+            </>
+          )}
+        </section>
+      )}
+      {load.state === "ok" && !current && load.value.groups.length > 0 && (
         <section className="list-section">
           {skin.allTitle && <h2 className="list-section-title">{skin.allTitle}</h2>}
           <Sortable
-            items={applyOrder(load.value.groups, settings.list_order.groups)}
+            items={ordered}
             editing={editing}
             label={(group) => group.name}
             onReorder={(ids) => void save({ list_order: { groups: ids } })}
           >
-            {(group, handle) => {
-              const open = tree && expanded.includes(group.id);
-              return (
-                <>
-                  <GroupRow
-                    group={group}
-                    skin={skin}
-                    handle={handle}
-                    expanded={tree ? open : undefined}
-                    onOpen={() => (tree ? toggle(group.id) : onOpen(group.id))}
-                    onPin={() => togglePin("group", group.id, !group.pinned)}
-                  />
-                  {tree && (
-                    <Collapse open={open}>
-                      <TreeChannels
-                        groupId={group.id}
-                        activeChannelId={activeChannelId}
-                        skin={skin}
-                        editing={editing}
-                        onOpen={(channel) => onOpenChannel(group.id, channel)}
-                        onOpenVoice={(voice) => onOpenVoice(group.id, voice)}
-                        onAuthLost={common.onAuthLost}
-                      />
-                    </Collapse>
-                  )}
-                </>
-              );
-            }}
+            {(group, handle) => treeGroup(group, handle)}
           </Sortable>
         </section>
       )}
       {load.state === "ok" && load.value.groups.length + load.value.pinned_channels.length > 1 && (
         <OrderBar editing={editing} onEditing={setEditing} keys={["groups", "pinned"]} what="서버" />
+      )}
+      {tree && openGroupId && (
+        <TreeMembers
+          groupId={openGroupId}
+          activeChannelId={activeChannelId}
+          skin={skin}
+          onAuthLost={common.onAuthLost}
+        />
       )}
     </Shell>
   );
