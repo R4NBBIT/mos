@@ -114,6 +114,18 @@ def register_todo_routes(
             raise TodoError("bad_scope")
         await todo.delete_item(account.account_id, item_id, scope)
 
+    # ------------------------------------------------------------ 알림 설정(NOTI-01, NOTI-03)
+
+    @app.get("/api/todo/prefs")
+    async def todo_prefs(request: Request) -> dict[str, Any]:
+        account = await todo_account(request)
+        return await todo.alert_prefs(account.account_id)
+
+    @app.patch("/api/todo/prefs")
+    async def todo_prefs_update(request: Request) -> dict[str, Any]:
+        account = await writer(request)
+        return await todo.update_alert_prefs(account.account_id, await json_body(request))
+
     # ------------------------------------------------------------ 반복
 
     @app.post("/api/todo/repeats")

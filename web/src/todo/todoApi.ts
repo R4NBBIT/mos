@@ -138,6 +138,31 @@ export function todoErrorText(error: unknown): string {
     bad_weekdays: "요일을 하나 이상 골라 주세요.",
     bad_end_day: "끝나는 날은 시작한 날보다 뒤여야 해요.",
     too_many_repeats: "반복 할 일은 100개까지예요.",
+    bad_alert_lead: "알림 시각을 다시 골라 주세요.",
+    bad_tz: "이 기기의 시간대를 알 수 없어요.",
   };
   return words[code] ?? "저장하지 못했어요. 다시 해 주세요.";
+}
+
+// ------------------------------------------------------------ 알림 설정(NOTI-01, NOTI-03)
+
+export type AlertLead = 0 | 10 | 30 | 60;
+
+export interface TodoAlertPrefs {
+  alert_lead: AlertLead | null;
+  morning: string | null;
+  tz: string;
+}
+
+export const fetchAlertPrefs = () => call<TodoAlertPrefs>("/api/todo/prefs");
+
+export const saveAlertPrefs = (changes: Partial<TodoAlertPrefs>) => call<TodoAlertPrefs>("/api/todo/prefs", "PATCH", changes);
+
+/** 이 브라우저의 시간대(서버가 알림 시각을 계산할 때 씀). 모르면 보내지 않는다 */
+export function browserTz(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
 }

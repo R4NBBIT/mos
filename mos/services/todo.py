@@ -9,6 +9,7 @@ from calendar import monthrange
 from collections.abc import Callable
 from datetime import date, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from mos.db.todo_repo import TodoRepo
 
@@ -33,6 +34,7 @@ DAY_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
 TIME_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 COLOR_RE = re.compile(r"^#[0-9A-F]{6}$")
 SPACES_RE = re.compile(r"\s+")
+TZ_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_+-]{0,30}(/[A-Za-z0-9_+-]{1,30}){0,2}$")
 
 
 class TodoError(Exception):
@@ -586,15 +588,25 @@ class TodoService:
         await self.repo.delete_repeat_rows_from(account_id, repeat_id, day)
         await self.repo.update_repeat(account_id, repeat_id, {"end_day": before}, self.now())
 
-    # ------------------------------------------------------------ 최근 색
+    # ------------------------------------------------------------ 설정(todo_pref 한 행, JSON)
 
-    async def recent_colors(self, account_id: int) -> list[str]:
+    async def _prefs(self, account_id: int) -> dict[str, Any]:
         raw = await self.repo.prefs(account_id)
         try:
             prefs = json.loads(raw) if raw else {}
         except ValueError:
             prefs = {}
-        colors = prefs.get("recent_colors") if isinstance(prefs, dict) else None
+        return prefs if isinstance(prefs, dict) else {}
+
+    async def _save_prefs(self, account_id: int, changes: dict[str, Any]) -> None:
+        """다른 키는 그대로 두고 바꾼 키만 덮는다."""
+        prefs = {**await self._prefs(account_id), **changes}
+        await self.repo.save_prefs(account_id, json.dumps(prefs), self.now())
+
+    # ------------------------------------------------------------ 최근 색
+
+    async def recent_colors(self, account_id: int) -> list[str]:
+        colors = (await self._prefs(account_id)).get("recent_colors")
         if not isinstance(colors, list):
             return []
         return [value for value in colors if isinstance(value, str) and COLOR_RE.match(value)][
@@ -606,5 +618,59 @@ class TodoService:
         if color in PRESET_COLORS:
             return
         colors = [color, *(c for c in await self.recent_colors(account_id) if c != color)]
-        prefs = {"recent_colors": colors[:MAX_RECENT_COLORS]}
-        await self.repo.save_prefs(account_id, json.dumps(prefs), self.now())
+        await self._save_prefs(account_id, {"recent_colors": colors[:MAX_RECENT_COLORS]})
+
+    # ------------------------------------------------------------ 알림 설정(NOTI-01, NOTI-03)
+
+    async def alert_prefs(self, account_id: int) -> dict[str, Any]:
+        return alert_prefs_from(await self._prefs(account_id))
+
+    async def update_alert_prefs(self, account_id: int, body: dict[str, Any]) -> dict[str, Any]:
+        changes: dict[str, Any] = {}
+        for key, value in body.items():
+            if key == "alert_lead":
+                if value is not None and (isinstance(value, bool) or value not in ALERT_LEADS):
+                    raise TodoError("bad_alert_lead")
+                changes[key] = value
+            elif key == "morning":
+                if value is not None and (not isinstance(value, str) or not TIME_RE.match(value)):
+                    raise TodoError("bad_time")
+                changes[key] = value
+            elif key == "tz":
+                changes[key] = clean_tz(value)
+            else:
+                raise TodoError("bad_body")
+        if changes:
+            await self._save_prefs(account_id, changes)
+        return await self.alert_prefs(account_id)
+
+
+ALERT_LEADS = (0, 10, 30, 60)  # 몇 분 미리(NOTI-01)
+DEFAULT_TZ = "Asia/Seoul"
+
+
+def clean_tz(value: Any) -> str:
+    """브라우저가 알려 준 시간대. 알 수 없는 이름은 거절(경로 같은 값도 막힘)."""
+    if not isinstance(value, str) or not TZ_RE.match(value):
+        raise TodoError("bad_tz")
+    try:
+        ZoneInfo(value)
+    except (ZoneInfoNotFoundError, ValueError) as error:
+        raise TodoError("bad_tz") from error
+    return value
+
+
+def alert_prefs_from(prefs: dict[str, Any]) -> dict[str, Any]:
+    """저장된 값이 이상하면 그 항목만 기본값(끔, 서울)."""
+    lead = prefs.get("alert_lead")
+    morning = prefs.get("morning")
+    tz = prefs.get("tz")
+    try:
+        tz = clean_tz(tz)
+    except TodoError:
+        tz = DEFAULT_TZ
+    return {
+        "alert_lead": lead if lead in ALERT_LEADS and not isinstance(lead, bool) else None,
+        "morning": morning if isinstance(morning, str) and TIME_RE.match(morning) else None,
+        "tz": tz,
+    }

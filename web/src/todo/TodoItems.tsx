@@ -1,5 +1,5 @@
 // 할 일 한 줄과 할 일 메뉴(SCR-03), 카테고리 묶음의 입력칸(날짜 알아보기, TODO-13~15)
-import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, longLabel, timeLabel, today, WEEKDAY_NAMES } from "./dates";
 import { useEnterKey } from "./enterKey";
 import { parseWhen } from "./parseWhen";
@@ -87,6 +87,37 @@ function TodoMenu({
   const [confirming, setConfirming] = useState(false);
   const titleRef = useRef(title);
   titleRef.current = title;
+  // 메모는 쓰다 멈추면(1초) 저절로 저장(TODO-14). 저장한 값을 기억해 '저장' 때 또 보내지 않는다
+  const savedMemo = useRef(item.memo);
+  const memoTouched = useRef(false);
+  const [memoState, setMemoState] = useState<"" | "saving" | "saved" | "failed">("");
+  const saveMemo = useCallback(async () => {
+    const value = memo.trim();
+    if (value === savedMemo.current.trim()) return;
+    setMemoState("saving");
+    try {
+      await updateTodo(item.id, { memo: value });
+      savedMemo.current = value;
+      memoTouched.current = true;
+      setMemoState("saved");
+    } catch {
+      setMemoState("failed");
+    }
+  }, [memo, item.id]);
+  useEffect(() => {
+    if (memo.trim() === savedMemo.current.trim()) return;
+    const timer = window.setTimeout(() => void saveMemo(), 1000);
+    return () => window.clearTimeout(timer);
+  }, [memo, saveMemo]);
+  // 메뉴가 닫힐 때(닫기, 이름 다시 누르기) 메모를 저장했으면 목록을 다시 받는다
+  const doneRef = useRef(onDone);
+  doneRef.current = onDone;
+  useEffect(
+    () => () => {
+      if (memoTouched.current) doneRef.current();
+    },
+    [],
+  );
   const isPast = item.day < today();
   const openCategories = categories.filter((category) => !category.closed || category.id === item.category_id);
 
@@ -94,7 +125,9 @@ function TodoMenu({
     if (busy) return;
     setBusy(true);
     try {
-      onDone(await action());
+      const notice = await action();
+      memoTouched.current = false; // 목록은 여기서 다시 받으므로 닫힐 때 또 받지 않게
+      onDone(notice);
     } catch (failure) {
       setError(todoErrorText(failure));
       setBusy(false);
@@ -111,7 +144,7 @@ function TodoMenu({
       if (titleRef.current.trim() !== item.title) changes.title = titleRef.current.trim();
       if ((time || null) !== item.time) changes.time = time || null;
       if ((place.trim() || null) !== item.place) changes.place = place.trim() || null;
-      if (memo.trim() !== item.memo) changes.memo = memo;
+      if (memo.trim() !== savedMemo.current.trim()) changes.memo = memo;
       if (categoryId !== item.category_id) changes.category_id = categoryId;
       if (day !== item.day) changes.day = day;
       let saved = item;
@@ -266,9 +299,15 @@ function TodoMenu({
         value={memo}
         maxLength={1000}
         rows={2}
-        placeholder="메모 (나만 보여요)"
+        placeholder="메모 (나만 보여요, 저절로 저장)"
         onChange={(event) => setMemo(event.target.value)}
+        onBlur={() => void saveMemo()}
       />
+      {memoState && (
+        <span className="todo-hint" role="status">
+          {memoState === "saving" ? "메모 저장 중…" : memoState === "saved" ? "메모 저장됨" : "메모를 저장하지 못했어요"}
+        </span>
+      )}
       {error && <p className="todo-error">{error}</p>}
       <div className="todo-edit-actions">
         <button type="button" className="todo-small-button todo-primary" disabled={busy} onClick={() => void save()}>

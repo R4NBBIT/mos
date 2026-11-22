@@ -1743,3 +1743,65 @@
   color: #185abd;
   font-size: 15px;
 }
+
+/* ============================================================ 알림 설정(오늘 화면 위에 펼침) */
+.todo-alerts {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 560px;
+  font-size: 14px;
+}
+
+.todo-alerts-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.todo-alerts .todo-prop {
+  grid-template-columns: 80px 1fr;
+}
+
+.todo-segment {
+  display: inline-flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  justify-self: start;
+}
+
+.todo-segment button {
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.todo-segment button:last-child {
+  border-right: 0;
+}
+
+.todo-segment .todo-segment-on {
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  font-weight: 700;
+}
+
+.todo-alerts .todo-check-line {
+  flex: none;
+}
+
+.todo-alerts .todo-hint {
+  margin: 0;
+}

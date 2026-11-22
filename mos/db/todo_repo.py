@@ -290,3 +290,23 @@ class TodoRepo:
                 " updated_at = excluded.updated_at",
                 (account_id, prefs_json, now),
             )
+
+    # ------------------------------------------------------------ 알림(NOTI-01, NOTI-03)
+
+    async def pref_rows(self) -> list[tuple[int, str]]:
+        rows = await self.db.fetch_all("SELECT account_id, prefs_json FROM todo_pref")
+        return [(int(row[0]), str(row[1])) for row in rows]
+
+    async def mark_alert(self, account_id: int, key: str, now: int) -> bool:
+        """처음 보내는 알림이면 True(표시를 남김), 이미 보냈으면 False."""
+        async with self.db.writing() as conn:
+            cursor = await conn.execute(
+                "INSERT OR IGNORE INTO todo_alert_sent (account_id, alert_key, sent_at)"
+                " VALUES (?, ?, ?)",
+                (account_id, key, now),
+            )
+            return cursor.rowcount == 1
+
+    async def forget_alerts_before(self, before: int) -> None:
+        async with self.db.writing() as conn:
+            await conn.execute("DELETE FROM todo_alert_sent WHERE sent_at < ?", (before,))

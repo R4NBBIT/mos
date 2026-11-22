@@ -80,6 +80,7 @@ from mos.services.settings import SettingsError, SettingsStore
 from mos.services.todo import TodoService
 from mos.services.todo_access import FEATURE_NAME as TODO_FEATURE
 from mos.services.todo_access import TodoAccess
+from mos.services.todo_alerts import TodoAlerts
 from mos.version import current_version
 
 log = logging.getLogger(__name__)
@@ -337,6 +338,7 @@ def create_app(
     messenger: Messenger | None = None,
     notify_operator: Callable[[str], Awaitable[None]] | None = None,
     push_service: PushService | None = None,
+    run_background: bool = True,
     media_fetcher: Any = None,
 ) -> FastAPI:
     perms = permissions or PermissionService(directory)
@@ -482,9 +484,14 @@ def create_app(
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         opened_here = not db.is_open
         await db.open()
+        alert_task = (
+            asyncio.create_task(_app.state.todo_alert_loop()) if run_background else None
+        )
         try:
             yield
         finally:
+            if alert_task is not None:
+                alert_task.cancel()
             with contextlib.suppress(Exception):
                 await _app.state.media_fetcher.close()
             if opened_here:
@@ -597,7 +604,42 @@ def create_app(
     # ------------------------------------------------------------ 할 일(공개 전, 기능 스위치)
 
     todo_access = TodoAccess(settings)
-    register_todo_routes(app, require_account, todo_access, TodoService(TodoRepo(db), clock), clock)
+    todo_repo = TodoRepo(db)
+    todo_service = TodoService(todo_repo, clock)
+    register_todo_routes(app, require_account, todo_access, todo_service, clock)
+    todo_alerts = TodoAlerts(todo_service, todo_repo, clock)
+
+    async def send_todo_alerts() -> None:
+        """할 일 알림(NOTI-01, NOTI-03): 허용된 계정의, 알림을 켠 기기에만 웹 푸시."""
+        due = await todo_alerts.due()
+        if not due:
+            return
+        targets = await push.targets()
+        for account_id, payload in due:
+            account = await sessions.repo.account(account_id)
+            if account is None or account.get("status") != "active":
+                continue
+            if not todo_access.allowed(int(account["discord_user_id"])):
+                continue
+            for device_id, target_account in targets:
+                if target_account != account_id:
+                    continue
+                if not (await notify_prefs.get(device_id, account_id))["notify"]:
+                    continue
+                last_push[(device_id, account_id)] = {**payload, "at": clock()}
+                await push.send(account_id, device_id)
+
+    async def todo_alert_loop() -> None:
+        while True:
+            await asyncio.sleep(60 - time.time() % 60 + 1)  # 매분 1초쯤
+            try:
+                await send_todo_alerts()
+            except Exception:  # 다음 분에 다시
+                logging.getLogger(__name__).exception("할 일 알림 보내기 실패")
+
+    app.state.send_todo_alerts = send_todo_alerts  # 테스트가 바로 부른다
+    app.state.todo_alerts = todo_alerts
+    app.state.todo_alert_loop = todo_alert_loop
 
     # ------------------------------------------------------------ 상태 확인(자동 배포가 본다)
 
@@ -1401,6 +1443,18 @@ def create_app(
         latest = last_push.get((device.id, account_id))
         result: dict[str, Any] = {"title": title, "body": "새 알림이 있어요", "url": "/"}
         if latest is None:
+            return result
+        if latest.get("kind") == "todo":
+            # 할 일 알림: 내용 보이기를 켜고 잠기지 않았을 때만 할 일 이름(NOTI-04)
+            result["url"] = latest["url"]
+            try:
+                await sessions.require_active(device, touch=False)
+                todo_unlocked = True
+            except SessionError:
+                todo_unlocked = False
+            if device_prefs["preview"] and todo_unlocked:
+                result["title"] = latest["title"]
+                result["body"] = latest["body"]
             return result
         route = (
             f"#/g/{latest['group_id']}/p/{latest['parent_id']}/t/{latest['channel_id']}"

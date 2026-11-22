@@ -1,5 +1,6 @@
 // 할 일(공개 전): 하루 화면(SCR-02, 넓은 화면 오른쪽)과 넓은 화면 왼쪽 달력(SCR-04)
 // 허용된 계정에서만 이 파일을 내려받는다(App에서 lazy). 테마 색은 ㅁㅇㅅ CSS 변수를 그대로 쓴다
+import TodoAlertPanel from "./TodoAlerts";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BackIcon from "../BackIcon";
 import SplitToggle from "../SplitToggle";
@@ -93,6 +94,7 @@ export default function TodoScreen({
   const [error, setError] = useState("");
   const [info, setInfo] = useState<{ text: string; day?: string } | null>(null);
   const [bump, setBump] = useState(0);
+  const [alertsOpen, setAlertsOpen] = useState(false);
   const dayRef = useRef(day);
   dayRef.current = day;
 
@@ -195,6 +197,19 @@ export default function TodoScreen({
               <span className="header-tool-label todo-tool-always">오늘</span>
             </button>
           )}
+          <button
+            type="button"
+            className="header-tool"
+            aria-label="할 일 알림"
+            aria-expanded={alertsOpen}
+            onClick={() => setAlertsOpen((open) => !open)}
+          >
+            <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <path d="M5 8.5a5 5 0 0 1 10 0v3.5l1.5 2.5h-13L5 12z" strokeLinejoin="round" />
+              <path d="M8 16.5a2 2 0 0 0 4 0" strokeLinecap="round" />
+            </svg>
+            <span className="header-tool-label">알림</span>
+          </button>
           <button type="button" className="header-tool" aria-label="카테고리 관리" onClick={onCategories}>
             <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
               <rect x="3" y="3.5" width="6" height="6" rx="1.5" />
@@ -245,6 +260,7 @@ export default function TodoScreen({
         </button>
       </nav>
       <div className="todo-body">
+        {alertsOpen && <TodoAlertPanel onClose={() => setAlertsOpen(false)} />}
         {error && (
           <p className="todo-error" role="alert">
             {error}

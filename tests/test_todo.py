@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 from collections.abc import Iterator
 from dataclasses import replace
@@ -413,3 +414,81 @@ def test_recent_colors(env: Env) -> None:
     env.client.post("/api/todo/categories", json={"name": "c", "color": "#123456"}, headers=POST)
     recent = env.client.get("/api/todo/categories").json()["recent_colors"]
     assert recent == ["#123456", "#2E8B57"]  # 기본 색은 넣지 않고 최근 것 먼저
+
+
+def test_alert_prefs(env: Env) -> None:
+    signed_up(env, "mocha")
+    assert env.client.get("/api/todo/prefs").json() == {
+        "alert_lead": None,
+        "morning": None,
+        "tz": "Asia/Seoul",
+    }
+    env.client.post("/api/todo/categories", json={"name": "a", "color": "#123456"}, headers=POST)
+    env.tick(1)
+    saved = env.client.patch(
+        "/api/todo/prefs", json={"alert_lead": 10, "morning": "08:00", "tz": "UTC"}, headers=POST
+    ).json()
+    assert saved == {"alert_lead": 10, "morning": "08:00", "tz": "UTC"}
+    # 최근 색 같은 다른 설정은 그대로
+    assert env.client.get("/api/todo/categories").json()["recent_colors"] == ["#123456"]
+    env.tick(1)
+    for bad in (
+        {"alert_lead": 5},
+        {"alert_lead": True},
+        {"morning": "8:00"},
+        {"tz": "../etc/passwd"},
+        {"tz": "Mars/Base"},
+        {"other": 1},
+    ):
+        env.tick(1)
+        response = env.client.patch("/api/todo/prefs", json=bad, headers=POST)
+        assert response.status_code == 400, bad
+
+
+def test_time_alert_and_morning_summary(env: Env) -> None:
+    signed_up(env, "mocha")
+    alerts = env.app.state.todo_alerts
+    # 시계: 2027-01-15 17:00 KST
+    day = "2027-01-15"
+    category = first_category(env)
+    for title, time_ in (("치과", "17:10"), ("운동", "17:10"), ("빨래", None)):
+        env.tick(1)
+        body = {"title": title, "day": day, "category_id": category}
+        if time_:
+            body["time"] = time_
+        assert env.client.post("/api/todo/items", json=body, headers=POST).status_code == 200
+    env.tick(1)
+    env.client.patch("/api/todo/prefs", json={"alert_lead": 10, "morning": "16:50"}, headers=POST)
+
+    env.clock[0] = 1_800_000_000.0 + 5  # 17:00:05, 10분 전 = 지금
+    due = asyncio.run(alerts.due())
+    assert len(due) == 1
+    account_id, payload = due[0]
+    assert payload["kind"] == "todo" and payload["url"] == "/#/todo"
+    assert "10분 뒤" in payload["title"]
+    # 아침 요약(16:50, 30분 안)도 같이 하나로
+    assert payload["body"].startswith("17:10 치과 외 1개")
+    assert "빨래" in payload["body"]
+    # 같은 것을 두 번 보내지 않는다
+    assert asyncio.run(alerts.due()) == []
+    # 3분 넘게 늦은 알림은 보내지 않는다
+    env.clock[0] = 1_800_000_000.0 + 600
+    assert asyncio.run(alerts.due()) == []
+    # 알림을 보낼 곳이 없어도 실패하지 않는다
+    asyncio.run(env.app.state.send_todo_alerts())
+    assert account_id > 0
+
+
+def test_alerts_off_by_default(env: Env) -> None:
+    signed_up(env, "mocha")
+    env.client.post(
+        "/api/todo/items",
+        json={
+            "title": "치과",
+            "day": "2027-01-15",
+            "time": "17:00",
+            "category_id": first_category(env),
+        },
+        headers=POST,
+    )
+    assert asyncio.run(env.app.state.todo_alerts.due()) == []
