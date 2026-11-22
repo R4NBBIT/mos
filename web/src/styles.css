@@ -5916,8 +5916,19 @@ a.attachment-image.attachment-image-small img {
 
 .server-switch-chevron {
   flex-shrink: 0;
-  font-size: 11px;
-  opacity: 0.7;
+  opacity: 0.8;
+  transition: transform 0.15s ease;
+}
+
+/* 펼치면 위를 가리키게(인원 묶음 꺾쇠와 같은 아이콘) */
+.server-switch-button[aria-expanded="true"] .server-switch-chevron {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .server-switch-chevron {
+    transition: none;
+  }
 }
 
 .server-switch-menu {
@@ -6175,4 +6186,18 @@ body.sorting * {
 .order-confirm .confirm-actions button {
   min-height: 32px;
   padding: 4px 12px;
+}
+
+/* 뒤로 꺾쇠(그림): 단추 한가운데 */
+.back-button,
+.sheet-back {
+  display: inline-grid;
+  place-items: center;
+  align-self: center;
+}
+
+.back-icon {
+  display: block;
+  width: 0.8em;
+  height: 0.8em;
 }

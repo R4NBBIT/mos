@@ -1,3 +1,4 @@
+import BackIcon from "./BackIcon";
 import SplitToggle from "./SplitToggle";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, fetchGroupChannels, fetchGroupMembers, fetchGroups, setPinned } from "./api";
@@ -170,7 +171,7 @@ function Shell({
         <SplitToggle />
         {onBack && (
           <button type="button" className="back-button" onClick={onBack} aria-label="뒤로">
-            ‹
+            <BackIcon />
           </button>
         )}
         <div className="room-title">
@@ -649,9 +650,9 @@ function ServerSwitch({
         onClick={() => setOpen(!open)}
       >
         <strong>{title}</strong>
-        <span className="server-switch-chevron" aria-hidden="true">
-          ▾
-        </span>
+        <svg className="server-switch-chevron" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </button>
       {open && (
         <div className="server-switch-menu" role="menu">

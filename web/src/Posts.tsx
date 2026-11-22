@@ -1,3 +1,4 @@
+import BackIcon from "./BackIcon";
 import SplitToggle from "./SplitToggle";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, createPost, fetchThreads } from "./api";
@@ -400,7 +401,7 @@ export default function Posts({
         <SplitToggle />
         {showBack && (
           <button type="button" className="back-button" onClick={() => onBack(parent)} aria-label="뒤로">
-            ‹
+            <BackIcon />
           </button>
         )}
         <div className="room-title">

@@ -1,3 +1,4 @@
+import BackIcon from "./BackIcon";
 import Reactions, { ReactionPickerButton } from "./Reactions";
 import SplitToggle from "./SplitToggle";
 import EditableText from "./EditableText";
@@ -550,7 +551,7 @@ export function SheetFrame(props: FrameProps) {
         <SplitToggle />
         {props.showBack && (
           <button type="button" className="sheet-back" onClick={props.onBack} aria-label="뒤로">
-            ‹
+            <BackIcon />
           </button>
         )}
         <SheetDocName />

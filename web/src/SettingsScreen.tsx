@@ -1,3 +1,4 @@
+import BackIcon from "./BackIcon";
 import { type ReactNode, useEffect, useState } from "react";
 import { updateSettings } from "./api";
 import BossKeyPicker from "./BossKeyPicker";
@@ -133,7 +134,7 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
     <div className="room room-page">
       <header className="room-header">
         <button type="button" className="back-button" onClick={onBack} aria-label="뒤로">
-          ‹
+          <BackIcon />
         </button>
         <div className="room-title">
           <strong>{settings.theme === "word" ? "옵션" : "설정"}</strong>

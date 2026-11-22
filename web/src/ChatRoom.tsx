@@ -1,3 +1,4 @@
+import BackIcon from "./BackIcon";
 import SplitToggle from "./SplitToggle";
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
@@ -497,7 +498,7 @@ export default function ChatRoom({
         <SplitToggle />
         {showBack && (
           <button type="button" className="back-button" onClick={onBack} aria-label="채널 목록으로">
-            ‹
+            <BackIcon />
           </button>
         )}
         <div className="room-title">
