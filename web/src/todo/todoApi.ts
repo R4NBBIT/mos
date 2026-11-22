@@ -198,7 +198,7 @@ export function todoErrorText(error: unknown): string {
     bad_place: "장소는 40자까지예요.",
     bad_memo: "메모는 1000자까지예요.",
     bad_weekdays: "요일을 하나 이상 골라 주세요.",
-    bad_end_day: "끝나는 날은 시작한 날보다 뒤여야 해요.",
+    bad_end_day: "마지막 날은 시작 날보다 뒤여야 해요.",
     too_many_repeats: "반복 TODO는 100개까지예요.",
     period_overlap: "새 기간은 앞 기간이 끝난 다음 날부터 시작해야 해요.",
     bad_alert_lead: "알림 시각을 다시 골라 주세요.",

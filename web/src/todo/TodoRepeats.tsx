@@ -5,7 +5,7 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import BackIcon from "../BackIcon";
 import SplitToggle from "../SplitToggle";
 import { addDays, dateWithWeekday, timeLabel, today, WEEKDAY_NAMES } from "./dates";
-import { CategoryDot, PickField, useMemoAudience } from "./TodoItems";
+import { CategoryDot, memoAudienceLine, PickField, useMemoAudience } from "./TodoItems";
 import {
   deleteRepeatSeries,
   endRepeatSeries,
@@ -279,10 +279,9 @@ function RepeatEditor({
               value={draft.memo}
               maxLength={1000}
               rows={2}
-              placeholder={memoWho.short}
               onChange={(event) => set({ memo: event.target.value })}
             />
-            <p className="todo-field-help">{memoWho.detail || memoWho.short.replace(/^메모 \((.*)\)$/, "$1")}</p>
+            <p className="todo-field-help">{memoAudienceLine(memoWho)}</p>
           </Field>
         </>
       )}

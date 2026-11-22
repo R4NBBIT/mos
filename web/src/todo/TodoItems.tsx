@@ -119,6 +119,11 @@ function MoveDate({ value, disabled, onPick }: { value: string; disabled: boolea
 }
 
 /** 이 카테고리의 메모를 누가 보는지(카테고리 공개 설정 그대로, 일부면 이름까지) */
+/** 메모 칸 아래 한 줄: 누가 보는지(메모 칸 안은 비워 둔다, 2026-11-23 사용자 요청) */
+export function memoAudienceLine(who: { short: string; detail: string }): string {
+  return who.detail || who.short.replace(/^메모 \((.*)\)$/, "$1");
+}
+
 export function useMemoAudience(category: TodoCategory | undefined): { short: string; detail: string } {
   const [names, setNames] = useState<string | null>(null);
   const selected = Boolean(category && category.memo_shared && category.visibility === "selected");
@@ -459,10 +464,9 @@ function TodoMenu({
         value={memo}
         maxLength={1000}
         rows={2}
-        placeholder={memoWho.short}
         onChange={(event) => setMemo(event.target.value)}
       />
-      {memoWho.detail && <span className="todo-hint todo-memo-who">{memoWho.detail}</span>}
+      <span className="todo-hint todo-memo-who">{memoAudienceLine(memoWho)}</span>
       {error && <p className="todo-error">{error}</p>}
       {/* 카테고리 편집과 같은 배치: 왼쪽 삭제(글자 단추), 오른쪽 취소, 저장 */}
       <div className="todo-cat-actions todo-menu-actions">
@@ -815,11 +819,10 @@ export function CategoryBlock({
                 value={fields.memo}
                 maxLength={1000}
                 rows={2}
-                placeholder={memoWho.short}
                 onChange={(event) => setFields({ ...fields, memo: event.target.value })}
               />
             </label>
-            {memoWho.detail && <span className="todo-hint todo-memo-who todo-add-field-full">{memoWho.detail}</span>}
+            <span className="todo-hint todo-memo-who todo-add-field-full">{memoAudienceLine(memoWho)}</span>
           </div>
         </form>
       )}
