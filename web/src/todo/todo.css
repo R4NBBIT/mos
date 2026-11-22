@@ -3973,3 +3973,32 @@
 .todo-add-field-full {
   flex: 1 1 100%;
 }
+
+/* TODO 메뉴: 날짜, 시각 칸을 같은 너비로 두어 오른쪽 '일정 변경', '삭제'가 위아래로 나란히(2026-11-23 사용자 요청).
+   카테고리 고르기도 같은 너비 */
+.todo-menu .todo-prop-value {
+  flex-wrap: nowrap;
+}
+
+.todo-menu .todo-prop-value > .todo-pick {
+  flex: none;
+  width: 164px;
+  max-width: 100%;
+}
+
+.todo-menu .todo-prop-value > .todo-pick .todo-pick-button {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.todo-menu .todo-prop-value select {
+  width: 164px;
+}
+
+.todo-menu .todo-prop-value > .todo-pick .todo-pick-button {
+  padding: 0 4px 0 6px;
+}
+
+.todo-menu .todo-prop-value > button {
+  white-space: nowrap;
+}
