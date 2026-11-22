@@ -31,7 +31,7 @@ import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
-from typing import BinaryIO
+from typing import Any, BinaryIO
 
 CONFIG_PATH = Path("/etc/mos-deploy/config")
 TOKEN_PATH = Path("/etc/mos-deploy/token")
@@ -62,6 +62,7 @@ MAX_DOWNLOAD_BYTES = 150 * 1024 * 1024
 MAX_UNPACKED_BYTES = 500 * 1024 * 1024
 WORKFLOW_FILE = "deploy.yml"
 ARTIFACT_NAME = "release"
+RUNS_PER_PAGE = 10
 USER_AGENT = "mos-deploy/1.0"
 
 SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
@@ -164,17 +165,26 @@ def github_get_json(url: str, token: str) -> dict:
         raise TransientError(f"GitHub 연결 실패: {type(error).__name__}") from None
 
 
+def latest_success(items: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """최신 빌드부터 보며 처음 끝까지 성공한 것. 빌드 중인 최신 것은 건너뛴다."""
+    for run in items:
+        if run.get("status") == "completed" and run.get("conclusion") == "success":
+            return run
+    return None
+
+
 def resolve_latest(repo: str, branch: str, token: str) -> tuple[str, int] | None:
-    """main의 마지막 성공 빌드 커밋과 그 배포 묶음 ID를 찾는다."""
-    query = urllib.parse.urlencode({"branch": branch, "status": "success", "per_page": "1"})
+    """main의 마지막 성공 빌드 커밋과 그 배포 묶음 ID를 찾는다.
+    status=success 거르기는 GitHub 쪽 색인이 수십 분 늦을 때가 있어(2026-11-22 확인),
+    거르지 않은 최근 목록에서 직접 고른다."""
+    query = urllib.parse.urlencode({"branch": branch, "per_page": str(RUNS_PER_PAGE)})
     runs = github_get_json(
         f"https://api.github.com/repos/{repo}/actions/workflows/{WORKFLOW_FILE}/runs?{query}",
         token,
     )
-    items = runs.get("workflow_runs") or []
-    if not items:
+    run = latest_success(runs.get("workflow_runs") or [])
+    if run is None:
         return None
-    run = items[0]
     sha = str(run.get("head_sha", ""))
     run_id = run.get("id")
     if not SHA_PATTERN.match(sha) or not isinstance(run_id, int):

@@ -126,3 +126,14 @@ def test_read_kv_file_skips_comments(tmp_path: Path) -> None:
 def test_copy_limited_stops_at_limit() -> None:
     with pytest.raises(mos_deploy.DeployError, match="크기"):
         mos_deploy.copy_limited(io.BytesIO(b"x" * 10), io.BytesIO(), limit=5)
+
+
+def test_latest_success_skips_running_and_failed_builds() -> None:
+    runs = [
+        {"head_sha": "c" * 40, "status": "in_progress", "conclusion": None},
+        {"head_sha": "b" * 40, "status": "completed", "conclusion": "failure"},
+        {"head_sha": "a" * 40, "status": "completed", "conclusion": "success"},
+    ]
+    found = mos_deploy.latest_success(runs)
+    assert found is not None and found["head_sha"] == "a" * 40
+    assert mos_deploy.latest_success(runs[:2]) is None
