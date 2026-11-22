@@ -4,6 +4,7 @@ import SplitToggle from "./SplitToggle";
 import EditableText from "./EditableText";
 import { useLook } from "./lookContext";
 import { orderedChannels } from "./listOrder";
+import { useTextSize } from "./textSize";
 import { defaultTitle } from "./theme";
 import { type CSSProperties, type ReactNode, type RefObject, useEffect, useMemo, useState } from "react";
 import { fetchGroupChannels } from "./api";
@@ -545,6 +546,7 @@ function textWidth(text: string): number {
 
 /** 엑셀처럼 보이는 껍데기: 제목 줄·메뉴·리본·수식 입력줄·격자·시트 탭·상태 줄 */
 export function SheetFrame(props: FrameProps) {
+  const textSize = useTextSize(); // 아래 상태 줄의 확대 비율(실제 엑셀처럼)
   return (
     <div className={props.variant ? `room sheet sheet-${props.variant}` : "room sheet"}>
       <header className="sheet-titlebar">
@@ -609,7 +611,7 @@ export function SheetFrame(props: FrameProps) {
       <footer className="sheet-status">
         {props.status}
         <span className="sheet-status-right" aria-hidden="true">
-          ▦ ▣ ▤ 　100%
+          ▦ ▣ ▤ 　{textSize}%
         </span>
       </footer>
     </div>

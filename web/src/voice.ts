@@ -147,11 +147,6 @@ export function useVoiceChannels(groupId: string | null, enabled: boolean): Voic
   return channels;
 }
 
-/** 휴대폰, 태블릿처럼 손가락으로만 쓰는 기기 */
-export function isTouchOnly(): boolean {
-  return window.matchMedia("(pointer: coarse)").matches && !window.matchMedia("(any-pointer: fine)").matches;
-}
-
 const SNOWFLAKE = /^\d{1,21}$/;
 
 function channelPath(groupId: string, channelId: string): string {

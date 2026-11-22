@@ -6659,3 +6659,29 @@ body.sorting * {
 :root[data-theme="note"] .tree-others-list .list-item {
   padding-left: 28px;
 }
+
+/* ------------------------------------------------------------ 글자 크기(설정 > 표시, 이 브라우저에만)
+   대화 부분만 테마 비율 그대로 함께 키운다. 스크롤 상자 자체가 아니라 그 안의 줄들에 걸어야
+   스크롤 위치 계산이 흔들리지 않는다 */
+:root {
+  --text-zoom: 1;
+}
+
+.room-list > *,
+.sheet-grid > *,
+.composer-input,
+.composer-banner {
+  zoom: var(--text-zoom);
+}
+
+/* 기본, 다크, 메모장, 노션: 사진, 동영상, 스티커, 프로필 사진은 원래 크기 그대로.
+   스프레드시트와 Word는 실제 프로그램 확대처럼 전부 함께 */
+:root:not([data-theme="sheet"]):not([data-theme="word"]) .room-list :is(
+    .attachment-image,
+    .attachment-video,
+    .attachment-video-small,
+    .sticker,
+    .author-avatar
+  ) {
+  zoom: calc(1 / var(--text-zoom));
+}

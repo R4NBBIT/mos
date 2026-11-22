@@ -7,7 +7,8 @@ import { listSkin } from "./listSkin";
 import { useLook } from "./lookContext";
 import { Avatar } from "./MessageItem";
 import SplitToggle from "./SplitToggle";
-import { discordAppUrl, discordWebUrl, isTouchOnly, useVoiceChannels } from "./voice";
+import { isTouchOnly } from "./device";
+import { discordAppUrl, discordWebUrl, useVoiceChannels } from "./voice";
 import { VoiceIcons, voiceStatus } from "./voiceParts";
 
 const WEB_LINK_DELAY_MS = 2000;

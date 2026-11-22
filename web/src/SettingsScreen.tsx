@@ -16,6 +16,7 @@ import {
   THEMES,
   type Theme,
 } from "./theme";
+import { saveTextSize, TEXT_SIZES, type TextSize, useTextSize } from "./textSize";
 import { askPopupPermission, popupSupport, type PopupSupport } from "./useNotifications";
 import { disablePush, enablePush, pushState, type PushState } from "./webPush";
 
@@ -93,6 +94,7 @@ interface Props {
 
 export default function SettingsScreen({ settings, onChange, onBack, menu, onFileChanged }: Props) {
   const [title, setTitle] = useState(settings.tab_title ?? "");
+  const textSize = useTextSize();
   const [error, setError] = useState("");
   const [popup, setPopup] = useState<PopupSupport>(popupSupport);
   const [push, setPush] = useState<PushState>("off");
@@ -231,6 +233,24 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
               <option value="full">그대로</option>
               <option value="small">작게</option>
               <option value="hidden">숨기기</option>
+            </select>
+          </label>
+          <label className="settings-toggle">
+            <span>
+              <strong>글자 크기</strong>
+              <small>대화 글씨만 바뀌어요. 이 브라우저에만 저장돼서 휴대폰과 컴퓨터를 따로 정할 수 있어요</small>
+            </span>
+            <select
+              className="settings-select"
+              aria-label="글자 크기"
+              value={textSize}
+              onChange={(event) => saveTextSize(Number(event.target.value) as TextSize)}
+            >
+              {TEXT_SIZES.map((size) => (
+                <option key={size.value} value={size.value}>
+                  {size.label} ({size.value}%)
+                </option>
+              ))}
             </select>
           </label>
           <label className="settings-toggle">
