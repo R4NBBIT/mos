@@ -470,8 +470,16 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           account={active}
           onChanged={changed}
           onOpenSettings={() => go("#/settings")}
-        onOpenGuide={() => setShowGuide(true)}
+          onOpenGuide={() => setShowGuide(true)}
           onOpenInstall={() => setShowInstall(true)}
+          onOpenTodo={
+            active.features?.includes(TODO_FEATURE)
+              ? () => {
+                  setBrowse(null);
+                  go("#/todo");
+                }
+              : undefined
+          }
         />
       ),
       onAuthLost: changed,
@@ -622,6 +630,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           activeChannelId={activeChannelId}
           onBack={() => (side ? browseTo(null) : go("#/"))}
           onSwitch={(id) => (side ? browseTo(id) : go(`#/g/${id}`))}
+          todoEntry={todoEntry(side)}
           onOpen={(channel) => openChannel(groupId, channel)}
           onOpenVoice={(voice) => openVoice(groupId, voice)}
           {...(side ? listSide : common)}

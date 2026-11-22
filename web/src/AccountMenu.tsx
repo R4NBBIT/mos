@@ -12,6 +12,8 @@ interface Props {
   onOpenSettings: () => void;
   onOpenGuide: () => void;
   onOpenInstall: () => void;
+  /** TODO를 쓸 수 있는 계정이면: 어느 화면에서든 TODO로 바로(2026-11-23 사용자 요청) */
+  onOpenTodo?: () => void;
 }
 
 function nitroText(account: SessionAccount): string {
@@ -40,6 +42,7 @@ export default function AccountMenu({
   onOpenSettings,
   onOpenGuide,
   onOpenInstall,
+  onOpenTodo,
 }: Props) {
   const [open, setOpen] = useState(false);
   const presence = usePresence(open, 150);
@@ -123,6 +126,18 @@ export default function AccountMenu({
             <strong>{account.name}</strong>
             {account.kept && <span className="account-state">로그인 유지 중</span>}
           </div>
+          {onOpenTodo && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onOpenTodo();
+              }}
+            >
+              TODO
+            </button>
+          )}
           <button
             type="button"
             role="menuitem"

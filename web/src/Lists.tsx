@@ -1161,10 +1161,13 @@ export function ChannelList({
   onOpenVoice,
   onBack,
   onSwitch,
+  todoEntry,
   ...common
 }: CommonProps & {
   groupId: string;
   activeChannelId?: string;
+  /** 서버 안에서도 맨 위 TODO 줄(어느 화면에서든 TODO로 바로, 2026-11-23 사용자 요청) */
+  todoEntry?: ReactNode;
   onOpen: (channel: ChannelInfo) => void;
   onOpenVoice: (voice: VoiceChannel) => void;
   onBack: () => void;
@@ -1227,6 +1230,7 @@ export function ChannelList({
           <span className="list-name">..</span>
         </div>
       )}
+      {!query && !editing && todoEntry}
       {load.state === "loading" && <p className="list-note">불러오는 중…</p>}
       {load.state === "error" && <p className="list-note">{load.message}</p>}
       {load.state === "ok" && load.value.channels.length === 0 && !voice?.length && (
