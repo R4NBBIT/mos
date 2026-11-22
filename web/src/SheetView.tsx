@@ -174,6 +174,8 @@ export default function SheetView(props: Props) {
   const narrow = useNarrow();
   const canSend = Boolean(channel?.can_send);
   const manageable = selected !== null && selected.web_sender_id === myUserId && canSend;
+  const appSent =
+    selected !== null && !manageable && Boolean(myUserId) && selected.author.id === myUserId && !selected.author.webhook;
 
   // 행 번호: 1행은 머리글(글·스레드는 1행 제목, 2행 머리글), 날짜가 바뀌면 날짜 행이 하나 끼어든다
   const isThread = channel?.kind === "thread";
@@ -431,9 +433,6 @@ export default function SheetView(props: Props) {
                     지우기
                   </button>
                 )}
-                {!manageable && selected.author.id === myUserId && !selected.author.webhook && (
-                  <span className="msg-actions-note">디스코드 앱에서 보낸 메시지는 앱에서 고치고 지워요</span>
-                )}
               </>
             )}
             {(actionError || props.reactError) && <span className="danger">{actionError || props.reactError}</span>}
@@ -455,6 +454,11 @@ export default function SheetView(props: Props) {
       status={
         props.reactError ? (
           <span className="danger">{props.reactError}</span>
+        ) : appSent ? (
+          // 디스코드 앱에서 쓴 내 글: 엑셀이 상태 줄에 '읽기 전용'을 알리듯 여기에 짧게
+          <span className="sheet-status-note" title="디스코드 앱에서 쓴 글은 디스코드 앱에서만 고치고 지울 수 있어요">
+            읽기 전용: 디스코드 앱에서 쓴 글
+          </span>
         ) : props.unseen > 0 ? (
           <button type="button" className="sheet-status-new" onClick={props.onScrollToBottom}>
             새 메시지 {props.unseen}개 ↓

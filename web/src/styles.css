@@ -8167,9 +8167,25 @@ body.sorting * {
 
 /* 디스코드 앱에서 보낸 내 메시지: 고치기 대신 짧은 안내 */
 .msg-actions-note {
-  align-self: center;
-  padding: 0 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 4px;
   color: var(--sub);
   font-size: 11.5px;
+  line-height: 1.35;
   white-space: normal;
+}
+
+/* 좁은 화면에서 안내 글이 길어도 단추 글자가 세로로 쪼개지지 않게 */
+.msg-actions button,
+.msg-actions .reaction-picker-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.sheet-status-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

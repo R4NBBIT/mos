@@ -379,7 +379,7 @@ function MessageItem({
                   지우기
                 </button>
               )}
-              {appSent && <span className="msg-actions-note">디스코드 앱에서 보낸 메시지는 앱에서 고치고 지워요</span>}
+              {appSent && <span className="msg-actions-note">디스코드 앱에서 쓴 글은 앱에서 고치고 지워요</span>}
             </>
           )}
           {deleteError && <span className="danger">{deleteError}</span>}
