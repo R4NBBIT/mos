@@ -9,7 +9,6 @@ import { loadMyFile, type StoredFile } from "./boss/myFile";
 import { docTitle, memoExample, NoteDisguise, noteExample, WordDisguise, wordExample } from "./boss/DocDisguise";
 import { EDIT_KEYS, ImageDisguise, TextDisguise } from "./boss/OtherDisguise";
 import { buildTemplate, type TemplateId, type Workbook } from "./boss/templates";
-import { useBossDevice } from "./bossDevice";
 import {
   fetchNotifyPrefs,
   fetchSession,
@@ -310,6 +309,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     enabled: open && Boolean(notifyPrefs?.notify),
     scope: notifyPrefs?.scope ?? "pinned",
     preview: Boolean(notifyPrefs?.preview),
+    boss: Boolean(notifyPrefs?.boss),
     accountId: openAccountId,
     currentChannel: route.view === "chat" ? route.channelId : route.view === "thread" ? route.threadId : null,
     currentForum: route.view === "posts" ? route.parentId : null,
@@ -679,14 +679,8 @@ export default function App() {
     else applyDisguise(workbook.fileName);
   }, [bossOn, look, mode, workbook.fileName, doc?.name]);
 
-  // 자동 위장, 전체 화면, 돌아올 때 잠그기는 기기마다(아직 안 정했으면 계정 값)
-  const bossDevice = useBossDevice({
-    auto: look.boss_auto,
-    fullscreen: look.boss_fullscreen,
-    relock: look.boss_relock,
-  });
-  const relock = bossDevice.relock;
-  const fullscreen = bossDevice.fullscreen;
+  const relock = look.boss_relock;
+  const fullscreen = look.boss_fullscreen;
   const bossUrl = look.boss_url;
   const enteredFullscreen = useRef(false);
   const toggle = useCallback(
@@ -752,7 +746,7 @@ export default function App() {
 
   // 자동 위장(선택): 창에서 벗어나거나 마우스가 창 밖으로 나가면
   useEffect(() => {
-    if (!bossDevice.auto || bossOn) return;
+    if (!look.boss_auto || bossOn) return;
     const choosingFile = () => document.activeElement instanceof HTMLInputElement && document.activeElement.type === "file";
     const onBlur = () => {
       if (!choosingFile()) toggle(true);
@@ -766,7 +760,7 @@ export default function App() {
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("mouseout", onLeave);
     };
-  }, [bossDevice.auto, bossOn, toggle]);
+  }, [look.boss_auto, bossOn, toggle]);
 
   return (
     <>

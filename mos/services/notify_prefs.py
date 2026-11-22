@@ -1,6 +1,6 @@
 """기기(브라우저)별 알림 설정.
 
-알림 받기, 알려 줄 메시지, 숨긴 곳 알림, 내용 보이기는 기기마다 따로 정한다.
+알림 받기, 알려 줄 메시지, 숨긴 곳 알림, 내용 보이기, 위장 중 알림은 기기마다 따로 정한다.
 아직 정하지 않은 기기는 예전 계정 설정 값
 (notify, notify_scope, notify_preview, hidden_notify)을 쓴다.
 """
@@ -21,7 +21,7 @@ class NotifyPrefsError(ValueError):
 def clean(update: dict[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in update.items():
-        if key in ("notify", "preview"):
+        if key in ("notify", "preview", "boss"):
             if not isinstance(value, bool):
                 raise NotifyPrefsError("bad_value")
         elif key == "scope":
@@ -49,6 +49,7 @@ class NotifyPrefs:
             "scope": prefs["notify_scope"],
             "preview": prefs["notify_preview"],
             "hidden": prefs["hidden_notify"],
+            "boss": False,  # 위장 화면일 때도 알림(기본은 받지 않음)
         }
 
     async def get(self, device_id: int, account_id: int) -> dict[str, Any]:

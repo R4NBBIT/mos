@@ -1,4 +1,9 @@
-"""계정별 설정(화면명세서 SCR-10). 정해진 키·값만 받는다."""
+"""설정(화면명세서 SCR-10). 정해진 키·값만 받는다.
+
+설정 화면의 항목은 모두 기기(브라우저, 설치한 앱)마다 따로 저장한다(device_setting).
+아직 정하지 않은 기기는 계정 설정(예전 값)을 쓴다.
+고친 문서 제목, 목록 순서, 숨긴 목록, 처음 사용 안내를 봤는지는 계정 전체(account_setting)에 둔다.
+"""
 
 from __future__ import annotations
 
@@ -103,6 +108,23 @@ DEFAULTS: dict[str, Any] = {
     "hidden_notify": "mentions",
     "hidden_unread": "mentions",
 }
+
+
+# 계정 전체에 두는 키. notify, notify_scope, notify_preview, hidden_notify는 예전 키로
+# 기기 알림 설정(notify_prefs)을 아직 안 정한 기기의 기본값으로만 쓴다
+SHARED_KEYS = frozenset(
+    {
+        "doc_titles",
+        "list_order",
+        "hidden",
+        "guide_done",
+        "notify",
+        "notify_scope",
+        "notify_preview",
+        "hidden_notify",
+    }
+)
+DEVICE_KEYS = frozenset(DEFAULTS) - SHARED_KEYS
 
 
 class SettingsError(ValueError):
@@ -247,20 +269,35 @@ class SettingsStore:
     def __init__(self, db: Database, clock: Callable[[], float] = time.time) -> None:
         self.db = db
         self.clock = clock
-        self._lock_cache: dict[int, int] = {}  # 계정 → 자동 잠금 초(요청마다 DB를 읽지 않게)
+        # (기기, 계정) → 자동 잠금 초(요청마다 DB를 읽지 않게)
+        self._lock_cache: dict[tuple[int, int], int] = {}
 
-    async def lock_seconds(self, account_id: int) -> int:
-        cached = self._lock_cache.get(account_id)
+    async def lock_seconds(self, account_id: int, device_id: int) -> int:
+        key = (device_id, account_id)
+        cached = self._lock_cache.get(key)
         if cached is None:
-            cached = int((await self.get(account_id))["lock_minutes"]) * 60
-            self._lock_cache[account_id] = cached
+            cached = int((await self.get(account_id, device_id))["lock_minutes"]) * 60
+            if len(self._lock_cache) > 5000:
+                self._lock_cache.clear()
+            self._lock_cache[key] = cached
         return cached
 
-    async def get(self, account_id: int) -> dict[str, Any]:
+    async def _account_stored(self, account_id: int) -> dict[str, Any]:
         row = await self.db.fetch_one(
             "SELECT settings_json FROM account_setting WHERE account_id = ?", (account_id,)
         )
-        stored = json.loads(row[0]) if row else {}
+        return json.loads(row[0]) if row else {}
+
+    async def _device_stored(self, account_id: int, device_id: int) -> dict[str, Any]:
+        row = await self.db.fetch_one(
+            "SELECT settings_json FROM device_setting WHERE device_id = ? AND account_id = ?",
+            (device_id, account_id),
+        )
+        return json.loads(row[0]) if row else {}
+
+    async def get(self, account_id: int, device_id: int | None = None) -> dict[str, Any]:
+        """계정 설정 위에 이 기기 설정을 덮어 쓴 값(device_id가 없으면 계정 설정만)."""
+        stored = await self._account_stored(account_id)
         merged = dict(DEFAULTS)
         for key, value in stored.items():
             if key not in DEFAULTS:
@@ -271,34 +308,77 @@ class SettingsStore:
                 pass  # 예전 값이 이상하면 그 항목만 기본값으로
         if "hidden_unread" not in stored:
             merged["hidden_unread"] = merged["hidden_notify"]  # 둘로 나누기 전에 고른 값 그대로
+        if device_id is not None:
+            for key, value in (await self._device_stored(account_id, device_id)).items():
+                if key not in DEVICE_KEYS:
+                    continue
+                try:
+                    merged.update(clean({key: value}))
+                except SettingsError:
+                    pass
         return merged
 
-    async def update(self, account_id: int, update: dict[str, Any]) -> dict[str, Any]:
+    async def update(
+        self, account_id: int, update: dict[str, Any], device_id: int | None = None
+    ) -> dict[str, Any]:
         changes = clean(update)
-        current = await self.get(account_id)
-        titles = changes.pop("doc_titles", None)
-        orders = changes.pop("list_order", None)
-        current.update(changes)
-        if orders is not None:
-            # 보낸 목록만 바꾼다(다른 서버 순서는 그대로)
-            merged_orders = {**current["list_order"], **orders}
-            merged_orders = {key: ids for key, ids in merged_orders.items() if ids}
-            if len(merged_orders) > MAX_LIST_ORDERS:
-                raise SettingsError("too_many_list_orders")
-            current["list_order"] = merged_orders
-        if titles is not None:
-            # 보낸 것만 합친다(다른 채널 제목은 그대로)
-            merged = {**current["doc_titles"], **titles}
-            merged = {key: title for key, title in merged.items() if title}
-            if len(merged) > MAX_DOC_TITLES:
-                raise SettingsError("too_many_doc_titles")
-            current["doc_titles"] = merged
+        device_changes = (
+            {key: value for key, value in changes.items() if key in DEVICE_KEYS}
+            if device_id is not None
+            else {}
+        )
+        shared_changes = {key: value for key, value in changes.items() if key not in device_changes}
+        now = int(self.clock())
+        if shared_changes:
+            current = await self.get(account_id)
+            titles = shared_changes.pop("doc_titles", None)
+            orders = shared_changes.pop("list_order", None)
+            current.update(shared_changes)
+            if orders is not None:
+                # 보낸 목록만 바꾼다(다른 서버 순서는 그대로)
+                merged_orders = {**current["list_order"], **orders}
+                merged_orders = {key: ids for key, ids in merged_orders.items() if ids}
+                if len(merged_orders) > MAX_LIST_ORDERS:
+                    raise SettingsError("too_many_list_orders")
+                current["list_order"] = merged_orders
+            if titles is not None:
+                # 보낸 것만 합친다(다른 채널 제목은 그대로)
+                merged = {**current["doc_titles"], **titles}
+                merged = {key: title for key, title in merged.items() if title}
+                if len(merged) > MAX_DOC_TITLES:
+                    raise SettingsError("too_many_doc_titles")
+                current["doc_titles"] = merged
+            async with self.db.writing() as conn:
+                await conn.execute(
+                    "INSERT INTO account_setting (account_id, settings_json, updated_at)"
+                    " VALUES (?, ?, ?) ON CONFLICT(account_id) DO UPDATE SET"
+                    " settings_json = excluded.settings_json, updated_at = excluded.updated_at",
+                    (account_id, json.dumps(current, ensure_ascii=False), now),
+                )
+            if "lock_minutes" in shared_changes:
+                self._lock_cache = {k: v for k, v in self._lock_cache.items() if k[1] != account_id}
+        if device_changes and device_id is not None:
+            stored = await self._device_stored(account_id, device_id)
+            stored = {key: value for key, value in stored.items() if key in DEVICE_KEYS}
+            stored.update(device_changes)
+            async with self.db.writing() as conn:
+                await conn.execute(
+                    "INSERT INTO device_setting (device_id, account_id, settings_json, updated_at)"
+                    " VALUES (?, ?, ?, ?) ON CONFLICT(device_id, account_id) DO UPDATE SET"
+                    " settings_json = excluded.settings_json, updated_at = excluded.updated_at",
+                    (device_id, account_id, json.dumps(stored, ensure_ascii=False), now),
+                )
+            self._lock_cache.pop((device_id, account_id), None)
+        return await self.get(account_id, device_id)
+
+    async def forget_device(self, device_id: int, account_id: int | None = None) -> None:
+        """기기에서 계정을 빼면 그 기기 설정도 지운다."""
         async with self.db.writing() as conn:
-            await conn.execute(
-                "INSERT INTO account_setting (account_id, settings_json, updated_at)"
-                " VALUES (?, ?, ?) ON CONFLICT(account_id) DO UPDATE SET"
-                " settings_json = excluded.settings_json, updated_at = excluded.updated_at",
-                (account_id, json.dumps(current, ensure_ascii=False), int(self.clock())),
-            )
-        self._lock_cache[account_id] = int(current["lock_minutes"]) * 60
-        return current
+            if account_id is None:
+                await conn.execute("DELETE FROM device_setting WHERE device_id = ?", (device_id,))
+            else:
+                await conn.execute(
+                    "DELETE FROM device_setting WHERE device_id = ? AND account_id = ?",
+                    (device_id, account_id),
+                )
+        self._lock_cache = {k: v for k, v in self._lock_cache.items() if k[0] != device_id}

@@ -1,7 +1,8 @@
 // 알림: 나를 부른 메시지(그리고 고르면 고정한 채널의 새 메시지)를 실시간 연결로 받아
 // 탭 제목 앞 숫자와 브라우저 알림 창으로 알려 준다.
 // 화면을 보고 있는 중에는 다른 채널, 포럼 글을 화면 안 작은 알림으로 알려 준다.
-// 위장 화면 중에는 알림을 띄우지 않고, 내용은 설정에서 켠 경우에만 보인다.
+// 위장 화면 중에는 기본으로 알리지 않는다. '위장 화면일 때도 알림'을 켜면 알림 창만(내용, 소리, 화면 안 알림 없이).
+// 내용은 설정에서 켠 경우에만 보인다.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isDisguised } from "./boss/bossState";
 import { playSound } from "./notifySound";
@@ -82,6 +83,8 @@ interface Options {
   enabled: boolean;
   scope: NotifyScope;
   preview: boolean;
+  /** 위장 화면일 때도 알림 창 띄우기(내용 없이) */
+  boss: boolean;
   /** 열린 계정이 바뀌면 다시 연결 */
   accountId: string | undefined;
   /** 지금 보고 있는 채널이나 포럼 글(보고 있는 곳의 새 글은 세지 않는다) */
@@ -95,6 +98,7 @@ export function useNotifications({
   enabled,
   scope,
   preview,
+  boss,
   accountId,
   currentChannel,
   currentForum,
@@ -112,8 +116,8 @@ export function useNotifications({
     countsRef.current = next;
     setCountsState(next);
   }, []);
-  const optionsRef = useRef({ scope, preview, currentChannel, currentForum, onOpen });
-  optionsRef.current = { scope, preview, currentChannel, currentForum, onOpen };
+  const optionsRef = useRef({ scope, preview, boss, currentChannel, currentForum, onOpen });
+  optionsRef.current = { scope, preview, boss, currentChannel, currentForum, onOpen };
   const socketRef = useRef<WebSocket | null>(null);
   const popupRef = useRef<Notification | null>(null);
 
@@ -145,14 +149,18 @@ export function useNotifications({
   }, []);
 
   const showPopup = useCallback((event: NotifyEvent, total: number) => {
-    if (isDisguised()) return;
-    playSound(); // 켜 둔 기기에서만(설정 › 알림 › 알림 소리)
-    if (document.visibilityState === "visible" && document.hasFocus()) {
-      showToast(event);
-      return;
+    const disguised = isDisguised();
+    // 위장 중: 켜 둔 기기에서만, 소리와 화면 안 알림 없이 알림 창만(내용 없이)
+    if (disguised && !optionsRef.current.boss) return;
+    if (!disguised) {
+      playSound(); // 켜 둔 기기에서만(설정 › 알림 › 알림 소리)
+      if (document.visibilityState === "visible" && document.hasFocus()) {
+        showToast(event);
+        return;
+      }
     }
     if (popupSupport() !== "granted") return;
-    const showContent = optionsRef.current.preview;
+    const showContent = optionsRef.current.preview && !disguised;
     const title = showContent ? `${event.author_name} (#${event.channel_name})` : currentBaseTitle();
     const body = showContent ? previewText(event) : `새 알림 ${total}건`;
     try {

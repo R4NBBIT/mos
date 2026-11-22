@@ -8,9 +8,17 @@ export interface NotifyPrefs {
   preview: boolean;
   /** 숨긴 서버와 채널의 알림: 알리지 않기, 나를 부른 것만, 숨기지 않은 곳과 같게 */
   hidden: HiddenNotify;
+  /** 위장 화면일 때도 알림 창 띄우기(내용 없이) */
+  boss: boolean;
 }
 
-export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = { notify: true, scope: "pinned", preview: false, hidden: "mentions" };
+export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = {
+  notify: true,
+  scope: "pinned",
+  preview: false,
+  hidden: "mentions",
+  boss: false,
+};
 
 export function cleanNotifyPrefs(value: unknown): NotifyPrefs {
   const raw = (value && typeof value === "object" ? value : {}) as Partial<NotifyPrefs>;
@@ -19,6 +27,7 @@ export function cleanNotifyPrefs(value: unknown): NotifyPrefs {
     scope: raw.scope === "mentions" || raw.scope === "all" ? raw.scope : "pinned",
     preview: raw.preview === true,
     hidden: raw.hidden === "none" || raw.hidden === "all" ? raw.hidden : "mentions",
+    boss: raw.boss === true,
   };
 }
 

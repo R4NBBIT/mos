@@ -2144,7 +2144,13 @@ def test_notify_prefs_are_per_device(env: Env) -> None:
     signed_up(env)
     first = env.client.get("/api/notify-prefs").json()
     # 아직 정하지 않은 기기는 계정 설정 값을 기본으로
-    assert first == {"notify": True, "scope": "pinned", "preview": False, "hidden": "mentions"}
+    assert first == {
+        "notify": True,
+        "scope": "pinned",
+        "preview": False,
+        "hidden": "mentions",
+        "boss": False,
+    }
     env.client.patch("/api/settings", json={"notify_scope": "all"}, headers=POST)
     assert env.client.get("/api/notify-prefs").json()["scope"] == "all"
     saved = env.client.patch(
@@ -2156,3 +2162,27 @@ def test_notify_prefs_are_per_device(env: Env) -> None:
     assert env.client.get("/api/notify-prefs").json()["scope"] == "mentions"
     for bad in ({"scope": "loud"}, {"hidden": 1}, {"notify": "yes"}, {"volume": 3}):
         assert env.client.patch("/api/notify-prefs", json=bad, headers=POST).status_code == 400
+
+
+def test_settings_are_per_device_but_lists_are_shared(env: Env) -> None:
+    signed_up(env)
+    title_key = str(CHANNEL)
+    saved = env.client.patch(
+        "/api/settings",
+        json={"theme": "sheet", "lock_minutes": 60, "doc_titles": {title_key: "주간 보고"}},
+        headers=POST,
+    ).json()
+    assert saved["theme"] == "sheet" and saved["lock_minutes"] == 60
+    first_device = dict(env.client.cookies.items())
+    # 다른 기기: 같은 계정을 디스코드로 다시 연결(비밀번호가 있으면 바로 열림)
+    env.client.cookies.clear()
+    assert connect(env) == "/"
+    other = env.client.get("/api/settings").json()
+    assert other["theme"] == "moon" and other["lock_minutes"] == 30  # 기기 설정은 따로
+    assert other["doc_titles"] == {title_key: "주간 보고"}  # 고친 제목은 같이
+    env.client.patch("/api/settings", json={"theme": "word"}, headers=POST)
+    env.client.cookies.clear()
+    for name, value in first_device.items():
+        env.client.cookies.set(name, value)
+    again = env.client.get("/api/settings").json()
+    assert again["theme"] == "sheet" and again["doc_titles"] == {title_key: "주간 보고"}

@@ -16,11 +16,10 @@ import {
   THEMES,
   type Theme,
   type HiddenNotify,
+  type NotifyScope,
 } from "./theme";
 import { playSound, readSound, saveSound, useSound } from "./notifySound";
 import { useNotifyPrefs } from "./notifyPrefs";
-import { saveBossDevice, useBossDevice } from "./bossDevice";
-import Scope from "./Scope";
 import { saveTextSize, TEXT_SIZES, type TextSize, useTextSize } from "./textSize";
 import { askPopupPermission, popupSupport, type PopupSupport } from "./useNotifications";
 import { disablePush, enablePush, pushState, type PushState } from "./webPush";
@@ -98,19 +97,26 @@ interface Props {
 }
 
 // 숨긴 서버와 채널: 알림(기기마다)과 목록 숫자(계정 전체)를 따로 정한다
-const HIDDEN_NOTIFY_CHOICES: Choice<HiddenNotify>[] = [
-  { value: "none", label: "알리지 않기", note: "숨긴 곳은 나를 불러도 알리지 않아요." },
+// 숨긴 서버와 채널의 알림: 고르기 칸에는 짧게, 아래 설명은 고른 것만
+const HIDDEN_NOTIFY_CHOICES: { value: HiddenNotify; short: string; note: string }[] = [
+  { value: "none", short: "알리지 않기", note: "숨긴 곳은 나를 불러도 알리지 않아요" },
   {
     value: "mentions",
-    label: "나를 부른 메시지만 (기본)",
-    note: "숨긴 곳에서는 @내 이름이 들어간 글과 내 글에 단 답장만 알려요.",
+    short: "나를 부른 것만",
+    note: "숨긴 곳에서는 @내 이름이 들어간 글과 내 글에 단 답장만 알려요",
   },
   {
     value: "all",
-    label: "숨기지 않은 곳과 같게",
-    note: "위 '알려 줄 메시지'를 그대로 따라요. 숨기기는 목록 정리에만 쓰는 거예요.",
+    short: "다른 곳과 같게",
+    note: "숨겨도 위 '알려 줄 메시지' 그대로 알려요(숨기기는 목록 정리에만)",
   },
 ];
+
+const NOTIFY_SCOPE_NOTE: Record<NotifyScope, string> = {
+  mentions: "@내 이름이 들어간 글과 내 글에 단 답장만",
+  pinned: "나를 부른 글 + 고정한 채널의 새 메시지",
+  all: "볼 수 있는 모든 채널의 새 메시지",
+};
 
 const HIDDEN_UNREAD_CHOICES: Choice<HiddenNotify>[] = [
   { value: "none", label: "세지 않기", note: "서버 숫자와 '숨긴 항목' 묶음에 아무 숫자도 붙이지 않아요." },
@@ -169,11 +175,6 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
   const [push, setPush] = useState<PushState>("off");
   const [pushBusy, setPushBusy] = useState(false);
   const { prefs: device, save: saveDevice } = useNotifyPrefs();
-  const bossDevice = useBossDevice({
-    auto: settings.boss_auto,
-    fullscreen: settings.boss_fullscreen,
-    relock: settings.boss_relock,
-  });
   useEffect(() => {
     pushState()
       .then(setPush)
@@ -220,12 +221,13 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
       </header>
       <div className="list-body settings">
         {error && <p className="list-error">{error}</p>}
-        <p className="scope-legend">
-          <Scope /> 계정에 저장돼 어느 기기에서 열어도 같아요. <Scope device /> 지금 쓰는 이 기기(브라우저나 설치한
-          앱)에만 적용돼요.
+        <p className="settings-device-note">
+          여기 설정은 <strong>지금 쓰는 이 기기</strong>(브라우저나 설치한 앱)에만 적용돼요. 회사 컴퓨터와 휴대폰을
+          다르게 쓰려면 기기마다 따로 정해 주세요. 위장 화면에 올린 파일, 고정, 목록 순서와 숨기기, 고친 문서 제목은
+          모든 기기에서 같아요.
         </p>
         <section className="settings-card">
-          <h2 className="settings-title">테마 <Scope /></h2>
+          <h2 className="settings-title">테마</h2>
           <div className="theme-grid">
             {THEMES.map((item) => (
               <button
@@ -252,7 +254,7 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
           <h2 className="settings-title">표시</h2>
           <label className="settings-toggle">
             <span>
-              <strong>작성자 프로필 사진 보이기 <Scope /></strong>
+              <strong>작성자 프로필 사진 보이기</strong>
               <small>끄면 모든 테마에서 메시지 옆 프로필 사진을 숨기고 이름만 보여요</small>
             </span>
             <input
@@ -264,7 +266,7 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
           </label>
           <label className="settings-toggle">
             <span>
-              <strong>반응 <Scope /></strong>
+              <strong>반응</strong>
               <small>작게는 반응 개수만 흐린 +n으로 보여요</small>
             </span>
             <select
@@ -284,7 +286,7 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
           </label>
           <label className="settings-toggle">
             <span>
-              <strong>스티커와 큰 이모지 <Scope /></strong>
+              <strong>스티커와 큰 이모지</strong>
               <small>작게는 작은 그림으로 멈춰 보이고, 숨기기는 이름 글자로만 보여요</small>
             </span>
             <select
@@ -300,7 +302,7 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
           </label>
           <label className="settings-toggle">
             <span>
-              <strong>사진과 동영상 <Scope /></strong>
+              <strong>사진과 동영상</strong>
               <small>작게는 작은 그림으로 보이고, 숨기기는 파일 이름 글자로만 보여요</small>
             </span>
             <select
@@ -316,7 +318,7 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
           </label>
           <label className="settings-toggle">
             <span>
-              <strong>글자 크기 <Scope device /></strong>
+              <strong>글자 크기</strong>
               <small>대화 글씨만 바뀌어요. 이 브라우저에만 저장돼서 휴대폰과 컴퓨터를 따로 정할 수 있어요</small>
             </span>
             <select
@@ -334,7 +336,7 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
           </label>
           <label className="settings-toggle">
             <span>
-              <strong>음성 채널 보이기 <Scope /></strong>
+              <strong>음성 채널 보이기</strong>
               <small>왼쪽 목록에 음성 채널과 지금 들어가 있는 사람을 보여요. 여기서 듣거나 말할 수는 없어요</small>
             </span>
             <input
@@ -345,7 +347,7 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
             />
           </label>
           <div className="settings-item">
-            <h3 className="settings-sub">숨긴 서버와 채널의 안 읽은 수 <Scope /></h3>
+            <h3 className="settings-sub">숨긴 서버와 채널의 안 읽은 수</h3>
             <ChoiceList
               name="hidden-unread"
               label="숨긴 서버와 채널의 안 읽은 수"
@@ -354,13 +356,13 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
               onChange={(value) => void save({ hidden_unread: value })}
             />
             <p className="settings-item-note">
-              {HIDDEN_SCOPE_NOTE} 이 값은 계정에 저장돼 모든 기기에서 같아요. 알림은 '알림'에서 기기마다 따로 정해요.
+              {HIDDEN_SCOPE_NOTE}
             </p>
           </div>
         </section>
 
         <section className="settings-card">
-          <h2 className="settings-title">탭 제목 <Scope /></h2>
+          <h2 className="settings-title">탭 제목</h2>
           <form
             className="settings-row"
             onSubmit={(event) => {
@@ -386,7 +388,7 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
         </section>
 
         <section className="settings-card">
-          <h2 className="settings-title">잠금 <Scope /></h2>
+          <h2 className="settings-title">잠금</h2>
           <div className="settings-item">
             <label className="settings-toggle">
               <span>
@@ -414,15 +416,12 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
         </section>
 
         <section className="settings-card">
-          <h2 className="settings-title">알림 <Scope device /></h2>
-          <p className="settings-lead settings-lead-small">
-            알림은 이 기기(브라우저)에만 적용돼요. 회사 컴퓨터는 끄고 휴대폰만 켜 두는 식으로 기기마다 따로 정할 수 있어요.
-          </p>
+          <h2 className="settings-title">알림</h2>
           <div className="settings-item">
             <label className="settings-toggle">
               <span>
                 <strong>알림 받기</strong>
-                <small>새 알림이 오면 탭 제목 앞에 숫자를 붙여요. 보고 있지 않은 채널의 메시지는 화면 위 작은 알림으로, 다른 창을 보고 있으면 알림 창으로 알려요</small>
+                <small>새 메시지를 탭 제목 앞 숫자, 화면 위 작은 알림, 알림 창으로 알려요</small>
               </span>
               <input
                 type="checkbox"
@@ -431,93 +430,80 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
                 onChange={(event) => void saveDevice({ notify: event.target.checked })}
               />
             </label>
-            {device.notify && (
+            {device.notify && (popup !== "granted" || push === "unsupported") && (
               <p className="settings-item-note">
-                {push === "on"
-                  ? "탭이 열려 있으면 탭에서, 닫혀 있으면 브라우저가 알려요."
-                  : "이 화면이 탭으로 열려 있는 동안만 알려요."}{" "}
-                위장 화면 중에는 알림 창을 띄우지 않아요.
+                {popup !== "granted" && POPUP_TEXT[popup]}
                 {push === "unsupported" && " 아이폰은 사파리에서 '홈 화면에 추가'한 뒤에만 알림을 받을 수 있어요."}
               </p>
+            )}
+            {device.notify && popup === "default" && (
+              <div className="settings-buttons">
+                <button
+                  type="button"
+                  className="pill-button pill-button-strong"
+                  onClick={() => void askPopupPermission().then(setPopup)}
+                >
+                  이 브라우저에서 알림 허용하기
+                </button>
+              </div>
             )}
           </div>
           {device.notify && (
             <>
-              <div className="settings-item">
-                <h3 className="settings-sub">알려 줄 메시지</h3>
-                <div className="boss-choices" role="radiogroup" aria-label="알려 줄 메시지">
-                  <label className="boss-choice">
-                    <input
-                      type="radio"
-                      name="notify-scope"
-                      checked={device.scope === "mentions"}
-                      onChange={() => void saveDevice({ scope: "mentions" })}
-                    />
-                    나를 부른 메시지만
-                  </label>
-                  <label className="boss-choice">
-                    <input
-                      type="radio"
-                      name="notify-scope"
-                      checked={device.scope === "pinned"}
-                      onChange={() => void saveDevice({ scope: "pinned" })}
-                    />
-                    나를 부른 메시지 + 고정한 채널의 새 메시지
-                  </label>
-                  <label className="boss-choice">
-                    <input
-                      type="radio"
-                      name="notify-scope"
-                      checked={device.scope === "all"}
-                      onChange={() => void saveDevice({ scope: "all" })}
-                    />
-                    모든 새 메시지(볼 수 있는 모든 채널)
-                  </label>
-                </div>
-                <p className="settings-item-note">나를 부른 메시지는 @내 이름이 들어간 글과 내 글에 단 답장이에요.</p>
-              </div>
-              <div className="settings-item">
-                <h3 className="settings-sub">숨긴 서버와 채널의 알림</h3>
-                <ChoiceList
-                  name="hidden-notify"
-                  label="숨긴 서버와 채널의 알림"
-                  choices={HIDDEN_NOTIFY_CHOICES}
+              <h3 className="settings-sub settings-sub-line">무엇을 알릴까요</h3>
+              <label className="settings-toggle">
+                <span>
+                  <strong>알려 줄 메시지</strong>
+                  <small>{NOTIFY_SCOPE_NOTE[device.scope]}</small>
+                </span>
+                <select
+                  className="settings-select"
+                  aria-label="알려 줄 메시지"
+                  value={device.scope}
+                  onChange={(event) => void saveDevice({ scope: event.target.value as NotifyScope })}
+                >
+                  <option value="mentions">나를 부른 것만</option>
+                  <option value="pinned">+ 고정한 채널</option>
+                  <option value="all">모든 새 메시지</option>
+                </select>
+              </label>
+              <label className="settings-toggle">
+                <span>
+                  <strong>숨긴 서버와 채널</strong>
+                  <small>{HIDDEN_NOTIFY_CHOICES.find((choice) => choice.value === device.hidden)?.note}</small>
+                </span>
+                <select
+                  className="settings-select"
+                  aria-label="숨긴 서버와 채널의 알림"
                   value={device.hidden}
-                  onChange={(value) => void saveDevice({ hidden: value })}
+                  onChange={(event) => void saveDevice({ hidden: event.target.value as HiddenNotify })}
+                >
+                  {HIDDEN_NOTIFY_CHOICES.map((choice) => (
+                    <option key={choice.value} value={choice.value}>
+                      {choice.short}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <h3 className="settings-sub settings-sub-line">어떻게 알릴까요</h3>
+              <label className="settings-toggle">
+                <span>
+                  <strong>보낸 사람과 내용 보이기</strong>
+                  <small>끄면 알림 창에는 '새 알림 n건', 화면 위 알림에는 채널 이름만 보여요</small>
+                </span>
+                <input
+                  type="checkbox"
+                  className="switch"
+                  checked={device.preview}
+                  onChange={(event) => void saveDevice({ preview: event.target.checked })}
                 />
-                <p className="settings-item-note">{HIDDEN_SCOPE_NOTE}</p>
-              </div>
-              <div className="settings-item">
-                <label className="settings-toggle">
-                  <span>
-                    <strong>알림 창에 보낸 사람과 내용 보이기</strong>
-                    <small>끄면 알림 창에는 '새 알림 n건', 화면 안 알림에는 채널 이름만 보여서 옆에서 봐도 티가 덜 나요</small>
-                  </span>
-                  <input
-                    type="checkbox"
-                    className="switch"
-                    checked={device.preview}
-                    onChange={(event) => void saveDevice({ preview: event.target.checked })}
-                  />
-                </label>
-                <p className="settings-item-note">{POPUP_TEXT[popup]}</p>
-                {popup === "default" && (
-                  <div className="settings-buttons">
-                    <button
-                      type="button"
-                      className="pill-button pill-button-strong"
-                      onClick={() => void askPopupPermission().then(setPopup)}
-                    >
-                      이 브라우저에서 알림 허용하기
-                    </button>
-                  </div>
-                )}
-              </div>
+              </label>
               <div className="settings-item">
                 <label className="settings-toggle">
                   <span>
                     <strong>알림 소리</strong>
-                    <small>새 알림이 오면 짧게 '띵' 소리를 내요. 위장 화면 중에는 울리지 않아요</small>
+                    <small>새 알림이 오면 짧게 '띵'</small>
                   </span>
                   <input
                     type="checkbox"
@@ -548,26 +534,40 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
                 )}
               </div>
               {push !== "unsupported" && (
-                <div className="settings-item">
-                  <label className="settings-toggle">
-                    <span>
-                      <strong>탭을 닫아도 알림 받기</strong>
-                      <small>
-                        {push === "denied"
-                          ? "브라우저에서 알림이 막혀 있어요. 주소창 왼쪽 자물쇠에서 알림을 허용해 주세요."
-                          : "브라우저만 켜져 있으면 이 탭을 닫아도 알려요. 휴대폰 크롬에서도 돼요."}
-                      </small>
-                    </span>
-                    <input
-                      type="checkbox"
-                      className="switch"
-                      checked={push === "on"}
-                      disabled={pushBusy || push === "denied"}
-                      onChange={(event) => void togglePush(event.target.checked)}
-                    />
-                  </label>
-                </div>
+                <label className="settings-toggle">
+                  <span>
+                    <strong>탭을 닫아도 알림 받기</strong>
+                    <small>
+                      {push === "denied"
+                        ? "브라우저에서 알림이 막혀 있어요. 주소창 왼쪽 자물쇠에서 알림을 허용해 주세요"
+                        : "브라우저만 켜져 있으면 이 탭을 닫아도 알려요"}
+                    </small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    className="switch"
+                    checked={push === "on"}
+                    disabled={pushBusy || push === "denied"}
+                    onChange={(event) => void togglePush(event.target.checked)}
+                  />
+                </label>
               )}
+              <label className="settings-toggle">
+                <span>
+                  <strong>위장 화면일 때도 알림 받기</strong>
+                  <small>
+                    {device.boss
+                      ? "위장 중에는 알림 창만 띄워요(보낸 사람, 내용, 소리, 탭 숫자 없이)"
+                      : "끄면 위장 중에는 아무것도 알리지 않아요. 돌아오면 쌓인 숫자를 보여 줘요"}
+                  </small>
+                </span>
+                <input
+                  type="checkbox"
+                  className="switch"
+                  checked={device.boss}
+                  onChange={(event) => void saveDevice({ boss: event.target.checked })}
+                />
+              </label>
             </>
           )}
         </section>
@@ -593,7 +593,7 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
 
           <DisguiseSettings settings={settings} save={save} onFileChanged={onFileChanged} />
 
-          <h3 className="settings-sub settings-sub-line">더 숨기기 <Scope device /></h3>
+          <h3 className="settings-sub settings-sub-line">더 숨기기</h3>
           <label className="settings-toggle">
             <span>
               <strong>자동 위장</strong>
@@ -602,8 +602,8 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
             <input
               type="checkbox"
               className="switch"
-              checked={bossDevice.auto}
-              onChange={(event) => saveBossDevice(bossDevice, { auto: event.target.checked })}
+              checked={settings.boss_auto}
+              onChange={(event) => void save({ boss_auto: event.target.checked })}
             />
           </label>
           <label className="settings-toggle">
@@ -614,8 +614,8 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
             <input
               type="checkbox"
               className="switch"
-              checked={bossDevice.fullscreen}
-              onChange={(event) => saveBossDevice(bossDevice, { fullscreen: event.target.checked })}
+              checked={settings.boss_fullscreen}
+              onChange={(event) => void save({ boss_fullscreen: event.target.checked })}
             />
           </label>
           <label className="settings-toggle">
@@ -626,8 +626,8 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
             <input
               type="checkbox"
               className="switch"
-              checked={bossDevice.relock}
-              onChange={(event) => saveBossDevice(bossDevice, { relock: event.target.checked })}
+              checked={settings.boss_relock}
+              onChange={(event) => void save({ boss_relock: event.target.checked })}
             />
           </label>
         </section>

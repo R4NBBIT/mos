@@ -670,7 +670,7 @@ def create_app(
     @app.get("/api/settings")
     async def get_settings(request: Request) -> dict[str, Any]:
         account = await require_account(request)
-        return await settings_store.get(account.account_id)
+        return await settings_store.get(account.account_id, account.device_id)
 
     @app.patch("/api/settings")
     async def update_settings(request: Request) -> dict[str, Any]:
@@ -682,7 +682,7 @@ def create_app(
         if not isinstance(body, dict) or len(body) > 10:
             raise HTTPException(status_code=400, detail="bad_json")
         try:
-            saved = await settings_store.update(account.account_id, body)
+            saved = await settings_store.update(account.account_id, body, account.device_id)
         except SettingsError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
         notify_prefs.account_changed(account.account_id)  # 기기 알림의 기본값이 바뀌었을 수 있다
@@ -706,6 +706,7 @@ def create_app(
         if device is not None:
             await push.forget_device_account(device.id)
             await notify_prefs.forget(device.id)
+            await settings_store.forget_device(device.id)
         await sessions.logout(device)
         clear_device_cookie(response)
 
@@ -715,6 +716,7 @@ def create_app(
         if device is not None:
             await push.forget_device_account(device.id, account_id)
             await notify_prefs.forget(device.id, account_id)
+            await settings_store.forget_device(device.id, account_id)
         if await sessions.remove_account(device, account_id):
             clear_device_cookie(response)
 
@@ -726,9 +728,9 @@ def create_app(
         ids = [access.channel.id for access in accesses if access.channel.kind != "forum"]
         return await lists.unread(account.account_id, account.discord_user_id, ids)
 
-    async def hidden_prefs(account_id: int) -> tuple[set[int], str]:
-        """숨긴 곳과 목록 숫자 규칙(계정 전체, 알림 규칙은 기기마다 따로)."""
-        prefs = await settings_store.get(account_id)
+    async def hidden_prefs(account_id: int, device_id: int) -> tuple[set[int], str]:
+        """숨긴 곳(계정 전체)과 이 기기의 목록 숫자 규칙."""
+        prefs = await settings_store.get(account_id, device_id)
         return {int(item) for item in prefs["hidden"]}, prefs["hidden_unread"]
 
     def counted(counts: tuple[int, int], hidden: bool, mode: str) -> tuple[int, int]:
@@ -750,7 +752,7 @@ def create_app(
         user = account.discord_user_id
         pins = await lists.pins(account.account_id)
         group_pins = {p["target_id"]: p["position"] for p in pins if p["kind"] == "group"}
-        hidden, hidden_mode = await hidden_prefs(account.account_id)
+        hidden, hidden_mode = await hidden_prefs(account.account_id, account.device_id)
         groups = []
         for guild in await perms.visible_guilds(user):
             accesses = await perms.visible_channels(user, guild.id) or []
@@ -1376,7 +1378,7 @@ def create_app(
         if device is None or device.active_account_id is None:
             raise HTTPException(status_code=404, detail="not found")
         account_id = device.active_account_id
-        prefs = await settings_store.get(account_id)
+        prefs = await settings_store.get(account_id, device.id)
         device_prefs = await notify_prefs.get(device.id, account_id)
         title = prefs["tab_title"] or DEFAULT_TITLES.get(prefs["theme"], "작업 메모")
         latest = last_push.get((device.id, account_id))
