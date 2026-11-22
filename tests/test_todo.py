@@ -629,3 +629,22 @@ def test_end_repeat_keeps_past_drops_future(env: Env) -> None:
     assert titles("2026-11-28") == []  # 앞으로는 없음
     assert titles("2026-11-15") == ["물 마시기"]  # 지난 것은 남음
     assert titles("2026-11-22") == ["물 마시기"]  # 오늘까지
+
+
+def test_android_apk_download(env: Env, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from mos.api import todo_routes
+
+    signed_up(env, "mocha")
+    apk = tmp_path / "mos-todo-widget.apk"
+    monkeypatch.setattr(todo_routes, "APK_PATH", apk)
+    monkeypatch.setattr(todo_routes, "APK_INFO_PATH", tmp_path / "mos-todo-widget.json")
+    assert env.client.get("/api/todo/android").json()["available"] is False
+    assert env.client.get("/api/todo/android/mos-todo-widget.apk").status_code == 404
+    apk.write_bytes(b"PK\x03\x04" + b"x" * 100)
+    (tmp_path / "mos-todo-widget.json").write_text('{"updated": "2026-11-23T01:00:00Z"}')
+    info = env.client.get("/api/todo/android").json()
+    assert info == {"available": True, "size": 104, "updated": "2026-11-23T01:00:00Z"}
+    got = env.client.get("/api/todo/android/mos-todo-widget.apk")
+    assert got.status_code == 200 and got.content.startswith(b"PK")
+    assert got.headers["content-type"] == "application/vnd.android.package-archive"
+    assert "mos-todo-widget.apk" in got.headers["content-disposition"]

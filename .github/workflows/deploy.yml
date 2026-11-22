@@ -73,6 +73,27 @@ jobs:
           npm test --if-present
           npm run build
 
+      # ---------------------------------------------------- 안드로이드 위젯 APK
+      # android 워크플로가 올린 최신 APK(고정 릴리스 android-latest)를 앱 묶음에 넣는다.
+      # 아직 없으면 넣지 않고 지나간다(사이트에서는 '아직 없어요')
+      - name: 안드로이드 위젯 APK 넣기
+        if: steps.layout.outputs.app == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release download android-latest -R "$GITHUB_REPOSITORY" -p mos-todo-widget.apk -D mos/data --clobber; then
+            if [ "$(head -c 2 mos/data/mos-todo-widget.apk)" != "PK" ]; then
+              echo "APK 모양이 아니라 넣지 않음"
+              rm -f mos/data/mos-todo-widget.apk
+            else
+              gh release view android-latest -R "$GITHUB_REPOSITORY" --json assets \
+                --jq '.assets[] | select(.name == "mos-todo-widget.apk") | {updated: .updatedAt, size: .size}' \
+                > mos/data/mos-todo-widget.json
+            fi
+          else
+            echo "아직 올린 APK가 없음"
+          fi
+
       # ---------------------------------------------------- 배포 묶음
       - name: 배포 묶음 만들기
         if: steps.layout.outputs.app == 'true' && steps.layout.outputs.web == 'true'

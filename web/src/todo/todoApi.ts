@@ -361,3 +361,15 @@ export const fetchAudience = (categoryId: string) =>
   call<TodoAudience>(`/api/todo/categories/${encodeURIComponent(categoryId)}/audience`);
 export const saveAudience = (categoryId: string, audience: TodoAudience) =>
   call<TodoAudience>(`/api/todo/categories/${encodeURIComponent(categoryId)}/audience`, "PUT", audience);
+
+// ------------------------------------------------------------ 안드로이드 위젯 APK
+
+export interface AndroidApk {
+  available: boolean;
+  size: number;
+  /** 올린 때(ISO), 모르면 null */
+  updated: string | null;
+}
+
+export const fetchAndroidApk = () => call<AndroidApk>("/api/todo/android");
+export const ANDROID_APK_URL = "/api/todo/android/mos-todo-widget.apk";

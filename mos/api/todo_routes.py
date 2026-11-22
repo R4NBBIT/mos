@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from mos.api.rate_limit import RateLimiter
 from mos.services.session import ActiveAccount, SessionError
@@ -16,6 +18,10 @@ from mos.services.todo_access import TodoAccess
 MAX_BODY_KEYS = 12
 NOT_FOUND = {"detail": "Not Found"}  # 없는 주소일 때 프레임워크가 주는 본문과 똑같이
 PREFIX = "/api/todo"
+# 배포가 android-latest 릴리스에서 받아 넣는 안드로이드 위젯 APK(없을 수 있음)
+APK_PATH = Path(__file__).resolve().parent.parent / "data" / "mos-todo-widget.apk"
+APK_INFO_PATH = APK_PATH.with_suffix(".json")
+MAX_APK_BYTES = 50 * 1024 * 1024
 
 
 def register_todo_routes(
@@ -134,6 +140,40 @@ def register_todo_routes(
     async def todo_prefs_update(request: Request) -> dict[str, Any]:
         account = await writer(request)
         return await todo.update_alert_prefs(account.account_id, await json_body(request))
+
+    # ------------------------------------------------------------ 안드로이드 위젯 APK(2026-11-23)
+
+    def apk_ready() -> bool:
+        try:
+            return APK_PATH.is_file() and 0 < APK_PATH.stat().st_size <= MAX_APK_BYTES
+        except OSError:
+            return False
+
+    @app.get("/api/todo/android")
+    async def todo_android(request: Request) -> dict[str, Any]:
+        await todo_account(request)
+        if not apk_ready():
+            return {"available": False, "size": 0, "updated": None}
+        updated = None
+        try:
+            info = json.loads(APK_INFO_PATH.read_text(encoding="utf-8"))
+            if isinstance(info, dict) and isinstance(info.get("updated"), str):
+                updated = info["updated"][:32]
+        except (OSError, ValueError):
+            pass
+        return {"available": True, "size": APK_PATH.stat().st_size, "updated": updated}
+
+    @app.get("/api/todo/android/mos-todo-widget.apk")
+    async def todo_android_apk(request: Request) -> FileResponse:
+        await todo_account(request)
+        if not apk_ready():
+            raise TodoError("not_found", 404)
+        return FileResponse(
+            APK_PATH,
+            media_type="application/vnd.android.package-archive",
+            filename="mos-todo-widget.apk",
+            headers={"Cache-Control": "no-store"},
+        )
 
     # ------------------------------------------------------------ 소식(NOTI-06)
 

@@ -43,6 +43,9 @@ tools/verify/state.json
 # 내 PC 실행 데이터
 data/
 !mos/data/
+# 배포 때 android-latest 릴리스에서 받아 넣는 위젯 APK(저장소에는 안 올림)
+mos/data/*.apk
+mos/data/mos-todo-widget.json
 # 위: 앱에 들어가는 고정 자료(점메추 기본 메뉴)는 올린다. 실행 중 만들어지는 data/(DB)만 뺀다
 
 # 안드로이드 위젯 빌드 결과

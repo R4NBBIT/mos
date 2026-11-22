@@ -10,8 +10,9 @@ android {
         applicationId "com.teamsheetnote.mos.todo"
         minSdk 26
         targetSdk 35
-        versionCode 1
-        versionName "1.0"
+        // 빌드마다 올라가는 번호(GitHub Actions 실행 번호). 덮어 설치할 때 새 버전으로 알아본다
+        versionCode((System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger())
+        versionName "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
     }
 
     // 서명 열쇠는 GitHub 비밀 값으로만(없으면 디버그 서명). 같은 열쇠여야 새 버전을 덮어 설치할 수 있다

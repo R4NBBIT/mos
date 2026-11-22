@@ -9030,3 +9030,19 @@ body.sorting * {
   flex-wrap: wrap;
   gap: 6px;
 }
+
+/* 앱으로 설치 창: 안드로이드 TODO 위젯 받기 */
+.install-android-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.install-android-row small {
+  color: var(--sub);
+}
+
+.install-android .pill-button {
+  text-decoration: none;
+}
