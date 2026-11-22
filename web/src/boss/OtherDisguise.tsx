@@ -1,4 +1,5 @@
 // 표가 아닌 위장 화면: 내 스크린샷 사진, 메모장 같은 글 문서(노션, Word는 DocDisguise.tsx).
+import { useBossTodo } from "./bossTodo";
 import { useEffect, useRef, useState } from "react";
 import { localEdits, pullEdits, pushEdits } from "./bossStore";
 
@@ -64,6 +65,7 @@ export function TextDisguise({
   active: boolean;
   editKey?: string;
 }) {
+  const goTodo = useBossTodo();
   const [text, setText] = useState(() => localEdits<string>(editKey) ?? original);
   const areaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -86,10 +88,17 @@ export function TextDisguise({
 
   return (
     <div className="boss-text">
-      <div className="boss-text-menu" aria-hidden="true">
+      <div className="boss-text-menu">
         {["파일", "편집", "서식", "보기", "도움말"].map((name) => (
-          <span key={name}>{name}</span>
+          <span key={name} aria-hidden="true">
+            {name}
+          </span>
         ))}
+        {goTodo && (
+          <button type="button" tabIndex={-1} className="boss-menu-todo" onClick={goTodo}>
+            TODO
+          </button>
+        )}
       </div>
       <textarea
         ref={areaRef}

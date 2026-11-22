@@ -7,10 +7,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.text.SpannableString;
-import android.text.Spanned;
-import android.text.style.ForegroundColorSpan;
-import android.text.style.StrikethroughSpan;
+import android.os.Build;
 import android.view.View;
 import android.widget.RemoteViews;
 
@@ -25,28 +22,12 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 홈 화면 위젯: 오늘 TODO(최대 8줄). 줄을 누르면 완료 켜고 끄기, ↻는 새로 고침, 날짜는 ㅁㅇㅅ 열기.
+ * 홈 화면 위젯: 오늘 TODO(스크롤되는 목록). 줄을 누르면 완료 켜고 끄기, ↻는 새로 고침, 날짜는 ㅁㅇㅅ 열기.
  * 모양은 앱에서 고른 테마(Look: 기본, 다크, 스프레드시트, 메모장, 노션, Word)
  */
 public class TodoWidget extends AppWidgetProvider {
     static final String TOGGLE = "com.teamsheetnote.mos.todo.TOGGLE";
     static final String REFRESH = "com.teamsheetnote.mos.todo.REFRESH";
-    private static final int[] ROWS = {
-            R.id.row0, R.id.row1, R.id.row2, R.id.row3, R.id.row4, R.id.row5, R.id.row6, R.id.row7,
-    };
-    private static final int[] MARKS = {
-            R.id.row0_mark, R.id.row1_mark, R.id.row2_mark, R.id.row3_mark,
-            R.id.row4_mark, R.id.row5_mark, R.id.row6_mark, R.id.row7_mark,
-    };
-    private static final int[] TEXTS = {
-            R.id.row0_text, R.id.row1_text, R.id.row2_text, R.id.row3_text,
-            R.id.row4_text, R.id.row5_text, R.id.row6_text, R.id.row7_text,
-    };
-    private static final int[] TIMES = {
-            R.id.row0_time, R.id.row1_time, R.id.row2_time, R.id.row3_time,
-            R.id.row4_time, R.id.row5_time, R.id.row6_time, R.id.row7_time,
-    };
-
     @Override
     public void onUpdate(Context context, AppWidgetManager manager, int[] ids) {
         refreshAsync(context);
@@ -165,57 +146,23 @@ public class TodoWidget extends AppWidgetProvider {
                 done++;
             }
         }
-        for (int index = 0; index < ROWS.length; index++) {
-            if (index >= total) {
-                views.setViewVisibility(ROWS[index], View.GONE);
-                continue;
+        // 줄은 스크롤되는 목록(TodoWidgetService)이 그린다(2026-11-23 사용자 요청: 위젯 스크롤)
+        if (todos != null) {
+            JSONArray sorted = new JSONArray();
+            for (JSONObject item : items) {
+                sorted.put(item);
             }
-            JSONObject item = items.get(index);
-            boolean isDone = item.optBoolean("done", false);
-            String time = item.isNull("time") ? "" : item.optString("time", "");
-            String shownTime = look.timeKorean && !time.isEmpty() ? Look.koreanTime(time) : time;
-            views.setViewVisibility(ROWS[index], View.VISIBLE);
-            if (index == ROWS.length - 1 && total > ROWS.length) {
-                views.setTextViewText(MARKS[index], "");
-                views.setTextViewText(TEXTS[index], "외 " + (total - ROWS.length + 1) + "개 더(날짜를 눌러 보기)");
-                views.setTextViewText(TIMES[index], "");
-                views.setOnClickPendingIntent(ROWS[index],
-                        PendingIntent.getActivity(context, 3, open, PendingIntent.FLAG_IMMUTABLE));
-                continue;
-            }
-            int categoryColor = parseColor(item.optString("color", null), 0xFF8A8F98);
-            SpannableString mark = new SpannableString(isDone ? look.markOn : look.markOff);
-            mark.setSpan(new ForegroundColorSpan(look.markColor != 0 ? look.markColor : categoryColor),
-                    0, mark.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            views.setTextViewText(MARKS[index], mark);
-            String title = item.optString("title", "");
-            // 한 줄로 'TODO | 시각 | 장소', 같은 글꼴과 크기(2026-11-23 사용자 요청).
-            // 스프레드시트만 시각을 C열에 따로 둔다(표 모양)
-            boolean sheet = "sheet".equals(look.key);
-            String place = item.isNull("place") ? "" : item.optString("place", "");
-            StringBuilder joined = new StringBuilder(title);
-            if (!sheet && !shownTime.isEmpty()) {
-                joined.append(" | ").append(shownTime);
-            }
-            if (!place.isEmpty()) {
-                joined.append(" | ").append(place);
-            }
-            String line = joined.toString();
-            SpannableString text = new SpannableString(line);
-            if (isDone) {
-                text.setSpan(new StrikethroughSpan(), 0, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                text.setSpan(new ForegroundColorSpan(look.doneColor), 0, text.length(),
-                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            }
-            views.setTextViewText(TEXTS[index], text);
-            boolean timeColumn = "sheet".equals(look.key);
-            views.setTextViewText(TIMES[index], timeColumn ? shownTime : "");
-            views.setViewVisibility(TIMES[index], timeColumn ? View.VISIBLE : View.GONE);
-            Intent toggle = new Intent(TOGGLE)
-                    .putExtra("id", item.optString("id"))
-                    .putExtra("done", isDone);
-            views.setOnClickPendingIntent(ROWS[index], broadcast(context, 100 + index, toggle));
+            saveItems(context, sorted.toString());
+        } else if (message != null && message.contains("로그인")) {
+            saveItems(context, "[]");
         }
+        Intent service = new Intent(context, TodoWidgetService.class);
+        service.setData(Uri.parse(service.toUri(Intent.URI_INTENT_SCHEME)));
+        views.setRemoteAdapter(R.id.list, service);
+        Intent template = new Intent(TOGGLE).setClass(context, TodoWidget.class);
+        int mutable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? PendingIntent.FLAG_MUTABLE : 0;
+        views.setPendingIntentTemplate(R.id.list,
+                PendingIntent.getBroadcast(context, 5, template, PendingIntent.FLAG_UPDATE_CURRENT | mutable));
         if (todos != null) {
             String count = done + "/" + total;
             if ("memo".equals(look.key)) {
@@ -235,5 +182,34 @@ public class TodoWidget extends AppWidgetProvider {
         AppWidgetManager manager = AppWidgetManager.getInstance(context);
         int[] widgetIds = manager.getAppWidgetIds(new ComponentName(context, TodoWidget.class));
         manager.updateAppWidget(widgetIds, views);
+        manager.notifyAppWidgetViewDataChanged(widgetIds, R.id.list);
+    }
+
+    private static final String CACHE = "mos_todo_widget_items";
+
+    private static void saveItems(Context context, String json) {
+        context.getSharedPreferences(CACHE, Context.MODE_PRIVATE).edit().putString("items", json).apply();
+    }
+
+    /** 위젯 목록이 읽는 오늘 TODO(정렬된 채로) */
+    static List<JSONObject> savedItems(Context context) {
+        List<JSONObject> out = new ArrayList<>();
+        try {
+            JSONArray array = new JSONArray(
+                    context.getSharedPreferences(CACHE, Context.MODE_PRIVATE).getString("items", "[]"));
+            for (int index = 0; index < array.length(); index++) {
+                JSONObject item = array.optJSONObject(index);
+                if (item != null) {
+                    out.add(item);
+                }
+            }
+        } catch (Exception ignored) {
+            // 저장값이 깨졌으면 빈 목록
+        }
+        return out;
+    }
+
+    static int parseColorFor(String value, int fallback) {
+        return parseColor(value, fallback);
     }
 }

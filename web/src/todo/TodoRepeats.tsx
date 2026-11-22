@@ -4,19 +4,8 @@
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import BackIcon from "../BackIcon";
 import SplitToggle from "../SplitToggle";
-import {
-  addDays,
-  dateWithWeekday,
-  timeLabel,
-  today,
-  WEEKDAY_NAMES,
-} from "./dates";
-import {
-  CategoryDot,
-  memoAudienceLine,
-  PickField,
-  useMemoAudience,
-} from "./TodoItems";
+import { addDays, dateWithWeekday, timeLabel, today, WEEKDAY_NAMES } from "./dates";
+import { CategoryDot, memoAudienceLine, PickField, useMemoAudience } from "./TodoItems";
 import {
   deleteRepeatSeries,
   endRepeatSeries,
@@ -44,15 +33,12 @@ function ruleText(period: RepeatPeriod): string {
   if (period.rule === "daily") return "매일";
   if (period.rule === "weekdays") return "평일마다";
   if (period.rule === "weekends") return "주말마다";
-  if (period.rule === "monthly")
-    return `매달 ${Number(period.start_day.slice(8, 10))}일`;
+  if (period.rule === "monthly") return `매달 ${Number(period.start_day.slice(8, 10))}일`;
   return `매주 ${period.weekdays.map((day) => WEEKDAY_NAMES[day]).join(" ")}`;
 }
 
 function periodText(start: string, end: string | null): string {
-  return end
-    ? `${dateWithWeekday(start)} ~ ${dateWithWeekday(end)}`
-    : `${dateWithWeekday(start)}부터`;
+  return end ? `${dateWithWeekday(start)} ~ ${dateWithWeekday(end)}` : `${dateWithWeekday(start)}부터`;
 }
 
 interface Draft {
@@ -68,10 +54,7 @@ interface Draft {
   memo: string;
 }
 
-function draftFrom(
-  period: RepeatPeriod | null,
-  categories: TodoCategory[],
-): Draft {
+function draftFrom(period: RepeatPeriod | null, categories: TodoCategory[]): Draft {
   if (!period) {
     const day = today();
     const weekday = new Date(`${day}T00:00:00`).getDay();
@@ -92,9 +75,7 @@ function draftFrom(
     title: period.title,
     category_id: period.category_id,
     rule: period.rule,
-    weekdays: period.weekdays.length
-      ? period.weekdays
-      : [new Date(`${period.start_day}T00:00:00`).getDay()],
+    weekdays: period.weekdays.length ? period.weekdays : [new Date(`${period.start_day}T00:00:00`).getDay()],
     start_day: period.start_day,
     end_day: period.end_day ?? "",
     skip_holidays: period.skip_holidays,
@@ -143,11 +124,8 @@ function RepeatEditor({
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const set = (changes: Partial<Draft>) =>
-    setDraft((current) => ({ ...current, ...changes }));
-  const memoWho = useMemoAudience(
-    categories.find((category) => category.id === draft.category_id),
-  );
+  const set = (changes: Partial<Draft>) => setDraft((current) => ({ ...current, ...changes }));
+  const memoWho = useMemoAudience(categories.find((category) => category.id === draft.category_id));
   const toggleDay = (day: number) =>
     set({
       weekdays: draft.weekdays.includes(day)
@@ -211,10 +189,7 @@ function RepeatEditor({
             />
           </Field>
           <Field name="카테고리">
-            <select
-              value={draft.category_id}
-              onChange={(event) => set({ category_id: event.target.value })}
-            >
+            <select value={draft.category_id} onChange={(event) => set({ category_id: event.target.value })}>
               {open.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.name}
@@ -223,20 +198,14 @@ function RepeatEditor({
             </select>
           </Field>
           <Field name="반복">
-            <div
-              className="todo-segment todo-segment-full"
-              role="radiogroup"
-              aria-label="반복 규칙"
-            >
+            <div className="todo-segment todo-segment-full" role="radiogroup" aria-label="반복 규칙">
               {RULES.map((rule) => (
                 <button
                   key={rule.value}
                   type="button"
                   role="radio"
                   aria-checked={draft.rule === rule.value}
-                  className={
-                    draft.rule === rule.value ? "todo-segment-on" : undefined
-                  }
+                  className={draft.rule === rule.value ? "todo-segment-on" : undefined}
                   onClick={() => set({ rule: rule.value })}
                 >
                   {rule.label}
@@ -246,21 +215,13 @@ function RepeatEditor({
           </Field>
           {draft.rule === "weekly" && (
             <Field name="요일">
-              <div
-                className="todo-rep-days"
-                role="group"
-                aria-label="요일(여러 개)"
-              >
+              <div className="todo-rep-days" role="group" aria-label="요일(여러 개)">
                 {WEEKDAY_NAMES.map((name, day) => (
                   <button
                     key={name}
                     type="button"
                     aria-pressed={draft.weekdays.includes(day)}
-                    className={
-                      draft.weekdays.includes(day)
-                        ? "todo-rep-day todo-rep-day-on"
-                        : "todo-rep-day"
-                    }
+                    className={draft.weekdays.includes(day) ? "todo-rep-day todo-rep-day-on" : "todo-rep-day"}
                     onClick={() => toggleDay(day)}
                   >
                     {name}
@@ -292,20 +253,12 @@ function RepeatEditor({
             onChange={(value) => set({ end_day: value })}
           />
           {draft.end_day && (
-            <button
-              type="button"
-              className="todo-text-button"
-              onClick={() => set({ end_day: "" })}
-            >
+            <button type="button" className="todo-text-button" onClick={() => set({ end_day: "" })}>
               마지막 날 없음
             </button>
           )}
         </div>
-        {!draft.end_day && (
-          <p className="todo-field-help">
-            마지막 날을 정하지 않으면 계속 반복돼요.
-          </p>
-        )}
+        {!draft.end_day && <p className="todo-field-help">마지막 날을 정하지 않으면 계속 반복돼요.</p>}
       </Field>
       {!adding && (
         <>
@@ -315,14 +268,10 @@ function RepeatEditor({
                 type="checkbox"
                 role="switch"
                 checked={draft.skip_holidays}
-                onChange={(event) =>
-                  set({ skip_holidays: event.target.checked })
-                }
+                onChange={(event) => set({ skip_holidays: event.target.checked })}
               />
               <span className="todo-switch-track" aria-hidden="true" />
-              <span>
-                {draft.skip_holidays ? "공휴일에는 빼기" : "공휴일에도 넣기"}
-              </span>
+              <span>{draft.skip_holidays ? "공휴일에는 빼기" : "공휴일에도 넣기"}</span>
             </label>
           </Field>
           <Field name="시각">
@@ -335,22 +284,14 @@ function RepeatEditor({
                 onChange={(value) => set({ time: value })}
               />
               {draft.time && (
-                <button
-                  type="button"
-                  className="todo-text-button"
-                  onClick={() => set({ time: "" })}
-                >
+                <button type="button" className="todo-text-button" onClick={() => set({ time: "" })}>
                   삭제
                 </button>
               )}
             </span>
           </Field>
           <Field name="장소">
-            <input
-              value={draft.place}
-              maxLength={40}
-              onChange={(event) => set({ place: event.target.value })}
-            />
+            <input value={draft.place} maxLength={40} onChange={(event) => set({ place: event.target.value })} />
           </Field>
           <Field name="메모">
             <textarea
@@ -367,19 +308,10 @@ function RepeatEditor({
       <div className="todo-cat-actions">
         <span />
         <div className="todo-cat-actions-main">
-          <button
-            type="button"
-            className="todo-small-button"
-            onClick={onCancel}
-          >
+          <button type="button" className="todo-small-button" onClick={onCancel}>
             취소
           </button>
-          <button
-            type="button"
-            className="todo-small-button todo-primary"
-            disabled={busy}
-            onClick={() => void save()}
-          >
+          <button type="button" className="todo-small-button todo-primary" disabled={busy} onClick={() => void save()}>
             {adding ? "기간 추가" : period ? "저장" : "만들기"}
           </button>
         </div>
@@ -413,63 +345,35 @@ function SeriesCard({
       .catch((failure: unknown) => setError(todoErrorText(failure)));
   const category = categories.find((item) => item.id === current.category_id);
   const last = series.periods[series.periods.length - 1];
-  const meta = [
-    ruleText(current),
-    current.time ? timeLabel(current.time) : "",
-    current.place ?? "",
-  ]
+  const meta = [ruleText(current), current.time ? timeLabel(current.time) : "", current.place ?? ""]
     .filter(Boolean)
     .join(" | ");
   return (
-    <div
-      className={
-        series.ended
-          ? "todo-cat-item todo-rep-card todo-cat-closed"
-          : "todo-cat-item todo-rep-card"
-      }
-    >
+    <div className={series.ended ? "todo-cat-item todo-rep-card todo-cat-closed" : "todo-cat-item todo-rep-card"}>
       <div className="todo-cat-line">
         {category && <CategoryDot color={category.color} />}
         <span className="todo-rep-title">
           <span className="todo-cat-name">{current.title}</span>
           <span className="todo-rep-meta">{meta}</span>
         </span>
-        {current.skip_holidays && (
-          <span className="todo-cat-scope">공휴일 빼기</span>
-        )}
+        {current.skip_holidays && <span className="todo-cat-scope">공휴일 빼기</span>}
         {editing === null && !asking && (
           <div className="todo-rep-actions">
             {series.ended ? (
-              <button
-                type="button"
-                className="todo-small-button todo-primary"
-                onClick={() => onEdit("period")}
-              >
+              <button type="button" className="todo-small-button todo-primary" onClick={() => onEdit("period")}>
                 새 기간 추가
               </button>
             ) : (
               <>
-                <button
-                  type="button"
-                  className="todo-small-button"
-                  onClick={() => onEdit("edit")}
-                >
+                <button type="button" className="todo-small-button" onClick={() => onEdit("edit")}>
                   수정
                 </button>
-                <button
-                  type="button"
-                  className="todo-small-button"
-                  onClick={() => setAsking("end")}
-                >
+                <button type="button" className="todo-small-button" onClick={() => setAsking("end")}>
                   끝내기
                 </button>
               </>
             )}
-            <button
-              type="button"
-              className="todo-text-button todo-danger-text"
-              onClick={() => setAsking("delete")}
-            >
+            <button type="button" className="todo-text-button todo-danger-text" onClick={() => setAsking("delete")}>
               삭제
             </button>
           </div>
@@ -479,9 +383,7 @@ function SeriesCard({
         {series.periods.map((period) => (
           <li key={period.id}>
             {periodText(period.start_day, period.end_day)}
-            {!period.end_day && (
-              <span className="todo-rep-none">기간을 정해 두지 않았어요</span>
-            )}
+            {!period.end_day && <span className="todo-rep-none">기간을 정해 두지 않았어요</span>}
           </li>
         ))}
       </ul>
@@ -497,11 +399,7 @@ function SeriesCard({
               : `'${current.title}' 반복을 삭제할까요? 내일부터 생길 TODO는 삭제되고, 오늘까지의 TODO는 끝내지 못한 것도 그대로 남아요. 휴지통에서 7일 동안 되살릴 수 있어요.`}
           </span>
           <div className="todo-confirm-buttons">
-            <button
-              type="button"
-              className="todo-small-button"
-              onClick={() => setAsking(null)}
-            >
+            <button type="button" className="todo-small-button" onClick={() => setAsking(null)}>
               취소
             </button>
             {asking === "end" ? (
@@ -516,9 +414,7 @@ function SeriesCard({
               <button
                 type="button"
                 className="todo-small-button todo-danger"
-                onClick={() =>
-                  act(() => deleteRepeatSeries(series.id, today()))
-                }
+                onClick={() => act(() => deleteRepeatSeries(series.id, today()))}
               >
                 삭제
               </button>
@@ -532,11 +428,7 @@ function SeriesCard({
           categories={categories}
           period={current}
           seriesId={editing === "period" ? series.id : undefined}
-          minStart={
-            editing === "period" && last?.end_day
-              ? addDays(last.end_day, 1)
-              : undefined
-          }
+          minStart={editing === "period" && last?.end_day ? addDays(last.end_day, 1) : undefined}
           onDone={() => {
             onEdit(null);
             onChanged();
@@ -597,12 +489,7 @@ export default function TodoRepeats({
       <header className="room-header todo-header">
         <SplitToggle />
         {showBack && (
-          <button
-            type="button"
-            className="back-button"
-            onClick={onBack}
-            aria-label="TODO로"
-          >
+          <button type="button" className="back-button" onClick={onBack} aria-label="TODO로">
             <BackIcon />
           </button>
         )}
@@ -620,14 +507,8 @@ export default function TodoRepeats({
         {menu}
       </header>
       <div className="todo-cat-body">
-        {series === null && (
-          <p className="list-note">
-            {failed ? "불러오지 못했어요." : "불러오는 중…"}
-          </p>
-        )}
-        {series && active.length === 0 && !creating && (
-          <p className="todo-field-help">반복 중인 TODO가 없어요.</p>
-        )}
+        {series === null && <p className="list-note">{failed ? "불러오지 못했어요." : "불러오는 중…"}</p>}
+        {series && active.length === 0 && !creating && <p className="todo-field-help">반복 중인 TODO가 없어요.</p>}
         {active.map(card)}
         {series &&
           (creating ? (
@@ -643,12 +524,7 @@ export default function TodoRepeats({
               />
             </div>
           ) : (
-            <button
-              type="button"
-              className="todo-cat-add"
-              aria-label="새 반복"
-              onClick={() => setCreating(true)}
-            >
+            <button type="button" className="todo-cat-add" aria-label="새 반복" onClick={() => setCreating(true)}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 5v14M5 12h14" />
               </svg>
@@ -657,9 +533,7 @@ export default function TodoRepeats({
         {ended.length > 0 && (
           <section className="todo-cat-section" aria-label="끝난 반복">
             <h2 className="todo-cat-section-title">끝난 반복</h2>
-            <p className="todo-field-help">
-              기간이 끝난 반복이에요. '새 기간 추가'로 다시 쓸 수 있어요.
-            </p>
+            <p className="todo-field-help">기간이 끝난 반복이에요. '새 기간 추가'로 다시 쓸 수 있어요.</p>
             {ended.map(card)}
           </section>
         )}

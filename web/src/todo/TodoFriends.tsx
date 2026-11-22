@@ -21,12 +21,7 @@ import "./todo.css";
 
 function Avatar({ person }: { person: TodoPerson }) {
   return person.avatar_url ? (
-    <img
-      className="todo-friend-avatar"
-      src={viaServer(person.avatar_url)}
-      alt=""
-      referrerPolicy="no-referrer"
-    />
+    <img className="todo-friend-avatar" src={viaServer(person.avatar_url)} alt="" referrerPolicy="no-referrer" />
   ) : (
     <span className="todo-friend-avatar todo-friend-initial" aria-hidden="true">
       {person.name.slice(0, 1)}
@@ -78,14 +73,8 @@ export default function TodoFriends({
   const blockable = (person: TodoPerson, actions: ReactNode): ReactNode =>
     blocking === person.id ? (
       <>
-        <span className="todo-friend-ask">
-          차단하면 친구가 끊기고 서로 TODO가 안 보여요.
-        </span>
-        <button
-          type="button"
-          className="todo-small-button"
-          onClick={() => setBlocking(null)}
-        >
+        <span className="todo-friend-ask">차단하면 친구가 끊기고 서로 TODO가 안 보여요.</span>
+        <button type="button" className="todo-small-button" onClick={() => setBlocking(null)}>
           취소
         </button>
         <button
@@ -104,11 +93,7 @@ export default function TodoFriends({
     ) : (
       <>
         {actions}
-        <button
-          type="button"
-          className="todo-text-button todo-danger-text"
-          onClick={() => setBlocking(person.id)}
-        >
+        <button type="button" className="todo-text-button todo-danger-text" onClick={() => setBlocking(person.id)}>
           차단
         </button>
       </>
@@ -117,11 +102,7 @@ export default function TodoFriends({
     <li key={person.id} className="todo-friend-row">
       <Avatar person={person} />
       {open ? (
-        <button
-          type="button"
-          className="todo-friend-name todo-link-like"
-          onClick={() => onOpenFriend(person.id)}
-        >
+        <button type="button" className="todo-friend-name todo-link-like" onClick={() => onOpenFriend(person.id)}>
           {person.name}
         </button>
       ) : (
@@ -135,20 +116,13 @@ export default function TodoFriends({
       <header className="room-header todo-header">
         <SplitToggle />
         {showBack && (
-          <button
-            type="button"
-            className="back-button"
-            onClick={onBack}
-            aria-label="TODO로"
-          >
+          <button type="button" className="back-button" onClick={onBack} aria-label="TODO로">
             <BackIcon />
           </button>
         )}
         <div className="room-title">
           <strong>친구</strong>
-          <span className="room-sub">
-            TODO에서만 맺는 친구(디스코드 친구와 따로)
-          </span>
+          <span className="room-sub">TODO에서만 맺는 친구(디스코드 친구와 따로)</span>
         </div>
         {!showBack && (
           <div className="header-tools">
@@ -176,18 +150,14 @@ export default function TodoFriends({
                         <button
                           type="button"
                           className="todo-small-button"
-                          onClick={() =>
-                            void run(() => removeFriend(person.id))
-                          }
+                          onClick={() => void run(() => removeFriend(person.id))}
                         >
                           거절
                         </button>
                         <button
                           type="button"
                           className="todo-small-button todo-primary"
-                          onClick={() =>
-                            void run(() => acceptFriend(person.id))
-                          }
+                          onClick={() => void run(() => acceptFriend(person.id))}
                         >
                           수락
                         </button>
@@ -199,9 +169,7 @@ export default function TodoFriends({
             )}
             <section className="todo-friend-section">
               <div className="todo-friend-head">
-                <h2 className="todo-friend-title">
-                  친구 {people.friends.length}명
-                </h2>
+                <h2 className="todo-friend-title">친구 {people.friends.length}명</h2>
                 <button
                   type="button"
                   className="todo-small-button todo-primary"
@@ -212,10 +180,9 @@ export default function TodoFriends({
                 </button>
               </div>
               <p className="todo-field-help">
-                같은 디스코드 서버에서 TODO를 쓰는 사람에게 요청할 수 있어요.
-                친구가 되면 서로 '친구' 카테고리까지 보이고 반응을 달 수 있어요.
-                친구가 아니어도 같은 서버 사람은 내 '전체' 카테고리를 볼 수
-                있어요(차단한 사람 빼고).
+                같은 디스코드 서버에서 TODO를 쓰는 사람에게 요청할 수 있어요. 친구가 되면 서로 '친구' 카테고리까지
+                보이고 반응을 달 수 있어요. 친구가 아니어도 같은 서버 사람은 내 '전체' 카테고리를 볼 수 있어요(차단한
+                사람 빼고).
               </p>
               {adding && (
                 <div className="todo-friend-add">
@@ -229,26 +196,20 @@ export default function TodoFriends({
                   />
                   {people.candidates.length === 0 ? (
                     <p className="todo-field-help">
-                      요청할 수 있는 사람이 없어요. 같은 디스코드 서버에 있고,
-                      TODO를 쓰고, '친구 요청 받기'를 켜 둔 사람만 나와요.
+                      요청할 수 있는 사람이 없어요. 같은 디스코드 서버에 있고, TODO를 쓰고, '친구 요청 받기'를 켜 둔
+                      사람만 나와요.
                     </p>
                   ) : (
                     <ul>
                       {people.candidates
-                        .filter((person) =>
-                          person.name
-                            .toLowerCase()
-                            .includes(search.trim().toLowerCase()),
-                        )
+                        .filter((person) => person.name.toLowerCase().includes(search.trim().toLowerCase()))
                         .map((person) =>
                           row(
                             person,
                             <button
                               type="button"
                               className="todo-small-button todo-primary"
-                              onClick={() =>
-                                void run(() => requestFriend(person.id))
-                              }
+                              onClick={() => void run(() => requestFriend(person.id))}
                             >
                               요청
                             </button>,
@@ -259,9 +220,7 @@ export default function TodoFriends({
                 </div>
               )}
               {people.friends.length === 0 && !adding && (
-                <p className="todo-field-help">
-                  아직 친구가 없어요. '친구 추가'를 눌러 보세요.
-                </p>
+                <p className="todo-field-help">아직 친구가 없어요. '친구 추가'를 눌러 보세요.</p>
               )}
               <ul>
                 {people.friends.map((person) =>
@@ -269,30 +228,20 @@ export default function TodoFriends({
                     person,
                     confirming === person.id ? (
                       <>
-                        <button
-                          type="button"
-                          className="todo-small-button"
-                          onClick={() => setConfirming(null)}
-                        >
+                        <button type="button" className="todo-small-button" onClick={() => setConfirming(null)}>
                           취소
                         </button>
                         <button
                           type="button"
                           className="todo-small-button todo-danger"
-                          onClick={() =>
-                            void run(() => removeFriend(person.id))
-                          }
+                          onClick={() => void run(() => removeFriend(person.id))}
                         >
                           끊기
                         </button>
                       </>
                     ) : (
                       <>
-                        <button
-                          type="button"
-                          className="todo-small-button"
-                          onClick={() => onOpenFriend(person.id)}
-                        >
+                        <button type="button" className="todo-small-button" onClick={() => onOpenFriend(person.id)}>
                           TODO 보기
                         </button>
                         <button
@@ -331,16 +280,12 @@ export default function TodoFriends({
             <GroupsSection friends={people.friends} />
             {/* 차단 목록은 비어 있어도 늘 보이게(어디서 푸는지 찾을 수 있게, 2026-11-23) */}
             <section className="todo-friend-section">
-              <h2 className="todo-friend-title">
-                차단한 사람 {people.blocked.length}명
-              </h2>
+              <h2 className="todo-friend-title">차단한 사람 {people.blocked.length}명</h2>
               <p className="todo-field-help">
-                서로 TODO가 안 보이고, 요청과 반응도 할 수 없어요. '차단 풀기'를
-                누르면 풀려요(친구는 다시 요청해야 해요).
+                서로 TODO가 안 보이고, 요청과 반응도 할 수 없어요. '차단 풀기'를 누르면 풀려요(친구는 다시 요청해야
+                해요).
               </p>
-              {people.blocked.length === 0 && (
-                <p className="todo-field-help">차단한 사람이 없어요.</p>
-              )}
+              {people.blocked.length === 0 && <p className="todo-field-help">차단한 사람이 없어요.</p>}
               <ul>
                 {people.blocked.map((person) => (
                   <li key={person.id} className="todo-friend-row">
@@ -368,16 +313,13 @@ export default function TodoFriends({
                       type="checkbox"
                       role="switch"
                       checked={people.accept_requests}
-                      onChange={(event) =>
-                        void run(() => setAcceptRequests(event.target.checked))
-                      }
+                      onChange={(event) => void run(() => setAcceptRequests(event.target.checked))}
                     />
                     <span className="todo-switch-track" aria-hidden="true" />
                     <span>{people.accept_requests ? "켜짐" : "꺼짐"}</span>
                   </label>
                   <p className="todo-setting-help">
-                    끄면 다른 사람의 친구 추가 목록에 내가 안 보이고 새 요청도
-                    못 받아요.
+                    끄면 다른 사람의 친구 추가 목록에 내가 안 보이고 새 요청도 못 받아요.
                   </p>
                 </div>
               </div>

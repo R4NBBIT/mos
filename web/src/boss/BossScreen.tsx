@@ -1,3 +1,4 @@
+import { useBossTodo } from "./bossTodo";
 import { type KeyboardEvent, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { address, colName, display, type Evaluated, makeCalculator, parseAddress } from "./formula";
 import { localEdits, pullEdits, pushEdits } from "./bossStore";
@@ -39,7 +40,10 @@ function sizeOf(sheet: SheetData, edits: Record<string, string>): { cols: number
     cols = Math.max(cols, pos.col + 1);
     rows = Math.max(rows, pos.row);
   }
-  return { cols: Math.min(Math.max(cols + 2, 10), 40), rows: Math.min(Math.max(rows + 20, 40), 600) };
+  return {
+    cols: Math.min(Math.max(cols + 2, 10), 40),
+    rows: Math.min(Math.max(rows + 20, 40), 600),
+  };
 }
 
 function cellClass(style: CellStyle | undefined, result: Evaluated, overflow: boolean): string {
@@ -74,7 +78,13 @@ const Grid = memo(function Grid({ sheet, edits, cols, rows, widths, onPick }: Gr
       const key = address(col, row);
       const raw = rawOf(key);
       if (!raw) {
-        cells.push(<div key={key} className="boss-cell" style={sheet.styles[key]?.bg ? { background: sheet.styles[key]?.bg } : undefined} />);
+        cells.push(
+          <div
+            key={key}
+            className="boss-cell"
+            style={sheet.styles[key]?.bg ? { background: sheet.styles[key]?.bg } : undefined}
+          />,
+        );
         continue;
       }
       const style = sheet.styles[key];
@@ -84,7 +94,11 @@ const Grid = memo(function Grid({ sheet, edits, cols, rows, widths, onPick }: Gr
         <div
           key={key}
           className={cellClass(style, result, nextEmpty)}
-          style={{ background: style?.bg, color: style?.fg, fontSize: style?.size }}
+          style={{
+            background: style?.bg,
+            color: style?.fg,
+            fontSize: style?.size,
+          }}
         >
           {nextEmpty && !style?.right && typeof result.value === "string" ? (
             // 옆 빈 칸으로 넘치는 글자는 엑셀처럼 그 아래 격자선을 가린다
@@ -137,11 +151,13 @@ interface Props {
 }
 
 export default function BossScreen({ workbook, storageKey, active }: Props) {
+  const goTodo = useBossTodo();
   const [sheetIndex, setSheetIndex] = useState(0);
   const [edits, setEdits] = useState<Edits>(() => loadEdits(storageKey));
   const [draft, setDraft] = useState<string | null>(null);
   const [typedStart, setTypedStart] = useState(false); // 바로 쳐서 시작한 입력이면 방향키로 확정하고 이동
-  const sheet = workbook.sheets[sheetIndex] ?? workbook.sheets[0] ?? { name: "Sheet1", widths: [], cells: {}, styles: {} };
+  const sheet = workbook.sheets[sheetIndex] ??
+    workbook.sheets[0] ?? { name: "Sheet1", widths: [], cells: {}, styles: {} };
   const cursorOf = useCallback((target: SheetData): Pos => {
     const pos = target.cursor ? parseAddress(target.cursor) : null;
     return pos ?? { col: 0, row: 1 };
@@ -211,7 +227,13 @@ export default function BossScreen({ workbook, storageKey, active }: Props) {
   }, [sel, widths]);
 
   const commit = (value: string) => {
-    const next: Edits = { ...edits, [String(sheetIndex)]: { ...sheetEdits, [selKey]: value.slice(0, MAX_RAW) } };
+    const next: Edits = {
+      ...edits,
+      [String(sheetIndex)]: {
+        ...sheetEdits,
+        [selKey]: value.slice(0, MAX_RAW),
+      },
+    };
     setEdits(next);
     saveEdits(storageKey, next);
     setDraft(null);
@@ -225,15 +247,34 @@ export default function BossScreen({ workbook, storageKey, active }: Props) {
   };
 
   // 격자는 다시 그리지 않도록 고정된 함수를 넘기고, 최신 상태는 ref로 읽는다
-  const latest = useRef({ draft, sel, edits, sheetEdits, sheetIndex, sheet, storageKey });
-  latest.current = { draft, sel, edits, sheetEdits, sheetIndex, sheet, storageKey };
+  const latest = useRef({
+    draft,
+    sel,
+    edits,
+    sheetEdits,
+    sheetIndex,
+    sheet,
+    storageKey,
+  });
+  latest.current = {
+    draft,
+    sel,
+    edits,
+    sheetEdits,
+    sheetIndex,
+    sheet,
+    storageKey,
+  };
   const pick = useCallback(
     (pos: Pos, edit: boolean) => {
       const now = latest.current;
       let base = now.sheetEdits;
       if (now.draft !== null) {
         // 다른 셀을 누르면 입력 확정(엑셀처럼)
-        base = { ...now.sheetEdits, [address(now.sel.col, now.sel.row)]: now.draft.slice(0, MAX_RAW) };
+        base = {
+          ...now.sheetEdits,
+          [address(now.sel.col, now.sel.row)]: now.draft.slice(0, MAX_RAW),
+        };
         const next: Edits = { ...now.edits, [String(now.sheetIndex)]: base };
         setEdits(next);
         saveEdits(now.storageKey, next);
@@ -264,7 +305,10 @@ export default function BossScreen({ workbook, storageKey, active }: Props) {
       } else if (typedStart && key.startsWith("Arrow")) {
         event.preventDefault();
         commit(draft);
-        move(key === "ArrowLeft" ? -1 : key === "ArrowRight" ? 1 : 0, key === "ArrowUp" ? -1 : key === "ArrowDown" ? 1 : 0);
+        move(
+          key === "ArrowLeft" ? -1 : key === "ArrowRight" ? 1 : 0,
+          key === "ArrowUp" ? -1 : key === "ArrowDown" ? 1 : 0,
+        );
       }
       return;
     }
@@ -370,7 +414,12 @@ export default function BossScreen({ workbook, storageKey, active }: Props) {
         <Grid sheet={sheet} edits={sheetEdits} cols={cols} rows={rows} widths={widths} onPick={pick} />
         <div
           className={draft !== null ? "boss-selection boss-editing" : "boss-selection"}
-          style={{ left, top, width: widths[sel.col] ?? DEFAULT_W, height: ROW_H }}
+          style={{
+            left,
+            top,
+            width: widths[sel.col] ?? DEFAULT_W,
+            height: ROW_H,
+          }}
         >
           <input
             ref={editorRef}
@@ -403,6 +452,11 @@ export default function BossScreen({ workbook, storageKey, active }: Props) {
             {item.name}
           </button>
         ))}
+        {goTodo && (
+          <button type="button" tabIndex={-1} className="boss-tab" onClick={goTodo}>
+            TODO
+          </button>
+        )}
         <span className="boss-tab" aria-hidden="true">
           +
         </span>
@@ -410,7 +464,8 @@ export default function BossScreen({ workbook, storageKey, active }: Props) {
       <footer className="boss-status">
         <span>{draft !== null ? "입력" : "준비"}</span>
         <span>
-          {numeric ? `평균: ${display(selected)}  개수: 1  합계: ${display(selected)}    ` : ""}100%
+          {numeric ? `평균: ${display(selected)}  개수: 1  합계: ${display(selected)}    ` : ""}
+          100%
         </span>
       </footer>
     </div>

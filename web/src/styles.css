@@ -1474,7 +1474,6 @@ button.tag-chip:disabled {
   text-align: center;
 }
 
-
 /* ------------------------------------------------------------ 밤하늘(다크) T-01 */
 :root[data-theme="night"] {
   --bg: #1e2230; /* 대화 배경 */
@@ -1552,7 +1551,6 @@ button.tag-chip:disabled {
   color: var(--ink);
   padding: 0;
 }
-
 
 :root[data-theme="memo"] .composer-input,
 :root[data-theme="memo"] .composer-send {
@@ -1968,7 +1966,9 @@ button.tag-chip:disabled {
 .sheet-row {
   display: grid;
   /* B열(보낸 사람)은 가장 긴 이름에 맞춰 넓어진다(SheetView가 --col-b를 정함) */
-  grid-template-columns: 40px 60px var(--col-b, 110px) minmax(0, 1fr) 90px 64px 64px;
+  grid-template-columns:
+    40px 60px var(--col-b, 110px) minmax(0, 1fr)
+    90px 64px 64px;
   min-width: 100%;
 }
 
@@ -2211,7 +2211,9 @@ button.tag-chip:disabled {
 
 /* 시트: 글 목록 */
 .sheet-posts .sheet-row {
-  grid-template-columns: 40px minmax(120px, 2fr) 110px minmax(0, 3fr) 56px 96px 64px;
+  grid-template-columns:
+    40px minmax(120px, 2fr) 110px minmax(0, 3fr)
+    56px 96px 64px;
 }
 
 .sheet-posts .sheet-row.sheet-title-row {
@@ -3434,7 +3436,6 @@ button.tag-chip:disabled {
   box-shadow: var(--shadow);
 }
 
-
 /* ------------------------------------------------------------ 위장 화면: 사진, 글 문서 */
 .boss-image {
   display: grid;
@@ -3578,8 +3579,15 @@ button.tag-chip:disabled {
   --radius: 6px;
   --star: #37352f;
   font-family:
-    ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", Helvetica,
-    Arial, sans-serif;
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    "Apple SD Gothic Neo",
+    "Malgun Gothic",
+    Helvetica,
+    Arial,
+    sans-serif;
 }
 
 /* 왼쪽: 연한 회색 사이드바, 작은 글씨 */
@@ -4032,7 +4040,6 @@ button.tag-chip:disabled {
 .db-content .attachment-image img {
   max-height: 240px;
 }
-
 
 /* ------------------------------------------------------------ 작성자 프로필 사진 끄기(모든 테마) */
 :root[data-avatars="off"] .author-avatar,
@@ -4642,7 +4649,6 @@ button.tag-chip:disabled {
   opacity: 0.8;
 }
 
-
 .msg-main > .reactions-mini,
 .comment-main > .reactions-mini,
 .para > .reactions-mini {
@@ -4767,7 +4773,6 @@ button.tag-chip:disabled {
   color: #8a8886;
   font-weight: 400;
 }
-
 
 :root[data-theme="word"] .post-card-body {
   font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Segoe UI", sans-serif;
@@ -5192,7 +5197,13 @@ button.tag-chip:disabled {
   height: 100%;
   background: #ffffff;
   color: #37352f;
-  font-family: ui-sans-serif, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family:
+    ui-sans-serif,
+    -apple-system,
+    "Segoe UI",
+    "Apple SD Gothic Neo",
+    "Malgun Gothic",
+    sans-serif;
 }
 
 .bn-side {
@@ -6698,13 +6709,9 @@ body.sorting * {
 
 /* 기본, 다크, 메모장, 노션: 사진, 동영상, 스티커, 프로필 사진은 원래 크기 그대로.
    스프레드시트와 Word는 실제 프로그램 확대처럼 전부 함께 */
-:root:not([data-theme="sheet"]):not([data-theme="word"]) .room-list :is(
-    .attachment-image,
-    .attachment-video,
-    .attachment-video-small,
-    .sticker,
-    .author-avatar
-  ) {
+:root:not([data-theme="sheet"]):not([data-theme="word"])
+  .room-list
+  :is(.attachment-image, .attachment-video, .attachment-video-small, .sticker, .author-avatar) {
   zoom: calc(1 / var(--text-zoom));
 }
 
@@ -8168,7 +8175,6 @@ body.sorting * {
   background: #f3f6fb;
 }
 
-
 /* 디스코드 앱에서 보낸 내 메시지: 고치기 대신 짧은 안내 */
 /* 안내 글: 단추 옆 자리가 14글자쯤보다 좁으면 다음 줄로 내려가고, 낱말 중간에서 끊지 않는다 */
 .msg-actions-note {
@@ -8461,7 +8467,13 @@ body.sorting * {
   background:
     linear-gradient(#f3f3f3, #f3f3f3) 0 0 / 36px 100% no-repeat,
     linear-gradient(#f3f3f3, #f3f3f3) 0 0 / 100% 22px no-repeat,
-    repeating-linear-gradient(to right, transparent 0 35px, #d4d4d4 35px 36px, transparent 36px 109px, #e6e6e6 109px 110px)
+    repeating-linear-gradient(
+        to right,
+        transparent 0 35px,
+        #d4d4d4 35px 36px,
+        transparent 36px 109px,
+        #e6e6e6 109px 110px
+      )
       0 0 / 100% 100%,
     repeating-linear-gradient(to bottom, transparent 0 21px, #e6e6e6 21px 22px);
 }
@@ -8685,7 +8697,12 @@ body.sorting * {
 /* --- 노션: 사이드바 + 잠긴 페이지(창 없이) --- */
 .lock-note {
   color: #37352f;
-  font-family: ui-sans-serif, -apple-system, "Segoe UI", Pretendard, sans-serif;
+  font-family:
+    ui-sans-serif,
+    -apple-system,
+    "Segoe UI",
+    Pretendard,
+    sans-serif;
 }
 
 .lock-note {
@@ -9031,3 +9048,27 @@ body.sorting * {
   gap: 6px;
 }
 
+/* 위장 화면 안의 'TODO' 자리(그 문서에 원래 있을 법한 모양 그대로) */
+.boss-menu-todo,
+.bn-page-link,
+.word-tab-todo {
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+.boss-menu-todo {
+  padding: 0;
+}
+
+.bn-page-link {
+  width: 100%;
+}
+
+button.boss-tab {
+  font: inherit;
+  cursor: default;
+}

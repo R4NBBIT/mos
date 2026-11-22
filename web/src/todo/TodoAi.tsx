@@ -7,6 +7,7 @@ import {
   fetchAiState,
   fetchConnections,
   restoreAiTrash,
+  purgeAiTrash,
   TODO_NEWS_EVENT,
   type TodoAiPending,
   type TodoAiTrash,
@@ -20,6 +21,13 @@ function dayLabel(at: number | null): string {
 }
 
 /** AI가 만든 요청 중 ㅁㅇㅅ에서 승인해야 하는 것, 휴지통(7일, 직접 지운 것과 AI가 지운 것) */
+/** 초 단위 시각 → 이 기기 날짜(YYYY-MM-DD) */
+function localDay(seconds: number): string {
+  const value = new Date(seconds * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+}
+
 export function AiRequests({
   onChanged,
   show = "pending",
@@ -28,7 +36,12 @@ export function AiRequests({
   /** pending: 승인 기다리는 요청만, trash: 휴지통만(휴지통은 따로 화면, 2026-11-23 사용자 요청) */
   show?: "pending" | "trash";
 }) {
-  const [state, setState] = useState<{ pending: TodoAiPending[]; trash: TodoAiTrash[] } | null>(null);
+  const [opened, setOpened] = useState<string | null>(null);
+  const [purging, setPurging] = useState<string | null>(null);
+  const [state, setState] = useState<{
+    pending: TodoAiPending[];
+    trash: TodoAiTrash[];
+  } | null>(null);
   const [message, setMessage] = useState("");
   const load = () =>
     fetchAiState()
@@ -56,6 +69,17 @@ export function AiRequests({
     await load();
     onChanged();
   };
+  const purge = async (id: string) => {
+    try {
+      await purgeAiTrash(id);
+      setMessage("영구 삭제했어요.");
+    } catch {
+      setMessage("영구 삭제하지 못했어요.");
+    }
+    setPurging(null);
+    setOpened(null);
+    await load();
+  };
   if (state === null) return null;
   return (
     <>
@@ -64,7 +88,9 @@ export function AiRequests({
           <div className="todo-alerts-head todo-alerts-sub">
             <strong>승인 기다리는 요청</strong>
           </div>
-          <p className="todo-setting-help">친구에 관한 일이나 공개 범위를 넓히는 일은 여기서 한 번 더 승인해야 적용돼요.</p>
+          <p className="todo-setting-help">
+            친구에 관한 일이나 공개 범위를 넓히는 일은 여기서 한 번 더 승인해야 적용돼요.
+          </p>
           <ul className="todo-news">
             {state.pending.map((item) => (
               <li key={item.id} className="todo-ai-item todo-ai-request">
@@ -74,7 +100,11 @@ export function AiRequests({
                   <button type="button" className="todo-small-button" onClick={() => void decide(item.id, false)}>
                     거절
                   </button>
-                  <button type="button" className="todo-small-button todo-primary" onClick={() => void decide(item.id, true)}>
+                  <button
+                    type="button"
+                    className="todo-small-button todo-primary"
+                    onClick={() => void decide(item.id, true)}
+                  >
                     승인
                   </button>
                 </span>
@@ -90,17 +120,79 @@ export function AiRequests({
             삭제한 TODO, 반복, 카테고리, 친구 그룹은 7일 동안 여기서 되돌릴 수 있어요. 7일이 지나면 완전히 지워져요.
           </p>
           <ul className="todo-news">
-            {state.trash.map((item) => (
-              <li key={item.id} className="todo-ai-item">
-                <span className="todo-news-title">{item.title}</span>
-                <span className="todo-news-time">
-                  {dateWithWeekday(item.day)} | {item.client ? `${item.client}가 삭제` : "직접 삭제"}
-                </span>
-                <button type="button" className="todo-small-button" onClick={() => void restore(item.id)}>
-                  되돌리기
-                </button>
-              </li>
-            ))}
+            {state.trash.map((item) => {
+              const open = opened === item.id;
+              return (
+                <li key={item.id} className="todo-trash-item">
+                  <div className="todo-trash-line">
+                    <button
+                      type="button"
+                      className="todo-trash-toggle"
+                      aria-expanded={open}
+                      onClick={() => setOpened(open ? null : item.id)}
+                    >
+                      <span className="todo-trash-name">{item.title}</span>
+                      <span className="todo-trash-when">
+                        {dateWithWeekday(localDay(item.deleted_at))} 삭제 |{" "}
+                        {item.client ? `${item.client}가 삭제` : "직접 삭제"}
+                      </span>
+                    </button>
+                    <svg
+                      className={open ? "todo-trash-chevron todo-trash-chevron-open" : "todo-trash-chevron"}
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                    <button type="button" className="todo-small-button" onClick={() => void restore(item.id)}>
+                      되돌리기
+                    </button>
+                  </div>
+                  {open && (
+                    <div className="todo-trash-details">
+                      {(item.details ?? []).map((part, index) => (
+                        <div key={index} className="todo-trash-part">
+                          {part.head && <strong>{part.head}</strong>}
+                          <ul>
+                            {part.rows.map((row, rowIndex) => (
+                              <li key={rowIndex}>{row}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                      {/* 단추 배치 규칙: 위험한 것은 왼쪽 빨간 글자 */}
+                      {purging === item.id ? (
+                        <div className="todo-trash-confirm">
+                          <span>영구 삭제하면 다시 되돌릴 수 없어요.</span>
+                          <span className="todo-trash-confirm-buttons">
+                            <button type="button" className="todo-small-button" onClick={() => setPurging(null)}>
+                              취소
+                            </button>
+                            <button
+                              type="button"
+                              className="todo-small-button todo-danger"
+                              onClick={() => void purge(item.id)}
+                            >
+                              영구 삭제
+                            </button>
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="todo-trash-actions">
+                          <button
+                            type="button"
+                            className="todo-text-button todo-danger-text"
+                            onClick={() => setPurging(item.id)}
+                          >
+                            영구 삭제
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </>
       )}
@@ -114,7 +206,10 @@ export function AiRequests({
 }
 
 export default function TodoAiPanel({ onChanged }: { onChanged: () => void }) {
-  const [data, setData] = useState<{ connections: TodoConnection[]; mcp_url: string } | null>(null);
+  const [data, setData] = useState<{
+    connections: TodoConnection[];
+    mcp_url: string;
+  } | null>(null);
   const [copied, setCopied] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -157,7 +252,8 @@ export default function TodoAiPanel({ onChanged }: { onChanged: () => void }) {
         }}
       />
       <p className="todo-setting-help">
-        내 Claude나 ChatGPT에 연결하면 대화로 말한 TODO를 정리해서 넣어 줘요. 넣기 전에 대화에서 먼저 보여 주고 확인받아요.
+        내 Claude나 ChatGPT에 연결하면 대화로 말한 TODO를 정리해서 넣어 줘요. 넣기 전에 대화에서 먼저 보여 주고
+        확인받아요.
       </p>
       {data && (
         <div className="todo-ai-url">
@@ -186,12 +282,20 @@ export default function TodoAiPanel({ onChanged }: { onChanged: () => void }) {
                   <button type="button" className="todo-small-button" onClick={() => setConfirming(null)}>
                     취소
                   </button>
-                  <button type="button" className="todo-small-button todo-danger" onClick={() => void cut(connection.id)}>
+                  <button
+                    type="button"
+                    className="todo-small-button todo-danger"
+                    onClick={() => void cut(connection.id)}
+                  >
                     끊기
                   </button>
                 </span>
               ) : (
-                <button type="button" className="todo-small-button todo-danger-text" onClick={() => setConfirming(connection.id)}>
+                <button
+                  type="button"
+                  className="todo-small-button todo-danger-text"
+                  onClick={() => setConfirming(connection.id)}
+                >
                   끊기
                 </button>
               )}

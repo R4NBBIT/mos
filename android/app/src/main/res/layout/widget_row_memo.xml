@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 위젯 목록 한 줄(memo 모양). TodoWidgetService가 채운다 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/row" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:paddingTop="2dp" android:paddingBottom="2dp">
+  <TextView android:singleLine="true" android:ellipsize="end" android:id="@+id/row_mark" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingEnd="8dp" android:textSize="13sp" android:textColor="#FF111111" android:fontFamily="monospace" />
+  <TextView android:id="@+id/row_text" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:singleLine="true" android:ellipsize="end" android:textSize="13sp" android:textColor="#FF111111" android:fontFamily="monospace" />
+  <TextView android:singleLine="true" android:ellipsize="end" android:id="@+id/row_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="8dp" android:textSize="12sp" android:textColor="#FF6B6B6B" />
+</LinearLayout>

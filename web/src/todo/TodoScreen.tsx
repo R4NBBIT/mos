@@ -1,14 +1,7 @@
 // TODO(공개 전): 하루 화면(SCR-02, 넓은 화면 오른쪽)과 넓은 화면 왼쪽 달력(SCR-04)
 // 허용된 계정에서만 이 파일을 내려받는다(App에서 lazy). 테마 색은 ㅁㅇㅅ CSS 변수를 그대로 쓴다
 import { openTodoWidget } from "./TodoWidget";
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BackIcon from "../BackIcon";
 import SplitToggle from "../SplitToggle";
 import { CategoryBlock, type NewTodoValues } from "./TodoItems";
@@ -21,6 +14,7 @@ import {
   monthStart,
   shiftMonth,
   shortDayLabel,
+  weekdayName,
   today,
   WEEKDAY_NAMES,
   weekOf,
@@ -188,9 +182,7 @@ export default function TodoScreen({
     try {
       const made = await addTodo({ ...values, category_id: category.id });
       if (made.day === day) {
-        setData((current) =>
-          current ? { ...current, items: [...current.items, made] } : current,
-        );
+        setData((current) => (current ? { ...current, items: [...current.items, made] } : current));
         setInfo(null);
       } else {
         setInfo({ text: `${longLabel(made.day)}에 넣었어요.`, day: made.day });
@@ -246,12 +238,7 @@ export default function TodoScreen({
       <header className="room-header todo-header">
         <SplitToggle />
         {showBack && (
-          <button
-            type="button"
-            className="back-button"
-            onClick={onBack}
-            aria-label="서버 목록으로"
-          >
+          <button type="button" className="back-button" onClick={onBack} aria-label="서버 목록으로">
             <BackIcon />
           </button>
         )}
@@ -259,25 +246,20 @@ export default function TodoScreen({
           <strong>
             <span className="todo-day-long">{longLabel(day)}</span>
             <span className="todo-day-short">{shortDayLabel(day)}</span>
+            <span className="todo-day-tiny">{`${Number(day.slice(5, 7))}.${Number(day.slice(8, 10))} (${weekdayName(day)})`}</span>
           </strong>
           <span className="room-sub">{sub}</span>
         </div>
         <div className="header-tools">
           {!isToday && (
-            <button
-              type="button"
-              className="header-tool"
-              onClick={() => onDay(today())}
-            >
+            <button type="button" className="header-tool" onClick={() => onDay(today())}>
               <span className="header-tool-label todo-tool-always">오늘</span>
             </button>
           )}
           <button
             type="button"
             className="header-tool"
-            aria-label={
-              unread > 0 ? `소식과 알림, 새 소식 ${unread}개` : "소식과 알림"
-            }
+            aria-label={unread > 0 ? `소식과 알림, 새 소식 ${unread}개` : "소식과 알림"}
             onClick={onAlerts}
           >
             <svg
@@ -289,23 +271,13 @@ export default function TodoScreen({
               stroke="currentColor"
               strokeWidth="1.6"
             >
-              <path
-                d="M5 8.5a5 5 0 0 1 10 0v3.5l1.5 2.5h-13L5 12z"
-                strokeLinejoin="round"
-              />
+              <path d="M5 8.5a5 5 0 0 1 10 0v3.5l1.5 2.5h-13L5 12z" strokeLinejoin="round" />
               <path d="M8 16.5a2 2 0 0 0 4 0" strokeLinecap="round" />
             </svg>
             <span className="header-tool-label">알림</span>
-            {unread > 0 && (
-              <span className="todo-unread-dot" aria-hidden="true" />
-            )}
+            {unread > 0 && <span className="todo-unread-dot" aria-hidden="true" />}
           </button>
-          <button
-            type="button"
-            className="header-tool"
-            aria-label="AI 연결"
-            onClick={onAi}
-          >
+          <button type="button" className="header-tool" aria-label="AI 연결" onClick={onAi}>
             <svg
               viewBox="0 0 20 20"
               width="15"
@@ -315,24 +287,13 @@ export default function TodoScreen({
               stroke="currentColor"
               strokeWidth="1.6"
             >
-              <path
-                d="M10 2.5l1.6 4.4 4.4 1.6-4.4 1.6L10 14.5l-1.6-4.4L4 8.5l4.4-1.6z"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M15.5 13.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"
-                strokeLinejoin="round"
-              />
+              <path d="M10 2.5l1.6 4.4 4.4 1.6-4.4 1.6L10 14.5l-1.6-4.4L4 8.5l4.4-1.6z" strokeLinejoin="round" />
+              <path d="M15.5 13.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" strokeLinejoin="round" />
             </svg>
             <span className="header-tool-label">AI</span>
           </button>
           {onFriends && (
-            <button
-              type="button"
-              className="header-tool"
-              aria-label="친구"
-              onClick={onFriends}
-            >
+            <button type="button" className="header-tool" aria-label="친구" onClick={onFriends}>
               <svg
                 viewBox="0 0 20 20"
                 width="15"
@@ -343,14 +304,8 @@ export default function TodoScreen({
                 strokeWidth="1.6"
               >
                 <circle cx="7.5" cy="7" r="3" />
-                <path
-                  d="M2 17c.6-3 2.8-4.5 5.5-4.5S12.4 14 13 17"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="M13 4.5a2.8 2.8 0 0 1 0 5M15 12.8c1.6.6 2.6 2 3 4.2"
-                  strokeLinecap="round"
-                />
+                <path d="M2 17c.6-3 2.8-4.5 5.5-4.5S12.4 14 13 17" strokeLinecap="round" />
+                <path d="M13 4.5a2.8 2.8 0 0 1 0 5M15 12.8c1.6.6 2.6 2 3 4.2" strokeLinecap="round" />
               </svg>
               <span className="header-tool-label">친구</span>
             </button>
@@ -378,12 +333,7 @@ export default function TodoScreen({
               <span className="header-tool-label">위젯</span>
             </button>
           )}
-          <button
-            type="button"
-            className="header-tool"
-            aria-label="반복 TODO"
-            onClick={onRepeats}
-          >
+          <button type="button" className="header-tool" aria-label="반복 TODO" onClick={onRepeats}>
             <svg
               viewBox="0 0 20 20"
               width="15"
@@ -393,35 +343,14 @@ export default function TodoScreen({
               stroke="currentColor"
               strokeWidth="1.6"
             >
-              <path
-                d="M4 9a6 6 0 0 1 10.5-3.5L16 7"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M16 3.5V7h-3.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M16 11a6 6 0 0 1-10.5 3.5L4 13"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M4 16.5V13h3.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+              <path d="M4 9a6 6 0 0 1 10.5-3.5L16 7" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M16 3.5V7h-3.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M16 11a6 6 0 0 1-10.5 3.5L4 13" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M4 16.5V13h3.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <span className="header-tool-label">반복</span>
           </button>
-          <button
-            type="button"
-            className="header-tool"
-            aria-label="카테고리 관리"
-            onClick={onCategories}
-          >
+          <button type="button" className="header-tool" aria-label="카테고리 관리" onClick={onCategories}>
             <svg
               viewBox="0 0 20 20"
               width="15"
@@ -444,46 +373,26 @@ export default function TodoScreen({
       {notice && (
         <div className="room-notice" role="status">
           <span>{notice}</span>
-          <button
-            type="button"
-            className="text-button"
-            onClick={onNoticeClose}
-            aria-label="안내 닫기"
-          >
+          <button type="button" className="text-button" onClick={onNoticeClose} aria-label="안내 닫기">
             닫기
           </button>
         </div>
       )}
       <nav className="todo-week" aria-label="이번 주">
-        <button
-          type="button"
-          className="todo-week-move"
-          aria-label="지난주"
-          onClick={() => onDay(addDays(day, -7))}
-        >
+        <button type="button" className="todo-week-move" aria-label="지난주" onClick={() => onDay(addDays(day, -7))}>
           <BackIcon />
         </button>
         {week.map((key) => (
           <button
             key={key}
             type="button"
-            className={
-              key === day ? "todo-week-day todo-week-day-on" : "todo-week-day"
-            }
+            className={key === day ? "todo-week-day todo-week-day-on" : "todo-week-day"}
             aria-current={key === day ? "date" : undefined}
             aria-label={longLabel(key)}
             onClick={() => onDay(key)}
           >
-            <span className="todo-week-name">
-              {WEEKDAY_NAMES[week.indexOf(key)]}
-            </span>
-            <span
-              className={
-                key === today()
-                  ? "todo-week-num todo-week-today"
-                  : "todo-week-num"
-              }
-            >
+            <span className="todo-week-name">{WEEKDAY_NAMES[week.indexOf(key)]}</span>
+            <span className={key === today() ? "todo-week-num todo-week-today" : "todo-week-num"}>
               {Number(key.slice(8))}
             </span>
             <DayMark day={key} summary={summary} />
@@ -508,30 +417,17 @@ export default function TodoScreen({
           <p className="todo-info" role="status">
             <span>{info.text}</span>
             {info.day && (
-              <button
-                type="button"
-                className="todo-small-button"
-                onClick={() => info.day && onDay(info.day)}
-              >
+              <button type="button" className="todo-small-button" onClick={() => info.day && onDay(info.day)}>
                 보기
               </button>
             )}
-            <button
-              type="button"
-              className="todo-small-button"
-              aria-label="안내 닫기"
-              onClick={() => setInfo(null)}
-            >
+            <button type="button" className="todo-small-button" aria-label="안내 닫기" onClick={() => setInfo(null)}>
               닫기
             </button>
           </p>
         )}
         {data === null && (
-          <p className="list-note">
-            {failed
-              ? "불러오지 못했어요. 잠시 뒤 다시 열어 주세요."
-              : "불러오는 중…"}
-          </p>
+          <p className="list-note">{failed ? "불러오지 못했어요. 잠시 뒤 다시 열어 주세요." : "불러오는 중…"}</p>
         )}
         {data?.categories.map((category) => (
           <CategoryBlock
@@ -581,9 +477,7 @@ export function TodoSide({
   onFriend?: (id: string | null) => void;
   onFriends?: () => void;
 }) {
-  const [friends, setFriends] = useState<
-    (TodoPerson & { done: number; total: number })[]
-  >([]);
+  const [friends, setFriends] = useState<(TodoPerson & { done: number; total: number })[]>([]);
   useEffect(() => {
     let stopped = false;
     fetchFriendsToday(isDayKey(day) ? day : today())
@@ -593,9 +487,7 @@ export function TodoSide({
       stopped = true;
     };
   }, [day, version]);
-  const [month, setMonth] = useState(() =>
-    monthStart(isDayKey(day) ? day : today()),
-  );
+  const [month, setMonth] = useState(() => monthStart(isDayKey(day) ? day : today()));
   useEffect(() => {
     if (isDayKey(day)) setMonth(monthStart(day));
   }, [day]);
@@ -610,12 +502,7 @@ export function TodoSide({
     <div className="room list-room todo-side">
       <header className="room-header todo-header">
         <div className="room-title">
-          <button
-            type="button"
-            className="todo-side-switch"
-            onClick={onServers}
-            aria-label="서버 목록 보기"
-          >
+          <button type="button" className="todo-side-switch" onClick={onServers} aria-label="서버 목록 보기">
             <strong>TODO</strong>
             <svg viewBox="0 0 16 16" aria-hidden="true">
               <path d="M4 6l4 4 4-4" />
@@ -644,17 +531,9 @@ export function TodoSide({
               <BackIcon />
             </button>
           </div>
-          <div
-            className="todo-month-grid"
-            role="grid"
-            aria-label={monthLabel(month)}
-          >
+          <div className="todo-month-grid" role="grid" aria-label={monthLabel(month)}>
             {WEEKDAY_NAMES.map((weekday) => (
-              <span
-                key={weekday}
-                className="todo-month-weekday"
-                role="columnheader"
-              >
+              <span key={weekday} className="todo-month-weekday" role="columnheader">
                 {weekday}
               </span>
             ))}
@@ -665,20 +544,12 @@ export function TodoSide({
                 <button
                   key={cell}
                   type="button"
-                  className={
-                    cell === day
-                      ? "todo-month-day todo-month-day-on"
-                      : "todo-month-day"
-                  }
+                  className={cell === day ? "todo-month-day todo-month-day-on" : "todo-month-day"}
                   aria-label={longLabel(cell)}
                   aria-current={cell === day ? "date" : undefined}
                   onClick={() => onDay(cell)}
                 >
-                  <span
-                    className={cell === now ? "todo-week-today" : undefined}
-                  >
-                    {Number(cell.slice(8))}
-                  </span>
+                  <span className={cell === now ? "todo-week-today" : undefined}>{Number(cell.slice(8))}</span>
                   <DayMark day={cell} summary={summary} />
                 </button>
               ),
@@ -689,27 +560,17 @@ export function TodoSide({
           <h2 className="list-section-title">나와 친구</h2>
           <button
             type="button"
-            className={
-              friendId === null
-                ? "list-item list-item-active todo-person"
-                : "list-item todo-person"
-            }
+            className={friendId === null ? "list-item list-item-active todo-person" : "list-item todo-person"}
             onClick={() => onFriend?.(null)}
           >
             <span className="todo-person-name">{name}</span>
-            <span className="list-sub">
-              {mine ? `${mine.done}/${mine.total}` : "0/0"}
-            </span>
+            <span className="list-sub">{mine ? `${mine.done}/${mine.total}` : "0/0"}</span>
           </button>
           {friends.map((friend) => (
             <button
               key={friend.id}
               type="button"
-              className={
-                friendId === friend.id
-                  ? "list-item list-item-active todo-person"
-                  : "list-item todo-person"
-              }
+              className={friendId === friend.id ? "list-item list-item-active todo-person" : "list-item todo-person"}
               onClick={() => onFriend?.(friend.id)}
             >
               <span className="todo-person-name">{friend.name}</span>
@@ -717,22 +578,14 @@ export function TodoSide({
             </button>
           ))}
           {onFriends && (
-            <button
-              type="button"
-              className="list-item todo-friends-link"
-              onClick={onFriends}
-            >
+            <button type="button" className="list-item todo-friends-link" onClick={onFriends}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="9" cy="8" r="3.2" />
                 <path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5" />
                 <path d="M16 5.2a3 3 0 0 1 0 5.6M17.5 14.3c1.7.6 2.7 2.2 3 4.7" />
               </svg>
               <span className="todo-person-name">친구 관리</span>
-              <svg
-                className="todo-friends-chevron"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
+              <svg className="todo-friends-chevron" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M9 6l6 6-6 6" />
               </svg>
             </button>

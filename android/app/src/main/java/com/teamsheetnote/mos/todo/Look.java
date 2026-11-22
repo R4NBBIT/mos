@@ -59,6 +59,24 @@ final class Look {
         prefs(context).edit().putString("look", key).apply();
     }
 
+    /** 위젯 목록 한 줄 모양 */
+    int rowLayout() {
+        switch (key) {
+            case "night":
+                return R.layout.widget_row_night;
+            case "sheet":
+                return R.layout.widget_row_sheet;
+            case "memo":
+                return R.layout.widget_row_memo;
+            case "note":
+                return R.layout.widget_row_note;
+            case "word":
+                return R.layout.widget_row_word;
+            default:
+                return R.layout.widget_row_moon;
+        }
+    }
+
     static Look current(Context context) {
         String key = chosen(context);
         if (AUTO.equals(key)) {

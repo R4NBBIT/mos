@@ -2,11 +2,7 @@
 // 실제 알림은 ㅁㅇㅅ 웹 푸시로 온다(기기 알림은 ㅁㅇㅅ 설정 > 알림에서 켬)
 import { type ReactNode, useEffect, useState } from "react";
 import { useNotifyPrefs } from "../notifyPrefs";
-import {
-  askPopupPermission,
-  popupSupport,
-  type PopupSupport,
-} from "../useNotifications";
+import { askPopupPermission, popupSupport, type PopupSupport } from "../useNotifications";
 import {
   type AlertLead,
   type BossMode,
@@ -61,17 +57,11 @@ function TodoNewsList({ onSeen }: { onSeen: () => void }) {
       .catch(() => setItems([]));
   }, [onSeen]);
   if (items === null) return null;
-  if (items.length === 0)
-    return <p className="todo-hint">아직 소식이 없어요.</p>;
+  if (items.length === 0) return <p className="todo-hint">아직 소식이 없어요.</p>;
   return (
     <ul className="todo-news">
       {items.slice(0, 10).map((item, index) => (
-        <li
-          key={item.id}
-          className={
-            index < unreadAt ? "todo-news-item todo-news-new" : "todo-news-item"
-          }
-        >
+        <li key={item.id} className={index < unreadAt ? "todo-news-item todo-news-new" : "todo-news-item"}>
           <span className="todo-news-title">{item.title}</span>
           <span className="todo-news-body">{item.body}</span>
           <span className="todo-news-time">{agoLabel(item.created_at)}</span>
@@ -169,15 +159,7 @@ const BOSS: { value: BossMode; label: string; help: string }[] = [
 ];
 
 /** 설정 한 줄: 왼쪽 이름, 오른쪽 고르기와 그 아래 짧은 설명 */
-function Setting({
-  name,
-  help,
-  children,
-}: {
-  name: string;
-  help?: string;
-  children: ReactNode;
-}) {
+function Setting({ name, help, children }: { name: string; help?: string; children: ReactNode }) {
   return (
     <div className="todo-setting">
       <span className="todo-setting-name">{name}</span>
@@ -224,23 +206,19 @@ export default function TodoAlertPanel({ onSeen }: { onSeen: () => void }) {
   return (
     <section className="todo-alerts todo-alerts-page" aria-label="소식과 알림">
       <p className="settings-device-note">
-        알림 설정의 <strong>'이 기기'</strong>는 지금 쓰는 이 기기에만 적용돼요.
-        그 아래 설정은 이 계정을 쓰는 모든 기기에 같이 적용돼요.
+        알림 설정의 <strong>'이 기기'</strong>는 지금 쓰는 이 기기에만 적용돼요. 그 아래 설정은 이 계정을 쓰는 모든
+        기기에 같이 적용돼요.
       </p>
       <div className="todo-alerts-head">
         <strong>소식</strong>
       </div>
       <p className="todo-setting-help">
-        친구 요청과 수락, 내 TODO에 달린 반응, 보낸 TODO 알림과 아침 요약이 여기
-        모여요.
+        친구 요청과 수락, 내 TODO에 달린 반응, 보낸 TODO 알림과 아침 요약이 여기 모여요.
       </p>
       <TodoNewsList onSeen={onSeen} />
       <div className="todo-alerts-head todo-alerts-sub">
         <strong>알림 설정</strong>
-        <span
-          className={saved ? "todo-saved todo-saved-on" : "todo-saved"}
-          role="status"
-        >
+        <span className={saved ? "todo-saved todo-saved-on" : "todo-saved"} role="status">
           {saved ? "저장됨" : ""}
         </span>
       </div>
@@ -249,10 +227,7 @@ export default function TodoAlertPanel({ onSeen }: { onSeen: () => void }) {
       ) : (
         <>
           <DeviceTodoSetting />
-          <Setting
-            name="TODO 알림"
-            help="시각을 정한 TODO 중 아직 끝내지 않은 것만 알려요."
-          >
+          <Setting name="TODO 알림" help="시각을 정한 TODO 중 아직 끝내지 않은 것만 알려요.">
             <Segment
               label="TODO 알림"
               options={LEADS}
@@ -284,8 +259,7 @@ export default function TodoAlertPanel({ onSeen }: { onSeen: () => void }) {
                   value={morningText}
                   onChange={(event) => {
                     setMorningText(event.target.value);
-                    if (event.target.value)
-                      void save({ morning: event.target.value });
+                    if (event.target.value) void save({ morning: event.target.value });
                   }}
                 />
               )}

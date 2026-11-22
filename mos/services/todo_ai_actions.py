@@ -20,6 +20,7 @@ from mos.db.database import Database
 from mos.db.todo_repo import TodoRepo
 from mos.services.todo import TodoError, TodoService
 from mos.services.todo_oauth import Grant
+from mos.services.todo_trash_view import describe_bundle, describe_item
 
 CHAT_TTL_SEC = 10 * 60
 APP_TTL_SEC = 3 * 86400
@@ -328,21 +329,58 @@ class TodoAiActions:
 
     async def trash(self, account_id: int) -> list[dict[str, Any]]:
         rows = await self.db.fetch_all(
-            "SELECT id, label, day, client_name, deleted_at, kind FROM todo_trash"
+            "SELECT id, label, day, client_name, deleted_at, kind, item_id, payload FROM todo_trash"
             " WHERE account_id = ? AND deleted_at >= ? ORDER BY id DESC LIMIT 100",
             (account_id, self.now() - TRASH_KEEP_SEC),
         )
-        return [
-            {
-                "id": str(r[0]),
-                "title": str(r[1]),
-                "day": str(r[2]),
-                "client": str(r[3]),
-                "deleted_at": int(r[4]),
-                "kind": "item" if r[5] in ("item", "skip") else "bundle",
-            }
-            for r in rows
-        ]
+        names = {
+            str(row[0]): str(row[1])
+            for row in await self.db.fetch_all(
+                "SELECT id, name FROM todo_category WHERE account_id = ?", (account_id,)
+            )
+        }
+        out = []
+        for r in rows:
+            try:
+                payload = json.loads(r[7])
+            except ValueError:
+                payload = {}
+            if r[5] == "bundle":
+                details = describe_bundle(payload if isinstance(payload, dict) else {})
+            else:
+                snapshot = payload if isinstance(payload, dict) and payload else {}
+                if r[5] == "skip" and r[6] is not None:
+                    found = await self.repo.item(account_id, int(r[6]))
+                    snapshot = dict(found) if found is not None else {}
+                    snapshot.setdefault("day", r[2])
+                details = describe_item(
+                    snapshot or {"day": r[2]}, names.get(str(snapshot.get("category_id")), "")
+                )
+                if r[5] == "skip":
+                    details[0]["rows"].insert(0, "반복에서 이 날만 뺀 것")
+            out.append(
+                {
+                    "id": str(r[0]),
+                    "title": str(r[1]),
+                    "day": str(r[2]),
+                    "client": str(r[3]),
+                    "deleted_at": int(r[4]),
+                    "kind": "item" if r[5] in ("item", "skip") else "bundle",
+                    "details": details,
+                }
+            )
+        return out
+
+    async def purge(self, account_id: int, trash_id: Any) -> bool:
+        """휴지통에서 영구 삭제. 되살릴 내용만 지우면 된다(원래 것은 이미 지워졌다)."""
+        if not isinstance(trash_id, str) or not trash_id.isdigit() or len(trash_id) > 18:
+            return False
+        async with self.db.writing() as conn:
+            cursor = await conn.execute(
+                "DELETE FROM todo_trash WHERE id = ? AND account_id = ?",
+                (int(trash_id), account_id),
+            )
+            return (cursor.rowcount or 0) > 0
 
     async def restore(self, account_id: int, trash_id: Any) -> bool:
         if not isinstance(trash_id, str) or not trash_id.isdigit() or len(trash_id) > 18:

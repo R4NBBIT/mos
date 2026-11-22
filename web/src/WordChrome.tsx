@@ -6,7 +6,16 @@ import { defaultTitle } from "./theme";
 
 function Icon({ path, size = 16 }: { path: string; size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d={path} />
     </svg>
   );
@@ -15,7 +24,13 @@ function Icon({ path, size = 16 }: { path: string; size?: number }) {
 const TABS = ["파일", "홈", "삽입", "레이아웃", "참조", "검토", "보기", "도움말"];
 
 /** name을 주면(위장 화면) 그 이름을 그대로 보여 주고, 없으면 탭 제목을 눌러서 고칠 수 있게 */
-export default function WordChrome({ name }: { name?: string }) {
+export default function WordChrome({
+  name,
+  onTodo,
+}: {
+  name?: string;
+  /** 위장 화면에서만: 리본 끝 'TODO' 탭 */ onTodo?: () => void;
+}) {
   const { settings, save } = useLook();
   const fallback = defaultTitle("word");
   return (
@@ -49,13 +64,18 @@ export default function WordChrome({ name }: { name?: string }) {
           검색(Alt + Q)
         </span>
       </div>
-      <div className="word-ribbon" aria-hidden="true">
+      <div className="word-ribbon">
         {TABS.map((tab) => (
-          <span key={tab} className={tab === "홈" ? "word-tab word-tab-on" : "word-tab"}>
+          <span key={tab} className={tab === "홈" ? "word-tab word-tab-on" : "word-tab"} aria-hidden="true">
             {tab}
           </span>
         ))}
-        <span className="word-ribbon-right">
+        {onTodo && (
+          <button type="button" tabIndex={-1} className="word-tab word-tab-todo" onClick={onTodo}>
+            TODO
+          </button>
+        )}
+        <span className="word-ribbon-right" aria-hidden="true">
           <span className="word-chip">
             <Icon path="M4 16l1-4 8-8 3 3-8 8z" size={14} />
             편집 중

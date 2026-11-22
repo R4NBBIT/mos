@@ -121,7 +121,10 @@ export function memoAudienceLine(who: { short: string; detail: string }): string
   return who.detail || who.short.replace(/^메모 \((.*)\)$/, "$1");
 }
 
-export function useMemoAudience(category: TodoCategory | undefined): { short: string; detail: string } {
+export function useMemoAudience(category: TodoCategory | undefined): {
+  short: string;
+  detail: string;
+} {
   const [names, setNames] = useState<string | null>(null);
   const selected = Boolean(category && category.memo_shared && category.visibility === "selected");
   const categoryId = category?.id;
@@ -132,14 +135,24 @@ export function useMemoAudience(category: TodoCategory | undefined): { short: st
     Promise.all([fetchAudience(categoryId), fetchPeople(), fetchGroups()])
       .then(([audience, people, groups]) => {
         if (stopped) return;
-        const groupNames = groups.filter((group) => audience.groups.includes(group.id)).map((group) => `${group.name} 그룹`);
-        const friendNames = people.friends.filter((person) => audience.friends.includes(person.id)).map((person) => person.name);
+        const groupNames = groups
+          .filter((group) => audience.groups.includes(group.id))
+          .map((group) => `${group.name} 그룹`);
+        const friendNames = people.friends
+          .filter((person) => audience.friends.includes(person.id))
+          .map((person) => person.name);
         const inGroups = new Set(
-          groups.filter((group) => audience.groups.includes(group.id)).flatMap((group) => group.members.map((m) => m.name)),
+          groups
+            .filter((group) => audience.groups.includes(group.id))
+            .flatMap((group) => group.members.map((m) => m.name)),
         );
         const all = [...groupNames, ...friendNames];
         const members = [...new Set([...inGroups, ...friendNames])];
-        setNames(all.length ? `${all.join(", ")}${members.length ? `(모두 ${members.length}명)` : ""}` : "아무도 고르지 않았어요");
+        setNames(
+          all.length
+            ? `${all.join(", ")}${members.length ? `(모두 ${members.length}명)` : ""}`
+            : "아무도 고르지 않았어요",
+        );
       })
       .catch(() => !stopped && setNames(""));
     return () => {
@@ -156,7 +169,6 @@ export function useMemoAudience(category: TodoCategory | undefined): { short: st
     detail: names === null ? "볼 수 있는 사람을 불러오는 중…" : names ? `이 메모를 볼 수 있는 사람: ${names}` : "",
   };
 }
-
 
 /** 날짜, 시각 고르기: 글자(요일 포함)를 누르면 브라우저 고르기 창이 바로 열린다 */
 export function PickField({
@@ -324,17 +336,25 @@ function TodoMenu({
         onChange={(event) => setTitle(event.target.value)}
         {...enter}
       />
-      {(item.repeat || item.source === "ai") && (
+      {(item.repeat || item.source === "ai" || item.source === "bot") && (
         <div className="todo-menu-quick">
           {item.repeat && <span className="todo-chip">{repeatLabel(item.repeat)} 반복</span>}
           {item.source === "ai" && <span className="todo-chip">AI가 넣음</span>}
+          {item.source === "bot" && <span className="todo-chip">봇이 넣음</span>}
         </div>
       )}
       <div className="todo-props">
         <label className="todo-prop">
           <span className="todo-prop-key">날짜</span>
           <span className="todo-prop-value">
-            <PickField type="date" label="날짜" value={day} empty="" required onChange={(value) => value && setDay(value)} />
+            <PickField
+              type="date"
+              label="날짜"
+              value={day}
+              empty=""
+              required
+              onChange={(value) => value && setDay(value)}
+            />
             <MoveDate value={item.day} disabled={busy} onPick={(target) => void moveTo(target)} />
           </span>
         </label>
@@ -352,7 +372,13 @@ function TodoMenu({
         <label className="todo-prop">
           <span className="todo-prop-key">장소</span>
           <span className="todo-prop-value">
-            <input value={place} maxLength={40} placeholder="비어 있음" onChange={(event) => setPlace(event.target.value)} {...enter} />
+            <input
+              value={place}
+              maxLength={40}
+              placeholder="비어 있음"
+              onChange={(event) => setPlace(event.target.value)}
+              {...enter}
+            />
           </span>
         </label>
         <label className="todo-prop">
@@ -424,11 +450,21 @@ function TodoMenu({
             <button type="button" className="todo-small-button" onClick={() => setConfirming(false)}>
               취소
             </button>
-            <button type="button" className="todo-small-button todo-danger" disabled={busy} onClick={() => void remove("today")}>
+            <button
+              type="button"
+              className="todo-small-button todo-danger"
+              disabled={busy}
+              onClick={() => void remove("today")}
+            >
               {item.repeat ? "이날 것만" : "삭제"}
             </button>
             {item.repeat && (
-              <button type="button" className="todo-small-button todo-danger" disabled={busy} onClick={() => void remove("future")}>
+              <button
+                type="button"
+                className="todo-small-button todo-danger"
+                disabled={busy}
+                onClick={() => void remove("future")}
+              >
                 앞으로도
               </button>
             )}
@@ -458,11 +494,7 @@ export function TodoRow({
   // 열린 메뉴의 이름을 다시 누르면 '취소'와 같게(바꾼 것이 있으면 확인)
   const [closeAsk, setCloseAsk] = useState(0);
   const [memoOpen, setMemoOpen] = useState(false);
-  const meta = [
-    item.time ? timeLabel(item.time) : "",
-    item.place ?? "",
-    item.repeat ? repeatLabel(item.repeat) : "",
-  ]
+  const meta = [item.time ? timeLabel(item.time) : "", item.place ?? "", item.repeat ? repeatLabel(item.repeat) : ""]
     .filter(Boolean)
     .join(" | ");
   return (
@@ -553,7 +585,12 @@ export function CategoryBlock({
 }) {
   const [text, setText] = useState("");
   // 넣을 때 칸: 날짜, 시각, 장소, 메모(2026-11-23 사용자 요청 '이름만이 아니라 모든 칸'). 비우면 쓴 글에서 뗀 값
-  const [fields, setFields] = useState({ day: "", time: "", place: "", memo: "" });
+  const [fields, setFields] = useState({
+    day: "",
+    time: "",
+    place: "",
+    memo: "",
+  });
   const fieldsRef = useRef(fields);
   fieldsRef.current = fields;
   const memoWho = useMemoAudience(category);
@@ -616,7 +653,12 @@ export function CategoryBlock({
             {bits.length > 0 ? `${bits.join(" | ")}: ` : ""}
             <strong>{shown.title}</strong>
           </span>
-          <button type="button" className="todo-preview-raw" aria-label="떼지 않고 쓴 그대로 넣기" onClick={() => setRaw(true)}>
+          <button
+            type="button"
+            className="todo-preview-raw"
+            aria-label="떼지 않고 쓴 그대로 넣기"
+            onClick={() => setRaw(true)}
+          >
             ×
           </button>
         </div>
@@ -627,7 +669,11 @@ export function CategoryBlock({
               <button type="button" className="todo-small-button" onClick={() => void submit(shown.ask?.am)}>
                 오전 ({timeLabel(shown.ask.am)})
               </button>
-              <button type="button" className="todo-small-button todo-primary" onClick={() => void submit(shown.ask?.pm)}>
+              <button
+                type="button"
+                className="todo-small-button todo-primary"
+                onClick={() => void submit(shown.ask?.pm)}
+              >
                 오후 ({timeLabel(shown.ask.pm)})
               </button>
               <button type="button" className="todo-small-button" onClick={() => void submit(null)}>

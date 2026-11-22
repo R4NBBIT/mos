@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -104,6 +106,11 @@ def test_todo_commands(env: Env) -> None:
     added = ok(env, "/todo 강남역에서 장보기 //우유 [TODO]")
     assert "| 강남역" in added and "@" not in added and "메모: 우유" in added
     view = run(env, "/todo 오늘 뭐 있어?")["text"]
+    day = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d")
+    sources = {
+        i["title"]: i["source"] for i in env.client.get(f"/api/todo/day/{day}").json()["items"]
+    }
+    assert sources["치과"] == "bot"
     assert "1. ⬜ 치과 | 15:00" in view and "2. ⬜ 장보기 | 강남역" in view
     assert ok(env, "/todo 1번 완료") == "✅ 완료: 치과"
     assert ok(env, "/todo 치과 완료 취소") == "↩️ 완료 취소: 치과"

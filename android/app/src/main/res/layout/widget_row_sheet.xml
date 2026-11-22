@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 위젯 목록 한 줄(sheet 모양). TodoWidgetService가 채운다 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/row" android:layout_width="match_parent" android:layout_height="25dp" android:orientation="horizontal">
+  <TextView android:id="@+id/row_num" android:singleLine="true" android:ellipsize="end" android:layout_width="30dp" android:layout_height="match_parent" android:background="@drawable/w_sheet_num" android:gravity="center" android:textColor="#FF5F6368" android:textSize="11sp" />
+  <TextView android:singleLine="true" android:ellipsize="end" android:id="@+id/row_mark" android:layout_width="40dp" android:layout_height="match_parent" android:background="@drawable/w_sheet_cell" android:gravity="center" android:textSize="14sp" android:textColor="#FF1F6E43" />
+  <TextView android:id="@+id/row_text" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:background="@drawable/w_sheet_cell" android:gravity="center_vertical" android:paddingStart="6dp" android:singleLine="true" android:ellipsize="end" android:textSize="13sp" android:textColor="#FF1F2328" />
+  <TextView android:singleLine="true" android:ellipsize="end" android:id="@+id/row_time" android:layout_width="64dp" android:layout_height="match_parent" android:background="@drawable/w_sheet_cell" android:gravity="center_vertical|end" android:paddingEnd="6dp" android:textSize="12sp" android:textColor="#FF5F6368" />
+</LinearLayout>

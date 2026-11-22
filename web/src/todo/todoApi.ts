@@ -155,8 +155,10 @@ export interface RepeatInput {
 export const createRepeat = (itemId: string, input: RepeatInput) =>
   call<TodoRepeat>("/api/todo/repeats", "POST", { item_id: itemId, ...input });
 
-export const updateRepeat = (id: string, changes: Partial<RepeatInput> & Partial<Pick<TodoItem, "title" | "memo" | "time" | "place" | "category_id">>) =>
-  call<TodoRepeat>(`/api/todo/repeats/${id}`, "PATCH", changes);
+export const updateRepeat = (
+  id: string,
+  changes: Partial<RepeatInput> & Partial<Pick<TodoItem, "title" | "memo" | "time" | "place" | "category_id">>,
+) => call<TodoRepeat>(`/api/todo/repeats/${id}`, "PATCH", changes);
 
 export const stopRepeat = (id: string, day: string) => call<void>(`/api/todo/repeats/${id}/stop`, "POST", { day });
 
@@ -177,8 +179,7 @@ export const addCategory = (name: string, color: string) =>
 export const updateCategory = (
   id: string,
   changes: Partial<Pick<TodoCategory, "name" | "color" | "closed" | "visibility" | "memo_shared">>,
-) =>
-  call<TodoCategory>(`/api/todo/categories/${id}`, "PATCH", changes);
+) => call<TodoCategory>(`/api/todo/categories/${id}`, "PATCH", changes);
 
 /** 화면에 보여 줄 짧은 안내(서버 코드 → 문장) */
 export function todoErrorText(error: unknown): string {
@@ -248,7 +249,8 @@ export const TODO_NEWS_EVENT = "mos-todo-news";
 
 export const fetchAlertPrefs = () => call<TodoAlertPrefs>("/api/todo/prefs");
 
-export const saveAlertPrefs = (changes: Partial<TodoAlertPrefs>) => call<TodoAlertPrefs>("/api/todo/prefs", "PATCH", changes);
+export const saveAlertPrefs = (changes: Partial<TodoAlertPrefs>) =>
+  call<TodoAlertPrefs>("/api/todo/prefs", "PATCH", changes);
 
 /** 이 브라우저의 시간대(서버가 알림 시각을 계산할 때 씀). 모르면 보내지 않는다 */
 export function browserTz(): string | undefined {
@@ -291,6 +293,8 @@ export interface TodoAiTrash {
   day: string;
   client: string;
   deleted_at: number;
+  /** 눌렀을 때 펼쳐 보는 세부 내용(머리 글과 줄들, 글자로만 보여 줌) */
+  details?: { head: string; rows: string[] }[];
 }
 
 export const fetchAiState = () => call<{ pending: TodoAiPending[]; trash: TodoAiTrash[] }>("/api/todo/ai");
@@ -298,7 +302,10 @@ export const fetchAiState = () => call<{ pending: TodoAiPending[]; trash: TodoAi
 export const decideAiPending = (id: string, approve: boolean) =>
   call<{ message: string }>(`/api/todo/ai/pending/${encodeURIComponent(id)}`, "POST", { approve });
 
-export const restoreAiTrash = (id: string) => call<void>(`/api/todo/ai/trash/${encodeURIComponent(id)}/restore`, "POST");
+export const purgeAiTrash = (id: string) => call<void>(`/api/todo/ai/trash/${encodeURIComponent(id)}`, "DELETE");
+
+export const restoreAiTrash = (id: string) =>
+  call<void>(`/api/todo/ai/trash/${encodeURIComponent(id)}/restore`, "POST");
 
 // ------------------------------------------------------------ 친구(T4)
 
@@ -324,20 +331,35 @@ export interface FriendDay extends TodoDay {
 }
 
 export const fetchPeople = () => call<TodoPeople>("/api/todo/people");
-export const requestFriend = (id: string) => call<{ state: string }>(`/api/todo/people/${encodeURIComponent(id)}/request`, "POST");
-export const acceptFriend = (id: string) => call<{ state: string }>(`/api/todo/people/${encodeURIComponent(id)}/accept`, "POST");
+export const requestFriend = (id: string) =>
+  call<{ state: string }>(`/api/todo/people/${encodeURIComponent(id)}/request`, "POST");
+export const acceptFriend = (id: string) =>
+  call<{ state: string }>(`/api/todo/people/${encodeURIComponent(id)}/accept`, "POST");
 export const removeFriend = (id: string) => call<void>(`/api/todo/people/${encodeURIComponent(id)}`, "DELETE");
 export const blockPerson = (id: string) => call<void>(`/api/todo/people/${encodeURIComponent(id)}/block`, "POST");
 export const unblockPerson = (id: string) => call<void>(`/api/todo/people/${encodeURIComponent(id)}/block`, "DELETE");
-export const setAcceptRequests = (value: boolean) => call<void>("/api/todo/people/settings", "PATCH", { accept_requests: value });
+export const setAcceptRequests = (value: boolean) =>
+  call<void>("/api/todo/people/settings", "PATCH", { accept_requests: value });
 export const fetchFriendsToday = (day: string) =>
   call<{ friends: (TodoPerson & { done: number; total: number })[] }>(`/api/todo/friends/today?day=${day}`);
 export const fetchFriendDay = (id: string, day: string) =>
   call<FriendDay>(`/api/todo/friends/${encodeURIComponent(id)}/day/${day}`);
 export const reactTodo = (owner: string | null, item: string, emoji: string, on: boolean) =>
-  call<{ reactions: TodoReaction[] }>("/api/todo/react", "POST", owner ? { owner, item, emoji, on } : { item, emoji, on });
+  call<{ reactions: TodoReaction[] }>(
+    "/api/todo/react",
+    "POST",
+    owner ? { owner, item, emoji, on } : { item, emoji, on },
+  );
 export const fetchTodoEmojis = () =>
-  call<{ emojis: { id: string; name: string; animated: boolean; group_id: string; group_name: string }[] }>("/api/todo/emojis");
+  call<{
+    emojis: {
+      id: string;
+      name: string;
+      animated: boolean;
+      group_id: string;
+      group_name: string;
+    }[];
+  }>("/api/todo/emojis");
 
 // ------------------------------------------------------------ 친구 그룹, 일부 공개 대상
 
@@ -353,7 +375,8 @@ export interface TodoAudience {
 }
 
 export const fetchGroups = async () => (await call<{ groups: TodoGroup[] }>("/api/todo/groups")).groups;
-export const createGroup = (name: string, members: string[]) => call<TodoGroup>("/api/todo/groups", "POST", { name, members });
+export const createGroup = (name: string, members: string[]) =>
+  call<TodoGroup>("/api/todo/groups", "POST", { name, members });
 export const updateGroup = (id: string, changes: { name?: string; members?: string[] }) =>
   call<void>(`/api/todo/groups/${encodeURIComponent(id)}`, "PATCH", changes);
 export const deleteGroup = (id: string) => call<void>(`/api/todo/groups/${encodeURIComponent(id)}`, "DELETE");

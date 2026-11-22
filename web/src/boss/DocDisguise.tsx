@@ -1,5 +1,6 @@
 // 위장 화면: 노션 페이지, Word 문서. 예시 글이나 올린 파일의 글을 문단(블록)으로 보여 주고,
 // 문단을 눌러 바로 고칠 수 있다(Enter로 새 문단, 빈 문단에서 지우기를 누르면 문단 삭제). 고친 내용은 계정에 저장.
+import { useBossTodo } from "./bossTodo";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import WordChrome from "../WordChrome";
 import { localEdits, pullEdits, pushEdits } from "./bossStore";
@@ -283,26 +284,37 @@ export function NoteDisguise({
   fallbackTitle: string;
 }) {
   const [blocks, update] = useDocBlocks(original, editKey);
+  const goTodo = useBossTodo();
   const title = blocks[0]?.type === "h1" && blocks[0].text ? blocks[0].text : fallbackTitle;
   return (
     <div className="boss-note">
-      <aside className="bn-side" aria-hidden="true">
-        <div className="bn-space">
+      <aside className="bn-side">
+        <div className="bn-space" aria-hidden="true">
           <span className="bn-space-icon">업</span>
           <strong>업무 공간</strong>
         </div>
-        <div className="bn-nav">
+        <div className="bn-nav" aria-hidden="true">
           <span>🔍 검색</span>
           <span>🏠 홈</span>
           <span>📥 받은 편지함</span>
         </div>
-        <div className="bn-section">개인 페이지</div>
-        <span className="bn-page bn-page-on">📝 {title}</span>
-        {NOTE_PAGES.map((page) => (
-          <span key={page} className="bn-page">
-            📄 {page}
-          </span>
-        ))}
+        <div className="bn-section" aria-hidden="true">
+          개인 페이지
+        </div>
+        <span className="bn-page bn-page-on" aria-hidden="true">
+          📝 {title}
+        </span>
+        {NOTE_PAGES.map((page) =>
+          page === "TODO 목록" && goTodo ? (
+            <button key={page} type="button" tabIndex={-1} className="bn-page bn-page-link" onClick={goTodo}>
+              📄 {page}
+            </button>
+          ) : (
+            <span key={page} className="bn-page" aria-hidden="true">
+              📄 {page}
+            </span>
+          ),
+        )}
       </aside>
       <main className="bn-main">
         <header className="bn-top" aria-hidden="true">
@@ -332,10 +344,11 @@ export function NoteDisguise({
 /** Word 문서처럼: 파란 제목 줄과 리본, 회색 바탕 위 흰 종이 */
 export function WordDisguise({ original, editKey, name }: { original: string; editKey: string; name: string }) {
   const [blocks, update] = useDocBlocks(original, editKey);
+  const goTodo = useBossTodo();
   const words = blocks.reduce((sum, block) => sum + (block.text.trim() ? block.text.trim().split(/\s+/).length : 0), 0);
   return (
     <div className="boss-word">
-      <WordChrome name={name} />
+      <WordChrome name={name} onTodo={goTodo ?? undefined} />
       <div className="bw-canvas">
         <article className="bw-page">
           <DocBlocks blocks={blocks} onChange={update} kind="word" />

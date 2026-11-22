@@ -470,6 +470,7 @@ def test_every_delete_goes_to_trash(env: Env) -> None:
     assert "달리기" not in titles
     trash = env.client.get("/api/todo/ai").json()["trash"]
     assert trash[0]["kind"] == "bundle" and "달리기" in trash[0]["title"]
+    assert trash[0]["details"][0]["head"] == "TODO"
     env.client.post(f"/api/todo/ai/trash/{trash[0]['id']}/restore", headers=POST)
     titles = [i["title"] for i in env.client.get("/api/todo/day/2026-11-26").json()["items"]]
     assert "달리기" in titles
@@ -479,6 +480,10 @@ def test_every_delete_goes_to_trash(env: Env) -> None:
     assert "운동" not in names
     trash = env.client.get("/api/todo/ai").json()["trash"]
     assert trash[0]["title"].startswith("'운동' 카테고리")
+    parts = {part["head"]: part["rows"] for part in trash[0]["details"]}
+    assert parts["카테고리"] == ["운동"]
+    assert parts["반복"][0].startswith("달리기 | 매일")
+    assert "스트레칭 | 2026.11.23 (월)" in parts["TODO"]
     env.client.post(f"/api/todo/ai/trash/{trash[0]['id']}/restore", headers=POST)
     names = [c["name"] for c in env.client.get("/api/todo/categories").json()["categories"]]
     assert "운동" in names
@@ -487,6 +492,14 @@ def test_every_delete_goes_to_trash(env: Env) -> None:
     assert "달리기" in [
         i["title"] for i in env.client.get("/api/todo/day/2026-11-27").json()["items"]
     ]
+    # 영구 삭제하면 휴지통에서 사라지고 되살릴 수 없다
+    env.client.delete(f"/api/todo/categories/{cat}", headers=POST)
+    gone = env.client.get("/api/todo/ai").json()["trash"][0]["id"]
+    assert env.client.delete(f"/api/todo/ai/trash/{gone}", headers=POST).status_code == 204
+    assert gone not in [t["id"] for t in env.client.get("/api/todo/ai").json()["trash"]]
+    restored = env.client.post(f"/api/todo/ai/trash/{gone}/restore", headers=POST)
+    assert restored.status_code == 404
+    assert env.client.delete(f"/api/todo/ai/trash/{gone}", headers=POST).status_code == 404
 
 
 def test_ai_repeats(env: Env) -> None:

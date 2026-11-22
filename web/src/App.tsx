@@ -2,6 +2,7 @@ import { usePresence } from "./motion";
 import { lazy, type ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AccountMenu from "./AccountMenu";
 import BossScreen from "./boss/BossScreen";
+import { BossTodoContext } from "./boss/bossTodo";
 import { DOUBLE_PRESS_MS, keyFromEvent, parseBossKey, sameKey } from "./boss/bossKey";
 import { type AssetList, cachedInfo, fetchBossInfo, loadAsset, uploadAsset } from "./boss/bossStore";
 import { isCapturingKey, isDisguised, onDisguiseChange, setDisguised } from "./boss/bossState";
@@ -130,7 +131,12 @@ function parseRoute(hash: string): Route {
   if (todoDay?.[1] && isDayKey(todoDay[1])) return { view: "todo", day: todoDay[1] };
   const thread = /^#\/g\/(\d{1,21})\/p\/(\d{1,21})\/t\/(\d{1,21})$/.exec(hash);
   if (thread?.[1] && thread[2] && thread[3]) {
-    return { view: "thread", groupId: thread[1], parentId: thread[2], threadId: thread[3] };
+    return {
+      view: "thread",
+      groupId: thread[1],
+      parentId: thread[2],
+      threadId: thread[3],
+    };
   }
   const posts = /^#\/g\/(\d{1,21})\/p\/(\d{1,21})$/.exec(hash);
   if (posts?.[1] && posts[2]) return { view: "posts", groupId: posts[1], parentId: posts[2] };
@@ -146,7 +152,10 @@ function parseRoute(hash: string): Route {
 /** TODO 화면들(오늘, 카테고리, 친구 관리, 친구 TODO) */
 type TodoRoute = Extract<
   Route,
-  { view: "todo" | "todoCategories" | "todoFriends" | "todoFriend" | "todoAlerts" | "todoAi" | "todoRepeats" | "todoTrash" }
+  {
+    view:
+      "todo" | "todoCategories" | "todoFriends" | "todoFriend" | "todoAlerts" | "todoAi" | "todoRepeats" | "todoTrash";
+  }
 >;
 function isTodoRoute(route: Route): route is TodoRoute {
   return (
@@ -235,11 +244,7 @@ function useListOpen(): [boolean, (open: boolean) => void] {
 }
 
 function pickActive(session: SessionState): SessionAccount | null {
-  return (
-    session.accounts.find((account) => account.id === session.active_account_id) ??
-    session.accounts[0] ??
-    null
-  );
+  return session.accounts.find((account) => account.id === session.active_account_id) ?? session.accounts[0] ?? null;
 }
 
 function useIdleLock(enabled: boolean, lockMinutes: number, onLocked: () => void) {
@@ -280,7 +285,10 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
   const [route, go] = useHashRoute();
   const wide = useWide();
   // 휴대폰에서 왼쪽으로 밀었을 때 돌아갈 곳: 마지막에 연 서버와 서버마다 마지막에 본 채팅
-  const lastPlace = useRef<{ group: string | null; chats: Record<string, string> }>({ group: null, chats: {} });
+  const lastPlace = useRef<{
+    group: string | null;
+    chats: Record<string, string>;
+  }>({ group: null, chats: {} });
   useEffect(() => {
     if (route.view === "groups" || route.view === "settings" || isTodoRoute(route)) return;
     lastPlace.current.group = route.groupId;
@@ -290,7 +298,10 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
   const listPresence = usePresence(listOpen, 240);
   // 넓은 화면 왼쪽 목록에서 둘러보는 서버(null이면 서버 목록). 오른쪽 화면과 따로 움직이고,
   // 채널을 열거나 뒤로 가서 주소가 바뀌면 다시 주소를 따른다
-  const [browse, setBrowse] = useState<{ from: Route; groupId: string | null } | null>(null);
+  const [browse, setBrowse] = useState<{
+    from: Route;
+    groupId: string | null;
+  } | null>(null);
   // TODO가 바뀌면 서버 목록 요약, 왼쪽 달력을 다시 받는다
   const [todoVersion, setTodoVersion] = useState(0);
   const bumpTodo = useCallback(() => setTodoVersion((value) => value + 1), []);
@@ -418,7 +429,8 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     updateSettings({ guide_done: true }).catch(() => {}); // 못 남기면 다음에 한 번 더 보일 뿐
   }, [look, setLook]);
   const notify = useNotifications({
-    enabled: open && Boolean(notifyPrefs?.notify || (notifyPrefs?.todo && open && active?.features?.includes(TODO_FEATURE))),
+    enabled:
+      open && Boolean(notifyPrefs?.notify || (notifyPrefs?.todo && open && active?.features?.includes(TODO_FEATURE))),
     scope: notifyPrefs?.notify ? notifyPrefs.scope : null,
     todo: Boolean(notifyPrefs?.todo),
     preview: Boolean(notifyPrefs?.preview),
@@ -560,7 +572,13 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     );
     const todoRepeats = (inSplit: boolean) => (
       <Suspense fallback={<div className="center-note">불러오는 중…</div>}>
-        <TodoRepeats key={active.id} showBack={!inSplit} onBack={() => go("#/todo")} menu={common.menu} onChanged={bumpTodo} />
+        <TodoRepeats
+          key={active.id}
+          showBack={!inSplit}
+          onBack={() => go("#/todo")}
+          menu={common.menu}
+          onChanged={bumpTodo}
+        />
       </Suspense>
     );
     const todoFriends = (inSplit: boolean) => (
@@ -677,9 +695,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
         parentId={parentId}
         showBack
         menu={common.menu}
-        onBack={(parent) =>
-          go(parent && parent.kind !== "forum" ? `#/g/${groupId}/c/${parentId}` : `#/g/${groupId}`)
-        }
+        onBack={(parent) => go(parent && parent.kind !== "forum" ? `#/g/${groupId}/c/${parentId}` : `#/g/${groupId}`)}
         onOpen={(threadId) => go(`#/g/${groupId}/p/${parentId}/t/${threadId}`)}
         onAuthLost={changed}
         theme={look.theme}
@@ -751,10 +767,15 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           render={(at) => {
             if (at === level) return single();
             if (at === 0) return groupList();
-            if (at === 1) return groupId ? channelList(groupId, level === 2 && route.view !== "groups" ? routeChannel(route) : undefined) : null;
+            if (at === 1)
+              return groupId
+                ? channelList(groupId, level === 2 && route.view !== "groups" ? routeChannel(route) : undefined)
+                : null;
             return nextChat ? single(nextChat) : null;
           }}
-          canGo={(at) => (at === 0 ? true : at === 1 ? Boolean(groupId) : Boolean(nextChat && routeLevel(nextChat) === 2))}
+          canGo={(at) =>
+            at === 0 ? true : at === 1 ? Boolean(groupId) : Boolean(nextChat && routeLevel(nextChat) === 2)
+          }
           onGo={(at) => go(at === 0 ? "#/" : at === 1 ? `#/g/${groupId}` : (lastChat ?? "#/"))}
         />
       );
@@ -764,8 +785,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     // 왼쪽 목록은 접어도 자리(aside)는 남겨 두고 폭만 줄여서 부드럽게 여닫는다
     const split = { open: listOpen, toggle: () => setListOpen(!listOpen) };
     // 왼쪽 목록: 둘러보는 중이면 그 서버, 아니면 주소의 서버
-    const routeGroup =
-      route.view === "groups" || isTodoRoute(route) ? null : route.groupId;
+    const routeGroup = route.view === "groups" || isTodoRoute(route) ? null : route.groupId;
     const browsing = Boolean(browse && browse.from === route);
     const leftGroup = browse && browse.from === route ? browse.groupId : routeGroup;
     const leftTodo = isTodoRoute(route) && todoAllowed && !browsing;
@@ -778,7 +798,13 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     return (
       <div className="split">
         <aside
-          className={listOpen ? "split-list" : listPresence.closing ? "split-list split-list-closed" : "split-list split-list-closed split-list-gone"}
+          className={
+            listOpen
+              ? "split-list"
+              : listPresence.closing
+                ? "split-list split-list-closed"
+                : "split-list split-list-closed split-list-gone"
+          }
           aria-hidden={!listOpen}
           inert={!listOpen}
         >
@@ -787,8 +813,8 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
               {leftTodo
                 ? todoSide()
                 : leftGroup === null
-                ? groupList(true)
-                : channelList(leftGroup, leftGroup === routeGroup ? routeActive : undefined, true)}
+                  ? groupList(true)
+                  : channelList(leftGroup, leftGroup === routeGroup ? routeActive : undefined, true)}
             </div>
           )}
         </aside>
@@ -846,22 +872,22 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
   return (
     <LookContext.Provider value={lookValue}>
       <NotifyPrefsContext.Provider value={notifyPrefsValue}>
-      {look.theme === "word" ? (
-        <div className="word-app">
-          <WordChrome />
-          <div className="word-stage">{screen()}</div>
-        </div>
-      ) : (
-        screen()
-      )}
-      {guidePresence.shown && (
-        <Guide settings={look} wide={wide} onClose={closeGuide} closing={guidePresence.closing} />
-      )}
-      {installPresence.shown && <InstallDialog onClose={closeInstall} closing={installPresence.closing} />}
-      {widgetApkPresence.shown && (
-        <AndroidWidgetDialog onClose={closeWidgetApk} closing={widgetApkPresence.closing} />
-      )}
-      <NotifyToast toast={notify.toast} onOpen={go} onClose={notify.closeToast} />
+        {look.theme === "word" ? (
+          <div className="word-app">
+            <WordChrome />
+            <div className="word-stage">{screen()}</div>
+          </div>
+        ) : (
+          screen()
+        )}
+        {guidePresence.shown && (
+          <Guide settings={look} wide={wide} onClose={closeGuide} closing={guidePresence.closing} />
+        )}
+        {installPresence.shown && <InstallDialog onClose={closeInstall} closing={installPresence.closing} />}
+        {widgetApkPresence.shown && (
+          <AndroidWidgetDialog onClose={closeWidgetApk} closing={widgetApkPresence.closing} />
+        )}
+        <NotifyToast toast={notify.toast} onOpen={go} onClose={notify.closeToast} />
       </NotifyPrefsContext.Provider>
     </LookContext.Provider>
   );
@@ -876,11 +902,16 @@ function pickWorkbook(
   void day; // 날짜가 바뀌면 템플릿 날짜도 새로
   if (template === "myfile") {
     const file = sheet ?? loadMyFile();
-    if (file) return { workbook: file, storageKey: `mos.boss.edits.v1.myfile.${file.stamp}` };
+    if (file)
+      return {
+        workbook: file,
+        storageKey: `mos.boss.edits.v1.myfile.${file.stamp}`,
+      };
   }
-  const id: TemplateId = template === "weekly" || template === "sales" || template === "schedule" || template === "budget"
-    ? template
-    : "weekly";
+  const id: TemplateId =
+    template === "weekly" || template === "sales" || template === "schedule" || template === "budget"
+      ? template
+      : "weekly";
   return { workbook: buildTemplate(id), storageKey: `mos.boss.edits.v1.${id}` };
 }
 
@@ -892,7 +923,13 @@ interface BossFilesState {
   word: { name: string; body: string } | null;
 }
 
-const EMPTY_FILES: BossFilesState = { sheet: null, image: null, text: null, note: null, word: null };
+const EMPTY_FILES: BossFilesState = {
+  sheet: null,
+  image: null,
+  text: null,
+  note: null,
+  word: null,
+};
 
 /** 계정에 저장된 위장 파일을 받는다(잠겨 있어 못 받으면 이 브라우저에 보관된 것). 예전에 이 브라우저에만 있던 표 파일은 계정으로 옮긴다 */
 async function loadBossFiles(): Promise<BossFilesState> {
@@ -926,7 +963,10 @@ async function loadBossFiles(): Promise<BossFilesState> {
   const imageInfo = info.image;
   if (imageInfo) {
     try {
-      result.image = { url: URL.createObjectURL(await loadAsset("image", imageInfo)), name: imageInfo.name };
+      result.image = {
+        url: URL.createObjectURL(await loadAsset("image", imageInfo)),
+        name: imageInfo.name,
+      };
     } catch {
       // 없으면 안내 화면
     }
@@ -935,7 +975,10 @@ async function loadBossFiles(): Promise<BossFilesState> {
     const found = info[kind];
     if (!found) continue;
     try {
-      result[kind] = { name: found.name, body: await (await loadAsset(kind, found)).text() };
+      result[kind] = {
+        name: found.name,
+        body: await (await loadAsset(kind, found)).text(),
+      };
     } catch {
       // 없으면 예시나 빈 문서
     }
@@ -983,14 +1026,25 @@ export default function App() {
   const doc = useMemo(() => {
     const strip = (name: string) => name.replace(/\.[^.]+$/, "");
     if (mode === "memo") return { body: memoExample(), name: "업무 메모" };
-    if (mode === "text") return { body: files.text?.body ?? "", name: strip(files.text?.name ?? "제목 없음") };
+    if (mode === "text")
+      return {
+        body: files.text?.body ?? "",
+        name: strip(files.text?.name ?? "제목 없음"),
+      };
     if (mode === "note") return { body: noteExample(), name: "업무 정리" };
     if (mode === "notefile") {
       const body = files.note?.body ?? noteExample();
-      return { body, name: docTitle(body, strip(files.note?.name ?? "업무 정리")) };
+      return {
+        body,
+        name: docTitle(body, strip(files.note?.name ?? "업무 정리")),
+      };
     }
     if (mode === "word") return { body: wordExample(), name: "주간 업무 보고.docx" };
-    if (mode === "wordfile") return { body: files.word?.body ?? wordExample(), name: files.word?.name ?? "주간 업무 보고.docx" };
+    if (mode === "wordfile")
+      return {
+        body: files.word?.body ?? wordExample(),
+        name: files.word?.name ?? "주간 업무 보고.docx",
+      };
     return null;
   }, [mode, files.text, files.note, files.word, day]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1003,7 +1057,8 @@ export default function App() {
     } else if (mode === "memo" || mode === "text") applyDisguise(`${doc?.name ?? "제목 없음"} - 메모장`, "memo");
     else if (mode === "note" || mode === "notefile") applyDisguise(doc?.name ?? "업무 정리", "note");
     else if (mode === "word" || mode === "wordfile") applyDisguise(doc?.name ?? "문서.docx", "word");
-    else if (mode === "image") applyLook(look); // 사진은 평소 탭 제목 그대로(그 화면을 찍은 것이므로)
+    else if (mode === "image")
+      applyLook(look); // 사진은 평소 탭 제목 그대로(그 화면을 찍은 것이므로)
     else applyDisguise(workbook.fileName);
   }, [bossOn, look, mode, workbook.fileName, doc?.name]);
 
@@ -1043,6 +1098,12 @@ export default function App() {
     },
     [relock, fullscreen, mode, bossUrl],
   );
+
+  // 위장 화면 안의 'TODO' 자리를 누르면 위장을 풀고 TODO 화면으로(잠그기 설정이면 잠금 화면을 거친다)
+  const goTodoFromBoss = useCallback(() => {
+    window.location.hash = "#/todo";
+    toggle(false);
+  }, [toggle]);
 
   // 다른 ㅁㅇㅅ 창(위젯 창 포함)에서 위장하면 이 창도, 이 창에서 위장하면 다른 창도(todoSync)
   useEffect(() => {
@@ -1089,7 +1150,8 @@ export default function App() {
   // 자동 위장(선택): 창에서 벗어나거나 마우스가 창 밖으로 나가면
   useEffect(() => {
     if (!look.boss_auto || bossOn) return;
-    const choosingFile = () => document.activeElement instanceof HTMLInputElement && document.activeElement.type === "file";
+    const choosingFile = () =>
+      document.activeElement instanceof HTMLInputElement && document.activeElement.type === "file";
     const onBlur = () => {
       if (!choosingFile()) toggle(true);
     };
@@ -1116,21 +1178,38 @@ export default function App() {
         />
       </div>
       <div className="boss-layer" hidden={!bossOn}>
-        {mode === "todo" ? (
-          <Suspense fallback={null}>
-            <TodoBoss theme={look.theme} active={bossOn} />
-          </Suspense>
-        ) : mode === "image" ? (
-          <ImageDisguise url={files.image?.url ?? null} fit={look.boss_fit} />
-        ) : (mode === "memo" || mode === "text") && doc ? (
-          <TextDisguise key={`${mode}:${fileVersion}`} original={doc.body} active={bossOn} editKey={EDIT_KEYS[mode]} />
-        ) : (mode === "note" || mode === "notefile") && doc ? (
-          <NoteDisguise key={`${mode}:${fileVersion}`} original={doc.body} editKey={EDIT_KEYS[mode]} fallbackTitle={doc.name} />
-        ) : (mode === "word" || mode === "wordfile") && doc ? (
-          <WordDisguise key={`${mode}:${fileVersion}`} original={doc.body} editKey={EDIT_KEYS[mode]} name={doc.name} />
-        ) : (
-          <BossScreen key={fileVersion} workbook={workbook} storageKey={storageKey} active={bossOn} />
-        )}
+        <BossTodoContext.Provider value={goTodoFromBoss}>
+          {mode === "todo" ? (
+            <Suspense fallback={null}>
+              <TodoBoss theme={look.theme} active={bossOn} />
+            </Suspense>
+          ) : mode === "image" ? (
+            <ImageDisguise url={files.image?.url ?? null} fit={look.boss_fit} />
+          ) : (mode === "memo" || mode === "text") && doc ? (
+            <TextDisguise
+              key={`${mode}:${fileVersion}`}
+              original={doc.body}
+              active={bossOn}
+              editKey={EDIT_KEYS[mode]}
+            />
+          ) : (mode === "note" || mode === "notefile") && doc ? (
+            <NoteDisguise
+              key={`${mode}:${fileVersion}`}
+              original={doc.body}
+              editKey={EDIT_KEYS[mode]}
+              fallbackTitle={doc.name}
+            />
+          ) : (mode === "word" || mode === "wordfile") && doc ? (
+            <WordDisguise
+              key={`${mode}:${fileVersion}`}
+              original={doc.body}
+              editKey={EDIT_KEYS[mode]}
+              name={doc.name}
+            />
+          ) : (
+            <BossScreen key={fileVersion} workbook={workbook} storageKey={storageKey} active={bossOn} />
+          )}
+        </BossTodoContext.Provider>
       </div>
       <button
         type="button"

@@ -298,6 +298,13 @@ def register_todo_ai_routes(
             return JSONResponse({"detail": "Not Found"}, status_code=404)
         return Response(status_code=204)
 
+    @app.delete("/api/todo/ai/trash/{trash_id}", status_code=204)
+    async def todo_ai_purge(trash_id: str, request: Request) -> Response:
+        account = await todo_account(request)
+        if not await actions.purge(account.account_id, trash_id):
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
+        return Response(status_code=204)
+
     @app.delete("/api/todo/connections/{grant_id}", status_code=204)
     async def todo_disconnect(grant_id: str, request: Request) -> Response:
         account = await todo_account(request)

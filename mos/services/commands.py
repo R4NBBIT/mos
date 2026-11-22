@@ -345,7 +345,7 @@ class BotCommands:
             reply = ask("넣을까요? " + " | ".join(p for p in parts if p) + memo)
             return CommandResult(reply.text, choices=reply.choices)
         try:
-            await self.todo.add_item(account_id, body)
+            await self.todo.add_item(account_id, body, source="bot")
         except TodoError as error:
             return CommandResult(f"넣지 못했어요({error.code}).")
         return CommandResult("✅ 넣었어요: " + " | ".join(p for p in parts if p) + memo)
