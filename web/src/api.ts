@@ -305,3 +305,17 @@ export async function fetchFileMessages(channelId: string, beforeId?: string): P
   const path = `/api/channels/${encodeURIComponent(channelId)}/files?${params.toString()}`;
   return (await request(path)).json() as Promise<MessagePage>;
 }
+
+/** 이 기기의 알림 설정(기기마다 따로) */
+export async function fetchNotifyPrefs(): Promise<unknown> {
+  return (await request("/api/notify-prefs")).json();
+}
+
+export async function saveNotifyPrefs(changes: Record<string, unknown>): Promise<unknown> {
+  const response = await request("/api/notify-prefs", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(changes),
+  });
+  return response.json();
+}

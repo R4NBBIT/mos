@@ -7993,3 +7993,183 @@ body.sorting * {
 :root[data-theme="word"] .room-title > strong {
   flex: 0 1 auto;
 }
+
+/* 고를 것마다 한 줄 설명(숨긴 서버와 채널) */
+.choice-list {
+  gap: 10px;
+}
+
+.choice-row {
+  align-items: flex-start;
+}
+
+.choice-row input {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+.choice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.choice-text small {
+  color: var(--sub);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+/* ------------------------------------------------------------ 잠금 화면 정리(휴대폰에서 너무 크지 않게, 아래 링크 배치) */
+.login-forgot {
+  align-self: center;
+  padding: 4px 8px;
+}
+
+.login-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft, var(--line));
+}
+
+.login-foot .text-button {
+  padding: 4px 0;
+}
+
+.login-remove {
+  color: var(--sub);
+}
+
+.login-confirm {
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft, var(--line));
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.login-confirm p {
+  margin: 0 0 10px;
+}
+
+.login-confirm-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.login-box .account-row strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.login-box input:not([type="checkbox"]) {
+  height: 44px;
+  box-sizing: border-box;
+}
+
+.login-box .primary-button {
+  min-height: 44px;
+}
+
+@media (max-width: 520px) {
+  /* 휴대폰: 위쪽 가운데쯤에 작게(키보드가 올라와도 가리지 않게) */
+  .login-page {
+    align-items: start;
+    padding: max(12vh, 24px) 16px 24px;
+  }
+
+  .login-box {
+    gap: 10px;
+    padding: 20px 18px;
+  }
+
+  .login-box h1 {
+    font-size: 18px;
+  }
+
+  .login-box .account-row {
+    font-size: 15px;
+  }
+
+  .login-box input:not([type="checkbox"]) {
+    font-size: 16px; /* 16px보다 작으면 아이폰이 확대한다 */
+  }
+
+  .login-box .check-row,
+  .login-foot .text-button,
+  .login-forgot {
+    font-size: 13px;
+  }
+}
+
+.settings-lead-small {
+  color: var(--sub);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* 설정이 어디에 적용되는지(모든 기기, 이 기기) 작은 표시 */
+.scope-chip,
+.settings .scope-chip {
+  display: inline-block;
+  flex-direction: row;
+  gap: 0;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--sub);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+  vertical-align: 2px;
+  white-space: nowrap;
+}
+
+.scope-chip-device,
+.settings .scope-chip-device {
+  border-color: transparent;
+  background: rgba(240, 180, 41, 0.18);
+  color: var(--ink);
+}
+
+.scope-legend {
+  margin: 4px 2px 12px;
+  color: var(--sub);
+  font-size: 12.5px;
+  line-height: 1.8;
+}
+
+.scope-legend .scope-chip {
+  margin-left: 0;
+  margin-right: 2px;
+}
+
+:root[data-theme="sheet"] .scope-chip,
+:root[data-theme="memo"] .scope-chip,
+:root[data-theme="word"] .scope-chip {
+  border-radius: 3px;
+}
+
+:root[data-theme="word"] .scope-chip-device {
+  background: #e7eefa;
+}
+
+:root[data-theme="sheet"] .scope-chip-device {
+  background: #e8f2ec;
+}
+
+/* 디스코드 앱에서 보낸 내 메시지: 고치기 대신 짧은 안내 */
+.msg-actions-note {
+  align-self: center;
+  padding: 0 6px;
+  color: var(--sub);
+  font-size: 11.5px;
+  white-space: normal;
+}

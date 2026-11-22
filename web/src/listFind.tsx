@@ -48,7 +48,7 @@ export function useHidden() {
       const rest = settings.hidden.filter((item) => item !== id);
       return save({ hidden: hide ? [...rest, id] : rest });
     },
-    mode: settings.hidden_notify,
+    mode: settings.hidden_unread,
   };
 }
 

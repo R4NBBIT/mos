@@ -297,6 +297,8 @@ function MessageItem({
   if (grouped && !message.reference_id) classes.push("msg-grouped");
   if (mine) classes.push("msg-mine");
   const hasActions = canReply || manageable || Boolean(onReact);
+  // 디스코드 앱에서 직접 보낸 내 메시지: 디스코드는 작성자 본인 앱에서만 고치게 해서 여기서는 못 고친다
+  const appSent = !manageable && Boolean(myUserId) && author.id === myUserId && !author.webhook;
 
   if (isSystemMessage(message)) {
     // 입장, 고정 같은 알림: 디스코드처럼 가운데 작은 글씨(표에서는 흐린 한 줄)
@@ -377,6 +379,7 @@ function MessageItem({
                   지우기
                 </button>
               )}
+              {appSent && <span className="msg-actions-note">디스코드 앱에서 보낸 메시지는 앱에서 고치고 지워요</span>}
             </>
           )}
           {deleteError && <span className="danger">{deleteError}</span>}

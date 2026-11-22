@@ -12,6 +12,7 @@ import {
   warningsFor,
 } from "./boss/bossKey";
 import { setCapturingKey } from "./boss/bossState";
+import Scope from "./Scope";
 
 // 보스키 바꾸기(SCR-10 4번). 키를 직접 눌러 정하거나 목록에서 고른다.
 // 브라우저가 먼저 가져가는 키(Ctrl+W 등)는 눌러서는 잡을 수 없으니 목록으로도 고를 수 있게 하고, 권장하지 않는 이유를 보여 준다.
@@ -106,7 +107,9 @@ export default function BossKeyPicker({ value, onSave }: Props) {
   if (!open) {
     return (
       <div className="settings-row boss-key-row">
-        <span>보스키</span>
+        <span>
+          보스키 <Scope />
+        </span>
         <strong className="boss-key-current">{bossKeyLabel(current)}</strong>
         <button type="button" className="pill-button" onClick={() => setOpen(true)}>
           바꾸기
@@ -118,7 +121,9 @@ export default function BossKeyPicker({ value, onSave }: Props) {
   return (
     <div className="boss-key-panel">
       <div className="settings-row">
-        <span>보스키</span>
+        <span>
+          보스키 <Scope />
+        </span>
         <strong className="boss-key-current">{bossKeyLabel(draft)}</strong>
       </div>
       <button

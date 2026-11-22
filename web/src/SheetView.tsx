@@ -431,6 +431,9 @@ export default function SheetView(props: Props) {
                     지우기
                   </button>
                 )}
+                {!manageable && selected.author.id === myUserId && !selected.author.webhook && (
+                  <span className="msg-actions-note">디스코드 앱에서 보낸 메시지는 앱에서 고치고 지워요</span>
+                )}
               </>
             )}
             {(actionError || props.reactError) && <span className="danger">{actionError || props.reactError}</span>}

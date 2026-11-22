@@ -54,7 +54,9 @@ MAX_LIST_ORDERS = 200
 MAX_LIST_ORDER_LEN = 500
 # 목록에서 숨긴 서버와 채널(ID 목록, 디스코드에는 그대로)
 MAX_HIDDEN = 500
-# 숨긴 곳의 새 메시지: 알리지 않기, 나를 부른 것만, 모두(안 읽음 수와 알림에 같이 쓴다)
+# 숨긴 곳의 새 메시지: 세지(알리지) 않기, 나를 부른 것만, 숨기지 않은 곳과 같게.
+# hidden_unread는 목록의 안 읽은 수(계정 전체), 알림은 기기마다(notify_prefs의 hidden).
+# hidden_notify는 예전 키: 기기 알림 설정을 아직 안 정한 기기의 기본값으로만 쓴다
 HIDDEN_NOTIFY = ("none", "mentions", "all")
 # 자동 위장, 돌아올 때 잠그기, 알림, 알림에 내용 보이기, 처음 사용 안내를 봤는지,
 # 작성자 프로필 사진, 음성 채널 보이기
@@ -99,6 +101,7 @@ DEFAULTS: dict[str, Any] = {
     "list_order": {},
     "hidden": [],
     "hidden_notify": "mentions",
+    "hidden_unread": "mentions",
 }
 
 
@@ -215,9 +218,9 @@ def clean(update: dict[str, Any]) -> dict[str, Any]:
             result[key] = _clean_list_order(value)
         elif key == "hidden":
             result[key] = _clean_hidden(value)
-        elif key == "hidden_notify":
+        elif key in ("hidden_notify", "hidden_unread"):
             if value not in HIDDEN_NOTIFY:
-                raise SettingsError("bad_hidden_notify")
+                raise SettingsError(f"bad_{key}")
             result[key] = value
         elif key == "lock_minutes":
             if isinstance(value, bool) or value not in LOCK_MINUTES:
@@ -266,6 +269,8 @@ class SettingsStore:
                 merged.update(clean({key: value}))
             except SettingsError:
                 pass  # 예전 값이 이상하면 그 항목만 기본값으로
+        if "hidden_unread" not in stored:
+            merged["hidden_unread"] = merged["hidden_notify"]  # 둘로 나누기 전에 고른 값 그대로
         return merged
 
     async def update(self, account_id: int, update: dict[str, Any]) -> dict[str, Any]:

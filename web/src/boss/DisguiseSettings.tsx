@@ -14,6 +14,7 @@ import {
 } from "./bossStore";
 import { clearMyFile, FileImportError, importMyFile, readDocx } from "./myFile";
 import { EDIT_KEYS } from "./OtherDisguise";
+import Scope from "../Scope";
 
 /** 내 파일 종류: 올리는 곳, 고른 화면, 지웠을 때 돌아갈 예시 */
 const FILE_SLOTS: {
@@ -252,7 +253,7 @@ export default function DisguiseSettings({ settings, save, onFileChanged }: Prop
   return (
     <>
       <div className="settings-item">
-        <h3 className="settings-sub">보여 줄 화면</h3>
+        <h3 className="settings-sub">보여 줄 화면 <Scope /></h3>
         <div className="boss-group" role="radiogroup" aria-label="위장 화면">
           <p className="boss-group-title">예시</p>
           {EXAMPLES.map((item) => choice(item.template, item.label))}

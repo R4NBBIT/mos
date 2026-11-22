@@ -31,6 +31,7 @@ class Subscriber:
     user_id: int
     channel_id: int | None = None
     account_id: int = 0
+    device_id: int = 0
     # 알림을 받겠다고 한 접속만 범위가 있다(None이면 알림 안 보냄)
     notify_scope: str | None = None
     # 음성 채널에 누가 들어가 있는지 바뀌면 알려 줄 서버들
@@ -43,10 +44,13 @@ NotifyRule = Callable[[Subscriber, int, dict[str, Any]], Awaitable[dict[str, Any
 
 # 알림 뒤: (채널 ID, 메시지, 알림 연결이 열려 있는 계정들).
 # 탭이 없는 계정에 웹 푸시를 보내는 데 쓴다
-AfterNotify = Callable[[int, dict[str, Any], set[int]], Awaitable[None]]
+# (채널 ID, 메시지, 알림 연결이 열린 (기기, 계정)) → 웹 푸시 등
+AfterNotify = Callable[[int, dict[str, Any], set[tuple[int, int]]], Awaitable[None]]
 
 
-async def _after_nothing(_channel_id: int, _message: dict[str, Any], _open: set[int]) -> None:
+async def _after_nothing(
+    _channel_id: int, _message: dict[str, Any], _open: set[tuple[int, int]]
+) -> None:
     return None
 
 
@@ -88,8 +92,12 @@ class RealtimeHub:
     def count(self) -> int:
         return len(self._sockets)
 
-    def add(self, socket: JsonSocket, user_id: int, account_id: int = 0) -> None:
-        self._sockets[socket] = Subscriber(user_id=user_id, account_id=account_id)
+    def add(
+        self, socket: JsonSocket, user_id: int, account_id: int = 0, device_id: int = 0
+    ) -> None:
+        self._sockets[socket] = Subscriber(
+            user_id=user_id, account_id=account_id, device_id=device_id
+        )
 
     def set_notify(self, socket: JsonSocket, scope: str | None) -> None:
         subscriber = self._sockets.get(socket)
@@ -156,7 +164,9 @@ class RealtimeHub:
         ]
         try:
             await self._after_notify(
-                channel_id, message, {subscriber.account_id for _, subscriber in targets}
+                channel_id,
+                message,
+                {(subscriber.device_id, subscriber.account_id) for _, subscriber in targets},
             )
         except Exception:
             log.exception("웹 푸시 처리 실패")

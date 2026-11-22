@@ -179,17 +179,29 @@ class PushService:
         rows = await self.db.fetch_all("SELECT DISTINCT account_id FROM push_sub")
         return [int(row[0]) for row in rows]
 
+    async def targets(self) -> list[tuple[int, int]]:
+        """구독이 있는 (기기, 계정). 알림 설정이 기기마다 달라서 기기별로 판단한다."""
+        rows = await self.db.fetch_all("SELECT DISTINCT device_id, account_id FROM push_sub")
+        return [(int(row[0]), int(row[1])) for row in rows]
+
     # ------------------------------------------------------------ 보내기
 
-    async def send(self, account_id: int) -> int:
-        """그 계정의 모든 구독에 빈 푸시. 보낸 수."""
+    async def send(self, account_id: int, device_id: int | None = None) -> int:
+        """그 계정의 구독(기기를 주면 그 기기 것만)에 빈 푸시. 보낸 수."""
         now = self.clock()
-        if now - self._last_sent.get(account_id, 0) < MIN_GAP_SEC:
+        key = (account_id, device_id)
+        if now - self._last_sent.get(key, 0) < MIN_GAP_SEC:
             return 0
-        self._last_sent[account_id] = now
-        rows = await self.db.fetch_all(
-            "SELECT endpoint FROM push_sub WHERE account_id = ?", (account_id,)
-        )
+        self._last_sent[key] = now
+        if device_id is None:
+            rows = await self.db.fetch_all(
+                "SELECT endpoint FROM push_sub WHERE account_id = ?", (account_id,)
+            )
+        else:
+            rows = await self.db.fetch_all(
+                "SELECT endpoint FROM push_sub WHERE account_id = ? AND device_id = ?",
+                (account_id, device_id),
+            )
         sent = 0
         for row in rows:
             endpoint = str(row[0])

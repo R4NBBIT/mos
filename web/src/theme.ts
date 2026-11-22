@@ -65,6 +65,8 @@ export interface Settings {
   hidden: string[];
   /** 숨긴 곳의 새 메시지: 알리지 않기, 나를 부른 것만, 모두(안 읽음 수에도 같이) */
   hidden_notify: HiddenNotify;
+  /** 숨긴 곳의 안 읽은 수(목록 숫자, 계정 전체). 알림은 기기마다 따로(notifyPrefs) */
+  hidden_unread: HiddenNotify;
 }
 
 export type HiddenNotify = "none" | "mentions" | "all";
@@ -121,6 +123,7 @@ export const DEFAULT_SETTINGS: Settings = {
   list_order: {},
   hidden: [],
   hidden_notify: "mentions",
+  hidden_unread: "mentions",
 };
 
 const BOSS_KEY_RE = /^(?:(?:Ctrl|Alt|Shift|Meta)\+){0,4}[A-Za-z][A-Za-z0-9]{0,24}(?:\*2)?$/;
@@ -282,6 +285,8 @@ export function cachedLook(): Settings {
             : [],
           hidden_notify:
             value.hidden_notify === "none" || value.hidden_notify === "all" ? value.hidden_notify : "mentions",
+          hidden_unread:
+            value.hidden_unread === "none" || value.hidden_unread === "all" ? value.hidden_unread : "mentions",
         };
       }
     }

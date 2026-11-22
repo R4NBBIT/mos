@@ -203,6 +203,7 @@ export function UnlockScreen({
   const [keep, setKeep] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const others = session.accounts.filter((item) => item.id !== account.id);
 
   const run = async (action: () => Promise<void>) => {
@@ -231,7 +232,7 @@ export function UnlockScreen({
   return (
     <Card title={lookTitle()}>
       <div className="account-row">
-        <AccountFace account={account} />
+        <AccountFace account={account} size={36} />
         <strong>{account.name}</strong>
       </div>
       <form className="login-form" onSubmit={submit}>
@@ -253,21 +254,46 @@ export function UnlockScreen({
         <button type="submit" className="primary-button" disabled={!password || busy}>
           {busy ? "확인 중…" : "열기"}
         </button>
-      </form>
-
-      <div className="login-links">
-        <button type="button" className="text-button" onClick={() => startConnect("reset")}>
+        <button type="button" className="text-button login-forgot" onClick={() => startConnect("reset")}>
           비밀번호를 잊었어요
         </button>
-        {session.accounts.length < session.max_accounts && (
-          <button type="button" className="text-button" onClick={() => startConnect("add")}>
-            다른 계정 추가
+      </form>
+
+      {confirmRemove ? (
+        // 되돌릴 수 없는 일: 설명과 [취소] [빼기]를 나란히
+        <div className="login-confirm" role="alert">
+          <p>
+            이 브라우저에서 {account.name} 계정을 빼요. 다시 쓰려면 디스코드로 다시 연결하고 비밀번호를 새로 정해야
+            해요.
+          </p>
+          <div className="login-confirm-buttons">
+            <button type="button" className="pill-button" onClick={() => setConfirmRemove(false)}>
+              취소
+            </button>
+            <button
+              type="button"
+              className="pill-button pill-button-danger"
+              disabled={busy}
+              onClick={() => void run(() => removeAccount(account.id))}
+            >
+              빼기
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="login-foot">
+          {session.accounts.length < session.max_accounts ? (
+            <button type="button" className="text-button" onClick={() => startConnect("add")}>
+              다른 계정 추가
+            </button>
+          ) : (
+            <span />
+          )}
+          <button type="button" className="text-button login-remove" onClick={() => setConfirmRemove(true)}>
+            이 브라우저에서 빼기
           </button>
-        )}
-        <button type="button" className="text-button" onClick={() => void run(() => removeAccount(account.id))}>
-          이 브라우저에서 빼기
-        </button>
-      </div>
+        </div>
+      )}
 
       {others.length > 0 && (
         <div className="other-accounts">

@@ -867,7 +867,9 @@ def test_notify_only_mentions_or_pinned_channels(env: Env) -> None:
         env.client.portal.call(env.hub.notify, CHANNEL, notify_message(9))
         env.client.portal.call(env.hub.notify, CHANNEL, notify_message(10, mention=43))
         assert ws.receive_json()["data"]["message_id"] == "10"
-        env.client.patch("/api/settings", json={"hidden_notify": "none"}, headers=POST)
+        # 숨긴 곳 알림은 기기마다(이 기기만 '알리지 않기')
+        device = env.client.patch("/api/notify-prefs", json={"hidden": "none"}, headers=POST)
+        assert device.status_code == 200 and device.json()["hidden"] == "none"
         env.client.portal.call(env.hub.notify, CHANNEL, notify_message(11, mention=43))
         env.client.patch("/api/settings", json={"hidden": []}, headers=POST)
         env.client.portal.call(env.hub.notify, CHANNEL, notify_message(12))
@@ -1470,11 +1472,11 @@ def test_unread_counts_and_mentions(env: Env) -> None:
 
     settings({"hidden": [str(CHANNEL)]})
     assert group_counts() == (1, 1)
-    settings({"hidden_notify": "none"})
+    settings({"hidden_unread": "none"})
     assert group_counts() == (0, 0)
-    settings({"hidden_notify": "all"})
+    settings({"hidden_unread": "all"})
     assert group_counts() == (3, 1)
-    settings({"hidden": [str(GUILD)], "hidden_notify": "mentions"})  # 서버를 숨김
+    settings({"hidden": [str(GUILD)], "hidden_unread": "mentions"})  # 서버를 숨김
     assert group_counts() == (1, 1)
     assert env.client.get(f"/api/groups/{GUILD}/channels").json()["channels"][0]["unread"] == 3
     bad = env.client.patch("/api/settings", json={"hidden": ["x"]}, headers=POST)
@@ -1861,6 +1863,7 @@ def test_settings_per_account(env: Env) -> None:
         "list_order": {},
         "hidden": [],
         "hidden_notify": "mentions",
+        "hidden_unread": "mentions",
     }
     assert env.client.get("/api/settings").json() == defaults
     changed = env.client.patch(
@@ -2135,3 +2138,21 @@ def test_media_proxy_only_discord_media_for_readers(env: Env) -> None:
     )
     fake.status = 404
     assert get(page.replace("x.html", "gone.png")).status_code == 404
+
+
+def test_notify_prefs_are_per_device(env: Env) -> None:
+    signed_up(env)
+    first = env.client.get("/api/notify-prefs").json()
+    # 아직 정하지 않은 기기는 계정 설정 값을 기본으로
+    assert first == {"notify": True, "scope": "pinned", "preview": False, "hidden": "mentions"}
+    env.client.patch("/api/settings", json={"notify_scope": "all"}, headers=POST)
+    assert env.client.get("/api/notify-prefs").json()["scope"] == "all"
+    saved = env.client.patch(
+        "/api/notify-prefs", json={"notify": False, "scope": "mentions"}, headers=POST
+    ).json()
+    assert saved["notify"] is False and saved["scope"] == "mentions"
+    # 한 번 정하면 계정 설정이 바뀌어도 이 기기 값 그대로
+    env.client.patch("/api/settings", json={"notify_scope": "pinned"}, headers=POST)
+    assert env.client.get("/api/notify-prefs").json()["scope"] == "mentions"
+    for bad in ({"scope": "loud"}, {"hidden": 1}, {"notify": "yes"}, {"volume": 3}):
+        assert env.client.patch("/api/notify-prefs", json=bad, headers=POST).status_code == 400

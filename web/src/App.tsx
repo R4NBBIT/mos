@@ -9,7 +9,23 @@ import { loadMyFile, type StoredFile } from "./boss/myFile";
 import { docTitle, memoExample, NoteDisguise, noteExample, WordDisguise, wordExample } from "./boss/DocDisguise";
 import { EDIT_KEYS, ImageDisguise, TextDisguise } from "./boss/OtherDisguise";
 import { buildTemplate, type TemplateId, type Workbook } from "./boss/templates";
-import { fetchSession, fetchSettings, lock, type SettingsChanges, updateSettings } from "./api";
+import { useBossDevice } from "./bossDevice";
+import {
+  fetchNotifyPrefs,
+  fetchSession,
+  fetchSettings,
+  lock,
+  saveNotifyPrefs,
+  type SettingsChanges,
+  updateSettings,
+} from "./api";
+import {
+  cleanNotifyPrefs,
+  DEFAULT_NOTIFY_PREFS,
+  type NotifyPrefs,
+  NotifyPrefsContext,
+  type NotifyPrefsValue,
+} from "./notifyPrefs";
 import { ConnectScreen, PasswordSetup, ReconnectScreen, UnlockScreen } from "./AuthScreens";
 import { authText } from "./authText";
 import ChatRoom from "./ChatRoom";
@@ -223,6 +239,36 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
       stopped = true;
     };
   }, [openAccountId]);
+  // 이 기기의 알림 설정(기기마다 따로). 받기 전에는 알림을 켜지 않는다(꺼 둔 기기에서 잠깐 울리지 않게)
+  const [notifyPrefs, setNotifyPrefs] = useState<NotifyPrefs | null>(null);
+  useEffect(() => {
+    setNotifyPrefs(null);
+    if (!openAccountId) return;
+    let stopped = false;
+    fetchNotifyPrefs()
+      .then((value) => {
+        if (!stopped) setNotifyPrefs(cleanNotifyPrefs(value));
+      })
+      .catch(() => {});
+    return () => {
+      stopped = true;
+    };
+  }, [openAccountId]);
+  const notifyPrefsValue = useMemo<NotifyPrefsValue>(
+    () => ({
+      prefs: notifyPrefs ?? DEFAULT_NOTIFY_PREFS,
+      save: async (changes) => {
+        const before = notifyPrefs;
+        if (before) setNotifyPrefs({ ...before, ...changes });
+        try {
+          setNotifyPrefs(cleanNotifyPrefs(await saveNotifyPrefs(changes)));
+        } catch {
+          setNotifyPrefs(before);
+        }
+      },
+    }),
+    [notifyPrefs],
+  );
   useIdleLock(open && !active?.kept, look.lock_minutes, changed);
   useEffect(() => onAccountOpen(openAccountId), [openAccountId, onAccountOpen]);
   // 화면에서 바로 고치는 설정(문서 제목, 탭 제목). 바로 보이게 하고 실패하면 되돌린다
@@ -261,9 +307,9 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     updateSettings({ guide_done: true }).catch(() => {}); // 못 남기면 다음에 한 번 더 보일 뿐
   }, [look, setLook]);
   const notify = useNotifications({
-    enabled: open && look.notify,
-    scope: look.notify_scope,
-    preview: look.notify_preview,
+    enabled: open && Boolean(notifyPrefs?.notify),
+    scope: notifyPrefs?.scope ?? "pinned",
+    preview: Boolean(notifyPrefs?.preview),
     accountId: openAccountId,
     currentChannel: route.view === "chat" ? route.channelId : route.view === "thread" ? route.threadId : null,
     currentForum: route.view === "posts" ? route.parentId : null,
@@ -479,6 +525,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
   };
   return (
     <LookContext.Provider value={lookValue}>
+      <NotifyPrefsContext.Provider value={notifyPrefsValue}>
       {look.theme === "word" ? (
         <div className="word-app">
           <WordChrome />
@@ -492,6 +539,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
       )}
       {installPresence.shown && <InstallDialog onClose={closeInstall} closing={installPresence.closing} />}
       <NotifyToast toast={notify.toast} onOpen={go} onClose={notify.closeToast} />
+      </NotifyPrefsContext.Provider>
     </LookContext.Provider>
   );
 }
@@ -631,8 +679,14 @@ export default function App() {
     else applyDisguise(workbook.fileName);
   }, [bossOn, look, mode, workbook.fileName, doc?.name]);
 
-  const relock = look.boss_relock;
-  const fullscreen = look.boss_fullscreen;
+  // 자동 위장, 전체 화면, 돌아올 때 잠그기는 기기마다(아직 안 정했으면 계정 값)
+  const bossDevice = useBossDevice({
+    auto: look.boss_auto,
+    fullscreen: look.boss_fullscreen,
+    relock: look.boss_relock,
+  });
+  const relock = bossDevice.relock;
+  const fullscreen = bossDevice.fullscreen;
   const bossUrl = look.boss_url;
   const enteredFullscreen = useRef(false);
   const toggle = useCallback(
@@ -698,7 +752,7 @@ export default function App() {
 
   // 자동 위장(선택): 창에서 벗어나거나 마우스가 창 밖으로 나가면
   useEffect(() => {
-    if (!look.boss_auto || bossOn) return;
+    if (!bossDevice.auto || bossOn) return;
     const choosingFile = () => document.activeElement instanceof HTMLInputElement && document.activeElement.type === "file";
     const onBlur = () => {
       if (!choosingFile()) toggle(true);
@@ -712,7 +766,7 @@ export default function App() {
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("mouseout", onLeave);
     };
-  }, [look.boss_auto, bossOn, toggle]);
+  }, [bossDevice.auto, bossOn, toggle]);
 
   return (
     <>

@@ -59,6 +59,7 @@ from mos.services.media_proxy import (
 )
 from mos.services.media_urls import AttachmentRefresher
 from mos.services.messages import row_to_api
+from mos.services.notify_prefs import NotifyPrefs, NotifyPrefsError
 from mos.services.permissions import ADD_REACTIONS, ChannelAccess, PermissionService, is_private
 from mos.services.push import PushError, PushService
 from mos.services.realtime import MAX_VOICE_GROUPS, RealtimeHub, Subscriber
@@ -363,7 +364,9 @@ def create_app(
                 original["author_id"],
                 original.get("web_sender_id"),
             )
-        hidden, hidden_mode = await hidden_prefs(subscriber.account_id)
+        hidden = {int(item) for item in (await settings_store.get(subscriber.account_id))["hidden"]}
+        device_prefs = await notify_prefs.get(subscriber.device_id, subscriber.account_id)
+        hidden_mode = device_prefs["hidden"]  # 숨긴 곳 알림은 기기마다
         if hidden & {channel_id, channel.parent_id, channel.guild_id}:
             # 숨긴 서버, 채널(그 스레드 포함): 숨김 알림 설정을 먼저 따른다
             if hidden_mode == "none" or (hidden_mode == "mentions" and not mentioned):
@@ -398,32 +401,35 @@ def create_app(
     # ------------------------------------------------------------ 웹 푸시(탭이 닫힌 계정)
 
     push = push_service or PushService(db, cipher, subject=settings.public_origin, clock=clock)
-    last_push: dict[int, dict[str, Any]] = {}  # 계정 → 마지막 알림 내용(서비스 워커가 받아 감)
+    # (기기, 계정) → 마지막 알림 내용(서비스 워커가 받아 감)
+    last_push: dict[tuple[int, int], dict[str, Any]] = {}
 
     async def push_after_notify(
-        channel_id: int, message: dict[str, Any], open_accounts: set[int]
+        channel_id: int, message: dict[str, Any], open_tabs: set[tuple[int, int]]
     ) -> None:
-        for account_id in await push.accounts():
-            if account_id in open_accounts:
-                continue  # 탭이 열려 있으면 그 탭이 알린다
+        """탭을 닫아 둔 기기에 웹 푸시. 기기마다 그 기기의 알림 설정을 따른다."""
+        for device_id, account_id in await push.targets():
+            if (device_id, account_id) in open_tabs:
+                continue  # 그 기기에 탭이 열려 있으면 탭이 알린다(다른 기기는 따로)
             account = await sessions.repo.account(account_id)
             if account is None or account.get("status") != "active":
                 continue
-            prefs = await settings_store.get(account_id)
+            prefs = await notify_prefs.get(device_id, account_id)
             if not prefs["notify"]:
                 continue
             target = Subscriber(
                 user_id=int(account["discord_user_id"]),
                 account_id=account_id,
-                notify_scope=prefs["notify_scope"],
+                device_id=device_id,
+                notify_scope=prefs["scope"],
             )
             if not await perms.can_read(target.user_id, channel_id):
                 continue
             payload = await notify_rule(target, channel_id, message)
             if payload is None:
                 continue
-            last_push[account_id] = {**payload, "at": clock()}
-            await push.send(account_id)
+            last_push[(device_id, account_id)] = {**payload, "at": clock()}
+            await push.send(account_id, device_id)
 
     hub.set_after_notify(push_after_notify)
     egress = EgressMeter(lists, settings.egress_limit_bytes, notify=notify_operator, clock=clock)
@@ -443,6 +449,7 @@ def create_app(
         else None
     )
     settings_store = SettingsStore(db, clock=clock)
+    notify_prefs = NotifyPrefs(db, settings_store)
     sessions = SessionService(
         AuthRepo(db),
         cipher,
@@ -678,6 +685,7 @@ def create_app(
             saved = await settings_store.update(account.account_id, body)
         except SettingsError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
+        notify_prefs.account_changed(account.account_id)  # 기기 알림의 기본값이 바뀌었을 수 있다
         if "lock_minutes" in body:
             # 지금 열려 있는 이 기기의 잠금 시간도 새 기준으로 바로 맞춘다
             await sessions.require_active(await current_device(request))
@@ -697,6 +705,7 @@ def create_app(
         device = await current_device(request)
         if device is not None:
             await push.forget_device_account(device.id)
+            await notify_prefs.forget(device.id)
         await sessions.logout(device)
         clear_device_cookie(response)
 
@@ -705,6 +714,7 @@ def create_app(
         device = await current_device(request)
         if device is not None:
             await push.forget_device_account(device.id, account_id)
+            await notify_prefs.forget(device.id, account_id)
         if await sessions.remove_account(device, account_id):
             clear_device_cookie(response)
 
@@ -717,8 +727,9 @@ def create_app(
         return await lists.unread(account.account_id, account.discord_user_id, ids)
 
     async def hidden_prefs(account_id: int) -> tuple[set[int], str]:
+        """숨긴 곳과 목록 숫자 규칙(계정 전체, 알림 규칙은 기기마다 따로)."""
         prefs = await settings_store.get(account_id)
-        return {int(item) for item in prefs["hidden"]}, prefs["hidden_notify"]
+        return {int(item) for item in prefs["hidden"]}, prefs["hidden_unread"]
 
     def counted(counts: tuple[int, int], hidden: bool, mode: str) -> tuple[int, int]:
         """숨긴 곳의 안 읽음: 알리지 않기면 0, 나를 부른 것만이면 부른 수만, 모두면 그대로."""
@@ -1340,6 +1351,24 @@ def create_app(
             )
         }
 
+    # ------------------------------------------------------------ 이 기기 알림 설정
+
+    @app.get("/api/notify-prefs")
+    async def get_notify_prefs(request: Request) -> dict[str, Any]:
+        account = await require_account(request)
+        return await notify_prefs.get(account.device_id, account.account_id)
+
+    @app.patch("/api/notify-prefs")
+    async def set_notify_prefs(request: Request) -> dict[str, Any]:
+        account = await require_account(request)
+        body = await request.json()
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=400, detail="bad_body")
+        try:
+            return await notify_prefs.update(account.device_id, account.account_id, body)
+        except NotifyPrefsError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
     @app.get("/api/push/latest")
     async def push_latest(request: Request) -> dict[str, Any]:
         """서비스 워커가 푸시를 받으면 보여 줄 글. 잠겨 있거나 내용 보이기를 껐으면 내용 없이."""
@@ -1348,8 +1377,9 @@ def create_app(
             raise HTTPException(status_code=404, detail="not found")
         account_id = device.active_account_id
         prefs = await settings_store.get(account_id)
+        device_prefs = await notify_prefs.get(device.id, account_id)
         title = prefs["tab_title"] or DEFAULT_TITLES.get(prefs["theme"], "작업 메모")
-        latest = last_push.get(account_id)
+        latest = last_push.get((device.id, account_id))
         result: dict[str, Any] = {"title": title, "body": "새 알림이 있어요", "url": "/"}
         if latest is None:
             return result
@@ -1364,7 +1394,7 @@ def create_app(
             await sessions.require_active(device, touch=False)
         except SessionError:
             unlocked = False
-        if prefs["notify_preview"] and unlocked:
+        if device_prefs["preview"] and unlocked:
             text = " ".join(str(latest["content"]).split())[:80] or latest.get("extra") or ""
             result["title"] = f"{latest['author_name']} (#{latest['channel_name']})"
             result["body"] = text or "새 메시지"
@@ -1473,7 +1503,7 @@ def create_app(
             await websocket.close(code=WS_POLICY_VIOLATION)
             return
         await websocket.accept()
-        hub.add(websocket, account.discord_user_id, account.account_id)
+        hub.add(websocket, account.discord_user_id, account.account_id, account.device_id)
 
         async def watch_session() -> None:
             # 다른 탭에서 잠그거나 계정을 바꾸면, 열려 있던 연결도 끊는다(잠금 시간은 늘리지 않음)
