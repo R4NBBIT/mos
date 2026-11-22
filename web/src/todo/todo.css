@@ -1899,3 +1899,80 @@
   opacity: 0;
   pointer-events: none;
 }
+
+/* ---------- 소식(NOTI-06) */
+.todo-room .header-tool {
+  position: relative;
+}
+
+.todo-unread-dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--danger);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.todo-alerts-sub {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.todo-news {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.todo-news-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 5px 6px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.todo-news-new {
+  background: var(--tint);
+}
+
+.todo-news-title {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.todo-news-body {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.todo-news-time {
+  color: var(--sub);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+
+/* 버튼 크기 통일(저장, 취소, 지우기, 확인 등): 같은 높이, 같은 최소 너비 */
+.todo-small-button {
+  min-width: 72px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 17px;
+  font-size: 13.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

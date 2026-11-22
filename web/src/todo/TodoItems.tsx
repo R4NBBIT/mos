@@ -1,5 +1,5 @@
 // 할 일 한 줄과 할 일 메뉴(SCR-03), 카테고리 묶음의 입력칸(날짜 알아보기, TODO-13~15)
-import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, dateWithWeekday, longLabel, timeLabel, today, WEEKDAY_NAMES } from "./dates";
 import { useEnterKey } from "./enterKey";
 import { parseWhen } from "./parseWhen";
@@ -125,11 +125,14 @@ function PickField({
 function TodoMenu({
   item,
   categories,
+  closeAsk,
   onDone,
   onClose,
 }: {
   item: TodoItem;
   categories: TodoCategory[];
+  /** 바뀔 때마다 취소를 누른 것처럼 */
+  closeAsk: number;
   /** 저장, 지우기가 끝나면(화면이 다시 받는다) */
   onDone: (notice?: string) => void;
   onClose: () => void;
@@ -150,37 +153,6 @@ function TodoMenu({
   const [leaving, setLeaving] = useState(false);
   const titleRef = useRef(title);
   titleRef.current = title;
-  // 메모는 쓰다 멈추면(1초) 저절로 저장(TODO-14). 저장한 값을 기억해 '저장' 때 또 보내지 않는다
-  const savedMemo = useRef(item.memo);
-  const memoTouched = useRef(false);
-  const [memoState, setMemoState] = useState<"" | "saving" | "saved" | "failed">("");
-  const saveMemo = useCallback(async () => {
-    const value = memo.trim();
-    if (value === savedMemo.current.trim()) return;
-    setMemoState("saving");
-    try {
-      await updateTodo(item.id, { memo: value });
-      savedMemo.current = value;
-      memoTouched.current = true;
-      setMemoState("saved");
-    } catch {
-      setMemoState("failed");
-    }
-  }, [memo, item.id]);
-  useEffect(() => {
-    if (memo.trim() === savedMemo.current.trim()) return;
-    const timer = window.setTimeout(() => void saveMemo(), 1000);
-    return () => window.clearTimeout(timer);
-  }, [memo, saveMemo]);
-  // 메뉴가 닫힐 때(닫기, 이름 다시 누르기) 메모를 저장했으면 목록을 다시 받는다
-  const doneRef = useRef(onDone);
-  doneRef.current = onDone;
-  useEffect(
-    () => () => {
-      if (memoTouched.current) doneRef.current();
-    },
-    [],
-  );
   const isPast = item.day < today();
   const openCategories = categories.filter((category) => !category.closed || category.id === item.category_id);
 
@@ -188,9 +160,7 @@ function TodoMenu({
     if (busy) return;
     setBusy(true);
     try {
-      const notice = await action();
-      memoTouched.current = false; // 목록은 여기서 다시 받으므로 닫힐 때 또 받지 않게
-      onDone(notice);
+      onDone(await action());
     } catch (failure) {
       setError(todoErrorText(failure));
       setBusy(false);
@@ -207,7 +177,7 @@ function TodoMenu({
       if (titleRef.current.trim() !== item.title) changes.title = titleRef.current.trim();
       if ((time || null) !== item.time) changes.time = time || null;
       if ((place.trim() || null) !== item.place) changes.place = place.trim() || null;
-      if (memo.trim() !== savedMemo.current.trim()) changes.memo = memo;
+      if (memo.trim() !== item.memo) changes.memo = memo;
       if (categoryId !== item.category_id) changes.category_id = categoryId;
       if (day !== item.day) changes.day = day;
       let saved = item;
@@ -251,18 +221,25 @@ function TodoMenu({
     });
 
   const enter = useEnterKey(() => void save());
-  // 저장하지 않은 바뀐 점(메모는 저절로 저장되므로 빼고)
+  // 저장하지 않은 바뀐 점(메모 포함. 취소하면 모두 되돌아감)
   const dirty =
     title.trim() !== item.title ||
     day !== item.day ||
     (time || null) !== item.time ||
     (place.trim() || null) !== item.place ||
+    memo.trim() !== item.memo ||
     categoryId !== item.category_id ||
     rule !== (item.repeat?.rule ?? "none") ||
     (rule !== "none" && (endDay || null) !== (item.repeat?.end_day ?? null)) ||
     (rule === "weekly" && !!item.repeat && weekdays.join() !== item.repeat.weekdays.join()) ||
     forFuture;
   const cancel = () => (dirty ? setLeaving(true) : onClose());
+  const cancelRef = useRef(cancel);
+  cancelRef.current = cancel;
+  const firstAsk = useRef(closeAsk);
+  useEffect(() => {
+    if (closeAsk !== firstAsk.current) cancelRef.current();
+  }, [closeAsk]);
   const toggleDay = (value: number) =>
     setWeekdays((current) => (current.includes(value) ? current.filter((d) => d !== value) : [...current, value].sort()));
 
@@ -386,15 +363,9 @@ function TodoMenu({
         value={memo}
         maxLength={1000}
         rows={2}
-        placeholder="메모 (나만 보여요, 저절로 저장)"
+        placeholder="메모 (나만 보여요)"
         onChange={(event) => setMemo(event.target.value)}
-        onBlur={() => void saveMemo()}
       />
-      {memoState && (
-        <span className="todo-hint" role="status">
-          {memoState === "saving" ? "메모 저장 중…" : memoState === "saved" ? "메모 저장됨" : "메모를 저장하지 못했어요"}
-        </span>
-      )}
       {error && <p className="todo-error">{error}</p>}
       <div className="todo-edit-actions">
         <button type="button" className="todo-small-button todo-primary" disabled={busy} onClick={() => void save()}>
@@ -410,7 +381,7 @@ function TodoMenu({
       </div>
       {leaving && (
         <div className="todo-confirm" role="alertdialog" aria-label="취소 확인">
-          <span>바꾼 내용이 저장되지 않아요. 취소할까요?{memoState === "saved" ? " (메모는 이미 저장됐어요)" : ""}</span>
+          <span>바꾼 내용이 저장되지 않아요. 취소할까요?</span>
           <div className="todo-confirm-buttons">
             <button type="button" className="todo-small-button" onClick={() => setLeaving(false)}>
               계속 고치기
@@ -461,6 +432,8 @@ export function TodoRow({
   onDone: (notice?: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  // 열린 메뉴의 이름을 다시 누르면 '취소'와 같게(바꾼 것이 있으면 확인)
+  const [closeAsk, setCloseAsk] = useState(0);
   const [memoOpen, setMemoOpen] = useState(false);
   const meta = [item.time ? timeLabel(item.time) : "", item.place ?? "", item.repeat ? repeatLabel(item.repeat) : ""]
     .filter(Boolean)
@@ -479,7 +452,12 @@ export function TodoRow({
             <path d={CHECK_PATH} />
           </svg>
         </button>
-        <button type="button" className="todo-title" aria-expanded={open} onClick={() => setOpen(true)}>
+        <button
+          type="button"
+          className="todo-title"
+          aria-expanded={open}
+          onClick={() => (open ? setCloseAsk((value) => value + 1) : setOpen(true))}
+        >
           <span className="todo-title-text">{item.title}</span>
           {meta && <span className="todo-meta">{meta}</span>}
         </button>
@@ -503,6 +481,7 @@ export function TodoRow({
         <TodoMenu
           item={item}
           categories={categories}
+          closeAsk={closeAsk}
           onClose={() => setOpen(false)}
           onDone={(notice) => {
             setOpen(false);

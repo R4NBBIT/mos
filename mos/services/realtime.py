@@ -191,6 +191,16 @@ class RealtimeHub:
                 log.warning("알림 조건 확인 실패: %s", type(result).__name__)
         await self._send_all(sends)
 
+    async def send_to_account(self, account_id: int, event: dict[str, Any]) -> set[int]:
+        """그 계정의 알림 켠 접속(탭)에 보낸다. 받은 기기 ID들(그 기기에는 웹 푸시를 안 보냄)."""
+        targets = [
+            (socket, subscriber)
+            for socket, subscriber in list(self._sockets.items())
+            if subscriber.account_id == account_id and subscriber.notify_scope is not None
+        ]
+        await self._send_all([(socket, event) for socket, _ in targets])
+        return {subscriber.device_id for socket, subscriber in targets if socket in self._sockets}
+
     async def _send_all(self, sends: list[tuple[JsonSocket, dict[str, Any]]]) -> None:
         if not sends:
             return

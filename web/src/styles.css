@@ -8947,3 +8947,18 @@ body.sorting * {
   display: inline-flex;
   align-items: center;
 }
+
+/* 서버 목록 '할 일' 줄: 시각이 지난 안 한 할 일이 있을 때 */
+.todo-entry-due .list-sub {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.todo-entry-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--danger);
+  margin-left: auto;
+}

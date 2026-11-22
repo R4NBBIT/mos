@@ -6,6 +6,7 @@ from typing import Any
 
 from mos.db.database import Database
 
+NEWS_KEEP = 50
 CATEGORY_COLUMNS = "id, name, color, visibility, memo_shared, position, closed_at"
 ITEM_COLUMNS = (
     "id, category_id, title, memo, day, time, place, visibility, position, done_at, source,"
@@ -310,3 +311,40 @@ class TodoRepo:
     async def forget_alerts_before(self, before: int) -> None:
         async with self.db.writing() as conn:
             await conn.execute("DELETE FROM todo_alert_sent WHERE sent_at < ?", (before,))
+
+    # ------------------------------------------------------------ 소식(NOTI-06)
+
+    async def add_news(self, account_id: int, kind: str, title: str, body: str, now: int) -> None:
+        async with self.db.writing() as conn:
+            await conn.execute(
+                "INSERT INTO todo_news (account_id, kind, title, body, created_at)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (account_id, kind, title, body, now),
+            )
+            # 계정당 최근 것만 남긴다
+            await conn.execute(
+                "DELETE FROM todo_news WHERE account_id = ? AND id NOT IN"
+                " (SELECT id FROM todo_news WHERE account_id = ? ORDER BY id DESC LIMIT ?)",
+                (account_id, account_id, NEWS_KEEP),
+            )
+
+    async def news(self, account_id: int, since: int) -> list[dict[str, Any]]:
+        rows = await self.db.fetch_all(
+            "SELECT id, kind, title, body, created_at FROM todo_news"
+            " WHERE account_id = ? AND created_at >= ? ORDER BY id DESC LIMIT ?",
+            (account_id, since, NEWS_KEEP),
+        )
+        return [
+            {
+                "id": str(row[0]),
+                "kind": str(row[1]),
+                "title": str(row[2]),
+                "body": str(row[3]),
+                "created_at": int(row[4]),
+            }
+            for row in rows
+        ]
+
+    async def forget_news_before(self, before: int) -> None:
+        async with self.db.writing() as conn:
+            await conn.execute("DELETE FROM todo_news WHERE created_at < ?", (before,))

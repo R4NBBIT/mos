@@ -443,6 +443,18 @@ class MosBot(discord.Client):
         user = self.get_user(operator_id) or await self.fetch_user(operator_id)
         await user.send(text)
 
+    async def send_dm(self, user_id: int, text: str) -> bool:
+        """사용자에게 봇 DM(할 일 아침 요약). DM을 막았거나 같은 서버가 아니면 False."""
+        try:
+            user = self.get_user(user_id) or await self.fetch_user(user_id)
+            await user.send(text[:1900])
+        except (discord.Forbidden, discord.NotFound):
+            return False
+        except discord.HTTPException as error:
+            log.info("DM 실패: HTTP %s", error.status)
+            return False
+        return True
+
     async def fetch_member(self, guild_id: int, user_id: int) -> MemberInfo | None:
         guild = self.get_guild(guild_id)
         if guild is None:

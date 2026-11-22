@@ -2,7 +2,13 @@
 import { useEffect, useState } from "react";
 import type { Theme } from "../theme";
 import { today } from "./dates";
-import { fetchTodoDays } from "./todoApi";
+import { fetchTodoDay, fetchTodoNews, TODO_NEWS_EVENT } from "./todoApi";
+
+/** 지금 시각(HH:MM) */
+function nowTime(): string {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+}
 
 /** 테마별 이름(ㅁㅇㅅ 왼쪽 목록처럼 업무 파일로 보이게) */
 const LABELS: Record<Theme, { name: string; ext: string }> = {
@@ -30,28 +36,54 @@ export default function TodoEntry({
 }) {
   const [left, setLeft] = useState<number | null>(null);
   const [total, setTotal] = useState(0);
+  const [due, setDue] = useState(0);
+  const [unread, setUnread] = useState(0);
+  const [tick, setTick] = useState(0);
+  // 1분마다, 새 할 일 알림이 오면 다시(시각이 지난 할 일, 안 읽은 소식)
+  useEffect(() => {
+    const again = () => setTick((value) => value + 1);
+    const timer = window.setInterval(again, 60_000);
+    window.addEventListener(TODO_NEWS_EVENT, again);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener(TODO_NEWS_EVENT, again);
+    };
+  }, []);
   useEffect(() => {
     let stopped = false;
-    const day = today();
-    fetchTodoDays(day, day)
-      .then((days) => {
+    fetchTodoDay(today())
+      .then((data) => {
         if (stopped) return;
-        const info = days[day];
-        setTotal(info?.total ?? 0);
-        setLeft(info ? info.total - info.done : 0);
+        const now = nowTime();
+        setTotal(data.items.length);
+        setLeft(data.items.filter((item) => !item.done).length);
+        setDue(data.items.filter((item) => !item.done && item.time !== null && item.time <= now).length);
       })
+      .catch(() => {});
+    fetchTodoNews()
+      .then((news) => !stopped && setUnread(news.unread))
       .catch(() => {});
     return () => {
       stopped = true;
     };
-  }, [version]);
+  }, [version, tick]);
   const label = LABELS[theme] ?? LABELS.moon;
-  const sub = left === null ? "" : total === 0 ? "오늘 할 일이 없어요" : left === 0 ? "오늘 다 했어요" : `오늘 ${left}개 남음`;
+  const sub =
+    left === null
+      ? ""
+      : due > 0
+        ? `시각 지난 할 일 ${due}개`
+        : total === 0
+          ? "오늘 할 일이 없어요"
+          : left === 0
+            ? "오늘 다 했어요"
+            : `오늘 ${left}개 남음`;
+  const classes = ["list-item", "todo-entry", active ? "list-item-active" : "", due > 0 ? "todo-entry-due" : ""];
   return (
     <section className="list-section todo-entry-section">
       <button
         type="button"
-        className={active ? "list-item todo-entry list-item-active" : "list-item todo-entry"}
+        className={classes.filter(Boolean).join(" ")}
         aria-current={active ? "page" : undefined}
         onClick={onOpen}
       >
@@ -66,6 +98,7 @@ export default function TodoEntry({
           {label.ext && <span className="skin-ext">{label.ext}</span>}
           {sub && <span className="list-sub">{sub}</span>}
         </span>
+        {unread > 0 && <span className="todo-entry-dot" role="img" aria-label={`새 소식 ${unread}개`} />}
         {preview && <span className="todo-preview-chip">나만 보임</span>}
       </button>
     </section>

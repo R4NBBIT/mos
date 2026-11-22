@@ -27,6 +27,8 @@ import {
   todoErrorText,
   type TodoItem,
   updateTodo,
+  fetchTodoNews,
+  TODO_NEWS_EVENT,
 } from "./todoApi";
 import "./todo.css";
 
@@ -95,6 +97,26 @@ export default function TodoScreen({
   const [info, setInfo] = useState<{ text: string; day?: string } | null>(null);
   const [bump, setBump] = useState(0);
   const [alertsOpen, setAlertsOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
+  const [newsVersion, setNewsVersion] = useState(0);
+  useEffect(() => {
+    let stopped = false;
+    fetchTodoNews()
+      .then((news) => !stopped && setUnread(news.unread))
+      .catch(() => {});
+    return () => {
+      stopped = true;
+    };
+  }, [newsVersion]);
+  useEffect(() => {
+    const refresh = () => setNewsVersion((value) => value + 1);
+    window.addEventListener(TODO_NEWS_EVENT, refresh);
+    return () => window.removeEventListener(TODO_NEWS_EVENT, refresh);
+  }, []);
+  const newsSeen = useCallback(() => {
+    setUnread(0);
+    window.dispatchEvent(new Event(TODO_NEWS_EVENT));
+  }, []);
   const dayRef = useRef(day);
   dayRef.current = day;
 
@@ -200,7 +222,7 @@ export default function TodoScreen({
           <button
             type="button"
             className="header-tool"
-            aria-label="할 일 알림"
+            aria-label={unread > 0 ? `소식과 알림, 새 소식 ${unread}개` : "소식과 알림"}
             aria-expanded={alertsOpen}
             onClick={() => setAlertsOpen((open) => !open)}
           >
@@ -209,6 +231,7 @@ export default function TodoScreen({
               <path d="M8 16.5a2 2 0 0 0 4 0" strokeLinecap="round" />
             </svg>
             <span className="header-tool-label">알림</span>
+            {unread > 0 && <span className="todo-unread-dot" aria-hidden="true" />}
           </button>
           <button type="button" className="header-tool" aria-label="카테고리 관리" onClick={onCategories}>
             <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -260,7 +283,7 @@ export default function TodoScreen({
         </button>
       </nav>
       <div className="todo-body">
-        {alertsOpen && <TodoAlertPanel onClose={() => setAlertsOpen(false)} />}
+        {alertsOpen && <TodoAlertPanel onClose={() => setAlertsOpen(false)} onSeen={newsSeen} />}
         {error && (
           <p className="todo-error" role="alert">
             {error}

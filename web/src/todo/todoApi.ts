@@ -140,6 +140,7 @@ export function todoErrorText(error: unknown): string {
     too_many_repeats: "반복 할 일은 100개까지예요.",
     bad_alert_lead: "알림 시각을 다시 골라 주세요.",
     bad_tz: "이 기기의 시간대를 알 수 없어요.",
+    bad_morning_via: "아침 요약 방법을 다시 골라 주세요.",
   };
   return words[code] ?? "저장하지 못했어요. 다시 해 주세요.";
 }
@@ -148,11 +149,31 @@ export function todoErrorText(error: unknown): string {
 
 export type AlertLead = 0 | 10 | 30 | 60;
 
+export type MorningVia = "push" | "dm" | "both";
+
 export interface TodoAlertPrefs {
   alert_lead: AlertLead | null;
   morning: string | null;
   tz: string;
+  morning_via: MorningVia;
+  /** 위장 화면일 때도 할 일 알림 창(내용 없이) */
+  boss_alerts: boolean;
 }
+
+export interface TodoNewsItem {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  created_at: number;
+}
+
+export const fetchTodoNews = () => call<{ items: TodoNewsItem[]; unread: number }>("/api/todo/news");
+
+export const markTodoNewsSeen = () => call<void>("/api/todo/news/seen", "POST");
+
+/** 새 할 일 알림이 오면(탭) 소식 점과 '할 일' 줄을 다시 받게 알리는 이벤트 이름 */
+export const TODO_NEWS_EVENT = "mos-todo-news";
 
 export const fetchAlertPrefs = () => call<TodoAlertPrefs>("/api/todo/prefs");
 

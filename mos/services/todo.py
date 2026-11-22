@@ -638,14 +638,37 @@ class TodoService:
                 changes[key] = value
             elif key == "tz":
                 changes[key] = clean_tz(value)
+            elif key == "morning_via":
+                if value not in MORNING_VIA:
+                    raise TodoError("bad_morning_via")
+                changes[key] = value
+            elif key == "boss_alerts":
+                if not isinstance(value, bool):
+                    raise TodoError("bad_body")
+                changes[key] = value
             else:
                 raise TodoError("bad_body")
         if changes:
             await self._save_prefs(account_id, changes)
         return await self.alert_prefs(account_id)
 
+    # ------------------------------------------------------------ 소식(NOTI-06)
+
+    async def news(self, account_id: int) -> dict[str, Any]:
+        seen = (await self._prefs(account_id)).get("news_seen")
+        seen = seen if isinstance(seen, int) and not isinstance(seen, bool) else 0
+        items = await self.repo.news(account_id, self.now() - NEWS_DAYS * 86400)
+        return {"items": items, "unread": sum(1 for item in items if int(item["id"]) > seen)}
+
+    async def news_seen(self, account_id: int) -> None:
+        items = await self.repo.news(account_id, 0)
+        if items:
+            await self._save_prefs(account_id, {"news_seen": int(items[0]["id"])})
+
 
 ALERT_LEADS = (0, 10, 30, 60)  # 몇 분 미리(NOTI-01)
+MORNING_VIA = ("push", "dm", "both")  # 아침 요약 방법(NOTI-03): 기기 알림, 봇 DM, 둘 다
+NEWS_DAYS = 30
 DEFAULT_TZ = "Asia/Seoul"
 
 
@@ -673,4 +696,9 @@ def alert_prefs_from(prefs: dict[str, Any]) -> dict[str, Any]:
         "alert_lead": lead if lead in ALERT_LEADS and not isinstance(lead, bool) else None,
         "morning": morning if isinstance(morning, str) and TIME_RE.match(morning) else None,
         "tz": tz,
+        "morning_via": prefs.get("morning_via")
+        if prefs.get("morning_via") in MORNING_VIA
+        else "push",
+        # 위장 화면일 때도 할 일 알림 창(내용 없이). 기본은 받지 않음(NOTI-05)
+        "boss_alerts": prefs.get("boss_alerts") is True,
     }

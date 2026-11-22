@@ -46,6 +46,13 @@ export async function askPopupPermission(): Promise<PopupSupport> {
 }
 
 /** 화면 안 작은 알림에 보일 것 */
+interface TodoAlertEvent {
+  title: string;
+  body: string;
+  /** 위장 중에도 알림 창(할 일 알림 설정) */
+  boss?: boolean;
+}
+
 export interface NotifyToast {
   /** 같은 내용이 다시 와도 새로 보이게 */
   key: number;
@@ -186,6 +193,46 @@ export function useNotifications({
     }
   }, [showToast]);
 
+  // 할 일 알림(공개 전 기능, 서버가 허용된 계정에만 보냄). 위장 중에는 할 일 알림 설정을 따른다
+  const showTodoAlert = useCallback((event: TodoAlertEvent) => {
+    if (!event || typeof event.title !== "string" || typeof event.body !== "string") return;
+    window.dispatchEvent(new Event("mos-todo-news")); // 소식 점, '할 일' 줄 다시 받기
+    const disguised = isDisguised();
+    if (disguised && event.boss !== true) return;
+    const showContent = optionsRef.current.preview && !disguised;
+    if (!disguised) {
+      playSound();
+      if (document.visibilityState === "visible" && document.hasFocus()) {
+        setToast({
+          key: Date.now(),
+          route: "#/todo",
+          title: showContent ? event.title : "할 일 알림",
+          body: showContent ? event.body : "",
+        });
+        window.clearTimeout(toastTimer.current);
+        toastTimer.current = window.setTimeout(() => setToast(null), TOAST_MS);
+        return;
+      }
+    }
+    if (popupSupport() !== "granted") return;
+    const title = showContent ? event.title : currentBaseTitle();
+    const body = showContent ? event.body : "새 알림이 있어요";
+    try {
+      popupRef.current?.close();
+      const popup = new Notification(title, { body, icon: currentIcon(), tag: "mos-notify", silent: disguised });
+      popup.onclick = () => {
+        window.focus();
+        if (!isDisguised()) optionsRef.current.onOpen("#/todo");
+        popup.close();
+      };
+      popupRef.current = popup;
+    } catch {
+      void navigator.serviceWorker?.ready
+        .then((registration) => registration.showNotification(title, { body, tag: "mos-notify", data: { url: "/#/todo" } }))
+        .catch(() => {});
+    }
+  }, []);
+
   // 연결: 알림을 켠 동안만. 끊기면 1초→…→30초 간격으로 다시
   useEffect(() => {
     if (!enabled || !accountId) return;
@@ -209,6 +256,10 @@ export function useNotifications({
         try {
           parsed = JSON.parse(message.data) as { type?: string; data?: NotifyEvent };
         } catch {
+          return;
+        }
+        if (parsed.type === "todo_alert") {
+          showTodoAlert(parsed.data as unknown as TodoAlertEvent);
           return;
         }
         const event = parsed.data;
@@ -240,7 +291,7 @@ export function useNotifications({
       setCounts({});
       closeToast();
     };
-  }, [enabled, accountId, sendScope, showPopup, setCounts, closeToast]);
+  }, [enabled, accountId, sendScope, showPopup, showTodoAlert, setCounts, closeToast]);
 
   // 범위를 바꾸면 연결은 그대로 두고 알려만 준다
   useEffect(() => sendScope(socketRef.current), [scope, sendScope]);

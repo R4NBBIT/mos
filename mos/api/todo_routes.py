@@ -126,6 +126,18 @@ def register_todo_routes(
         account = await writer(request)
         return await todo.update_alert_prefs(account.account_id, await json_body(request))
 
+    # ------------------------------------------------------------ 소식(NOTI-06)
+
+    @app.get("/api/todo/news")
+    async def todo_news(request: Request) -> dict[str, Any]:
+        account = await todo_account(request)
+        return await todo.news(account.account_id)
+
+    @app.post("/api/todo/news/seen", status_code=204)
+    async def todo_news_seen(request: Request) -> None:
+        account = await writer(request)
+        await todo.news_seen(account.account_id)
+
     # ------------------------------------------------------------ 반복
 
     @app.post("/api/todo/repeats")

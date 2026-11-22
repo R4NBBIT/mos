@@ -4,7 +4,7 @@ import { type ReactNode, useEffect, useState } from "react";
 
 export const MOTION_MS = 200;
 
-function reducedMotion(): boolean {
+export function reducedMotion(): boolean {
   try {
     return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   } catch {

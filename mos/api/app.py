@@ -339,6 +339,7 @@ def create_app(
     notify_operator: Callable[[str], Awaitable[None]] | None = None,
     push_service: PushService | None = None,
     run_background: bool = True,
+    send_dm: Callable[[int, str], Awaitable[bool]] | None = None,
     media_fetcher: Any = None,
 ) -> FastAPI:
     perms = permissions or PermissionService(directory)
@@ -610,24 +611,45 @@ def create_app(
     todo_alerts = TodoAlerts(todo_service, todo_repo, clock)
 
     async def send_todo_alerts() -> None:
-        """할 일 알림(NOTI-01, NOTI-03): 허용된 계정의, 알림을 켠 기기에만 웹 푸시."""
+        """할 일 알림(NOTI-01, NOTI-03, NOTI-05): 허용된 활성 계정만.
+        열린 탭이 있는 기기는 탭이 띄우고(위장 중 규칙은 탭이 따름), 나머지는 웹 푸시.
+        아침 요약을 DM으로 고른 계정은 봇 DM."""
         due = await todo_alerts.due()
         if not due:
             return
         targets = await push.targets()
-        for account_id, payload in due:
-            account = await sessions.repo.account(account_id)
+        for alert in due:
+            account = await sessions.repo.account(alert.account_id)
             if account is None or account.get("status") != "active":
                 continue
-            if not todo_access.allowed(int(account["discord_user_id"])):
+            user_id = int(account["discord_user_id"])
+            if not todo_access.allowed(user_id):
                 continue
+            if alert.dm is not None and send_dm is not None:
+                try:
+                    sent = await send_dm(user_id, alert.dm)
+                except Exception:
+                    sent = False
+                    logging.getLogger(__name__).warning("할 일 아침 요약 DM 실패")
+                if not sent:
+                    await todo_repo.add_news(
+                        alert.account_id,
+                        "dm_failed",
+                        "봇 DM을 보내지 못했어요",
+                        "ㅁㅇㅅ 봇과 같은 서버에 있고 서버 멤버의 DM을 허용했는지 확인해 주세요.",
+                        int(clock()),
+                    )
+            if alert.push is None:
+                continue
+            event = {"type": "todo_alert", "data": {**alert.push, "boss": alert.boss}}
+            in_tabs = await hub.send_to_account(alert.account_id, event)
             for device_id, target_account in targets:
-                if target_account != account_id:
+                if target_account != alert.account_id or device_id in in_tabs:
                     continue
-                if not (await notify_prefs.get(device_id, account_id))["notify"]:
+                if not (await notify_prefs.get(device_id, alert.account_id))["notify"]:
                     continue
-                last_push[(device_id, account_id)] = {**payload, "at": clock()}
-                await push.send(account_id, device_id)
+                last_push[(device_id, alert.account_id)] = {**alert.push, "at": clock()}
+                await push.send(alert.account_id, device_id)
 
     async def todo_alert_loop() -> None:
         while True:

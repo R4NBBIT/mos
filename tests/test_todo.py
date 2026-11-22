@@ -422,13 +422,21 @@ def test_alert_prefs(env: Env) -> None:
         "alert_lead": None,
         "morning": None,
         "tz": "Asia/Seoul",
+        "morning_via": "push",
+        "boss_alerts": False,
     }
     env.client.post("/api/todo/categories", json={"name": "a", "color": "#123456"}, headers=POST)
     env.tick(1)
     saved = env.client.patch(
         "/api/todo/prefs", json={"alert_lead": 10, "morning": "08:00", "tz": "UTC"}, headers=POST
     ).json()
-    assert saved == {"alert_lead": 10, "morning": "08:00", "tz": "UTC"}
+    assert saved == {
+        "alert_lead": 10,
+        "morning": "08:00",
+        "tz": "UTC",
+        "morning_via": "push",
+        "boss_alerts": False,
+    }
     # 최근 색 같은 다른 설정은 그대로
     assert env.client.get("/api/todo/categories").json()["recent_colors"] == ["#123456"]
     env.tick(1)
@@ -438,6 +446,8 @@ def test_alert_prefs(env: Env) -> None:
         {"morning": "8:00"},
         {"tz": "../etc/passwd"},
         {"tz": "Mars/Base"},
+        {"morning_via": "email"},
+        {"boss_alerts": "yes"},
         {"other": 1},
     ):
         env.tick(1)
@@ -463,7 +473,9 @@ def test_time_alert_and_morning_summary(env: Env) -> None:
     env.clock[0] = 1_800_000_000.0 + 5  # 17:00:05, 10분 전 = 지금
     due = asyncio.run(alerts.due())
     assert len(due) == 1
-    account_id, payload = due[0]
+    account_id, payload = due[0].account_id, due[0].push
+    assert due[0].dm is None and due[0].boss is False
+    assert payload is not None
     assert payload["kind"] == "todo" and payload["url"] == "/#/todo"
     assert "10분 뒤" in payload["title"]
     # 아침 요약(16:50, 30분 안)도 같이 하나로
@@ -492,3 +504,29 @@ def test_alerts_off_by_default(env: Env) -> None:
         headers=POST,
     )
     assert asyncio.run(env.app.state.todo_alerts.due()) == []
+
+
+def test_morning_by_dm_and_news(env: Env) -> None:
+    signed_up(env, "mocha")
+    alerts = env.app.state.todo_alerts
+    day = "2027-01-15"
+    env.client.post(
+        "/api/todo/items",
+        json={"title": "빨래", "day": day, "category_id": first_category(env)},
+        headers=POST,
+    )
+    env.tick(1)
+    body = {"morning": "17:00", "morning_via": "dm", "boss_alerts": True}
+    env.client.patch("/api/todo/prefs", json=body, headers=POST)
+    env.clock[0] = 1_800_000_000.0 + 30
+    due = asyncio.run(alerts.due())
+    assert len(due) == 1
+    assert due[0].push is None  # DM만 고르면 기기 알림은 없음
+    assert due[0].dm is not None and "빨래" in due[0].dm
+    assert due[0].boss is True
+    news = env.client.get("/api/todo/news").json()
+    assert news["unread"] == 1
+    assert news["items"][0]["title"] == "오늘 할 일 1개"
+    env.tick(1)
+    assert env.client.post("/api/todo/news/seen", headers=POST).status_code == 204
+    assert env.client.get("/api/todo/news").json()["unread"] == 0

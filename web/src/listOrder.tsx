@@ -1,12 +1,14 @@
 // 왼쪽 목록 순서 바꾸기(이 사이트에서만, 디스코드에는 그대로).
 // 순서는 계정 설정 list_order에 저장돼서 다른 브라우저에서도 같다.
 // PC는 마우스로 줄을 바로 끌고, 휴대폰은 '목록 편집'을 눌러 나오는 손잡이를 끈다.
-import { type KeyboardEvent, type PointerEvent, type ReactNode, useRef, useState } from "react";
+import { type KeyboardEvent, type PointerEvent, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLook } from "./lookContext";
+import { reducedMotion } from "./motion";
 import type { ChannelInfo } from "./types";
 
 const DRAG_START_PX = 6;
 const EDGE_SCROLL_PX = 40;
+const SLIDE_MS = 180; // 다른 줄이 비켜 가고, 놓은 줄이 자리 잡는 시간
 
 /** 저장된 순서대로. 저장된 순서에 없는 것(새로 생긴 서버, 채널)은 원래 순서대로 뒤에 */
 export function applyOrder<T extends { id: string }>(items: T[], order: string[] | undefined): T[] {
@@ -60,6 +62,20 @@ function swallowNextClick() {
   window.setTimeout(() => window.removeEventListener("click", stop, { capture: true }), 0);
 }
 
+/** 줄의 원래 자리(움직이는 중인 transform을 뺀 위치, 목록 위쪽 기준) */
+function layoutTop(row: HTMLElement, box: HTMLElement): number {
+  const transform = getComputedStyle(row).transform;
+  let shift = 0;
+  if (transform && transform !== "none") {
+    try {
+      shift = new DOMMatrixReadOnly(transform).m42;
+    } catch {
+      shift = 0;
+    }
+  }
+  return row.getBoundingClientRect().top - box.getBoundingClientRect().top - shift;
+}
+
 function scrollParent(element: HTMLElement | null): HTMLElement | null {
   let node = element?.parentElement ?? null;
   while (node) {
@@ -87,16 +103,62 @@ export function Sortable<T extends { id: string }>({
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<{ id: string; index: number } | null>(null);
+  // 놓은 뒤 부모가 새 순서를 줄 때까지 잠깐 그 순서로 그린다(제자리로 튀었다 돌아오지 않게)
+  const [pending, setPending] = useState<string[] | null>(null);
   const ids = items.map((item) => item.id);
-  const shownIds = drag ? moveTo(ids, drag.id, drag.index) : ids;
+  const idsKey = ids.join();
+  useEffect(() => setPending(null), [idsKey]);
+  const baseIds = pending && pending.length === ids.length && pending.every((id) => ids.includes(id)) ? pending : ids;
+  const shownIds = drag ? moveTo(baseIds, drag.id, drag.index) : baseIds;
   const byId = new Map(items.map((item) => [item.id, item]));
+
+  // 부드럽게(FLIP): 줄마다 지난번 위치를 기억해 두었다가, 자리가 바뀌면 옛 자리에서 새 자리로 미끄러지게
+  const tops = useRef(new Map<string, number>());
+  // 끄는 줄은 손가락(마우스)을 그대로 따라온다: 누른 곳과 줄 위쪽의 거리, 지금 손가락 위치
+  const grab = useRef<{ id: string; offset: number; pointerY: number } | null>(null);
+  const followPointer = () => {
+    const box = boxRef.current;
+    const held = grab.current;
+    if (!box || !held) return;
+    const row = box.querySelector<HTMLElement>(`:scope > [data-sort-id="${CSS.escape(held.id)}"]`);
+    if (!row) return;
+    row.style.transition = "none";
+    row.style.transform = "";
+    const shift = held.pointerY - box.getBoundingClientRect().top - held.offset - layoutTop(row, box);
+    row.style.transition = "none";
+    row.style.transform = `translateY(${shift}px)`;
+  };
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    if (!box) return;
+    const animate = !reducedMotion();
+    const next = new Map<string, number>();
+    for (const row of Array.from(box.querySelectorAll<HTMLElement>(":scope > [data-sort-id]"))) {
+      const id = row.dataset.sortId ?? "";
+      const top = layoutTop(row, box);
+      next.set(id, top);
+      if (grab.current?.id === id) continue; // 끄는 줄은 followPointer가
+      const before = tops.current.get(id);
+      if (!animate || before === undefined || before === top) continue;
+      row.style.transition = "none";
+      row.style.transform = `translateY(${before - top}px)`;
+      void row.offsetHeight; // 옛 자리를 먼저 그리게
+      row.style.transition = `transform ${SLIDE_MS}ms ease`;
+      row.style.transform = "";
+    }
+    tops.current = next;
+    followPointer();
+  });
 
   const start = (event: PointerEvent, id: string, immediate: boolean) => {
     const box = boxRef.current;
     if (!box) return;
     const startY = event.clientY;
     let active = false;
-    let index = ids.indexOf(id);
+    let index = baseIds.indexOf(id);
+    const order = baseIds;
+    const startRow = box.querySelector<HTMLElement>(`:scope > [data-sort-id="${CSS.escape(id)}"]`);
+    const offset = startRow ? startY - startRow.getBoundingClientRect().top : 0;
     const scroller = scrollParent(box);
     const onMove = (move: globalThis.PointerEvent) => {
       if (move.pointerId !== event.pointerId) return;
@@ -106,12 +168,16 @@ export function Sortable<T extends { id: string }>({
         document.body.classList.add("sorting");
       }
       move.preventDefault();
+      grab.current = { id, offset, pointerY: move.clientY };
       // 끄는 줄을 뺀 나머지 줄 가운데보다 아래에 있으면 그만큼 뒤로
       const rows = Array.from(box.querySelectorAll<HTMLElement>(":scope > [data-sort-id]"));
+      // 움직이는 중인 줄에 흔들리지 않게 그림 위치가 아니라 원래 자리(offsetTop)로 잰다
+      const boxTop = box.getBoundingClientRect().top;
       index = rows.filter(
-        (row) => row.dataset.sortId !== id && row.getBoundingClientRect().top + row.offsetHeight / 2 < move.clientY,
+        (row) => row.dataset.sortId !== id && boxTop + layoutTop(row, box) + row.offsetHeight / 2 < move.clientY,
       ).length;
       setDrag({ id, index });
+      followPointer();
       if (scroller) {
         const rect = scroller.getBoundingClientRect();
         if (move.clientY < rect.top + EDGE_SCROLL_PX) scroller.scrollBy(0, -12);
@@ -124,11 +190,23 @@ export function Sortable<T extends { id: string }>({
       window.removeEventListener("pointerup", onEnd);
       window.removeEventListener("pointercancel", onEnd);
       document.body.classList.remove("sorting");
+      // 놓은 줄: 지금 보이는 자리에서 들어갈 자리로 미끄러지게(다음 그림에서 FLIP)
+      const row = box.querySelector<HTMLElement>(`:scope > [data-sort-id="${CSS.escape(id)}"]`);
+      if (row && grab.current) {
+        const shown = row.getBoundingClientRect().top - box.getBoundingClientRect().top;
+        tops.current.set(id, shown);
+        row.style.transition = "none";
+        row.style.transform = "";
+      }
+      grab.current = null;
       setDrag(null);
       if (!active) return;
       swallowNextClick();
-      const next = moveTo(ids, id, index);
-      if (end.type === "pointerup" && next.join() !== ids.join()) onReorder(next);
+      const next = moveTo(order, id, index);
+      if (end.type === "pointerup" && next.join() !== order.join()) {
+        setPending(next);
+        onReorder(next);
+      }
     };
     window.addEventListener("pointermove", onMove, { passive: false });
     window.addEventListener("pointerup", onEnd);
@@ -136,11 +214,15 @@ export function Sortable<T extends { id: string }>({
   };
 
   const nudge = (event: KeyboardEvent, id: string) => {
-    const from = ids.indexOf(id);
+    const from = baseIds.indexOf(id);
     const to = event.key === "ArrowUp" ? from - 1 : event.key === "ArrowDown" ? from + 1 : from;
     if (to === from) return;
     event.preventDefault();
-    if (to >= 0 && to < ids.length) onReorder(moveTo(ids, id, to));
+    if (to >= 0 && to < baseIds.length) {
+      const next = moveTo(baseIds, id, to);
+      setPending(next);
+      onReorder(next);
+    }
   };
 
   return (
