@@ -16,6 +16,7 @@ import {
   THEMES,
   type Theme,
 } from "./theme";
+import { playSound, readSound, saveSound, useSound } from "./notifySound";
 import { saveTextSize, TEXT_SIZES, type TextSize, useTextSize } from "./textSize";
 import { askPopupPermission, popupSupport, type PopupSupport } from "./useNotifications";
 import { disablePush, enablePush, pushState, type PushState } from "./webPush";
@@ -95,6 +96,7 @@ interface Props {
 export default function SettingsScreen({ settings, onChange, onBack, menu, onFileChanged }: Props) {
   const [title, setTitle] = useState(settings.tab_title ?? "");
   const textSize = useTextSize();
+  const sound = useSound();
   const [error, setError] = useState("");
   const [popup, setPopup] = useState<PopupSupport>(popupSupport);
   const [push, setPush] = useState<PushState>("off");
@@ -403,6 +405,40 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
                       onClick={() => void askPopupPermission().then(setPopup)}
                     >
                       이 브라우저에서 알림 허용하기
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="settings-item">
+                <label className="settings-toggle">
+                  <span>
+                    <strong>알림 소리(이 브라우저)</strong>
+                    <small>새 알림이 오면 짧게 '띵' 소리를 내요. 기기마다 따로 정해요. 위장 화면 중에는 울리지 않아요</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    className="switch"
+                    checked={sound.on}
+                    onChange={(event) => saveSound({ ...sound, on: event.target.checked })}
+                  />
+                </label>
+                {sound.on && (
+                  <div className="settings-volume">
+                    <label htmlFor="notify-volume">음량</label>
+                    <input
+                      id="notify-volume"
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={sound.volume}
+                      onChange={(event) => saveSound({ ...sound, volume: Number(event.target.value) })}
+                      onPointerUp={() => playSound(readSound(), true)}
+                      onKeyUp={() => playSound(readSound(), true)}
+                    />
+                    <output htmlFor="notify-volume">{sound.volume}</output>
+                    <button type="button" className="text-button" onClick={() => playSound(sound, true)}>
+                      들어 보기
                     </button>
                   </div>
                 )}

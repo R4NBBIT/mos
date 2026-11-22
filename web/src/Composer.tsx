@@ -11,6 +11,8 @@ import {
 import { ApiError } from "./api";
 import EmojiPicker from "./EmojiPicker";
 import { formatBytes, prepareImage } from "./imageResize";
+import { Avatar } from "./MessageItem";
+import { applyMentions, filterItems, findTrigger, loadMentionData, type MentionItem } from "./mentions";
 import type { Message } from "./types";
 
 const MAX_LENGTH = 2000;
@@ -70,6 +72,44 @@ function FileThumb({ file }: { file: File }) {
   return url ? <img className="file-chip-thumb" src={url} alt="" /> : null;
 }
 
+// 쓰다 만 글: 채널마다 이 브라우저에 남겨 두고(다른 채널, 잠금, 새로고침 뒤에도), 보내면 지운다
+interface Draft {
+  text: string;
+  /** '@이름' → 사람 ID, '#채널' → 채널 ID(보낼 때 멘션으로 바꾸려고) */
+  picked: Record<string, string>;
+}
+
+const draftKey = (channelId: string) => `mos.draft.${channelId}`;
+
+function readDraft(channelId: string): Draft {
+  try {
+    const value = JSON.parse(localStorage.getItem(draftKey(channelId)) ?? "null") as Partial<Draft> | null;
+    if (!value || typeof value.text !== "string") return { text: "", picked: {} };
+    const picked: Record<string, string> = {};
+    for (const [token, id] of Object.entries(value.picked ?? {})) {
+      if (typeof id === "string" && /^\d{1,21}$/.test(id)) picked[token] = id;
+    }
+    return { text: value.text.slice(0, MAX_LENGTH), picked };
+  } catch {
+    return { text: "", picked: {} };
+  }
+}
+
+function writeDraft(channelId: string, draft: Draft): void {
+  try {
+    if (draft.text.trim()) localStorage.setItem(draftKey(channelId), JSON.stringify(draft));
+    else localStorage.removeItem(draftKey(channelId));
+  } catch {
+    // 남기지 못해도 지금 쓰는 데는 지장 없다
+  }
+}
+
+/** 붙인 파일: 사진이면 줄인 것(prepared)과 원본을 둘 다 가지고 있다가 고른 쪽을 보낸다 */
+interface PickedFile {
+  original: File;
+  prepared: File;
+}
+
 function newNonce(): string {
   return crypto.randomUUID();
 }
@@ -87,6 +127,9 @@ interface Props {
   onSubmit: (text: string, nonce: string, files: File[]) => Promise<void>;
   /** 스티커 보내기(없으면 스티커를 고를 수 없음) */
   onSticker?: (stickerId: string) => Promise<void>;
+  /** @사람, #채널 자동완성에 쓸 서버와, 볼 수 있는 사람을 가릴 채널(스레드면 부모) */
+  groupId?: string;
+  viewChannelId?: string;
 }
 
 export default function Composer({
@@ -99,12 +142,21 @@ export default function Composer({
   onCancel,
   onSubmit,
   onSticker,
+  groupId,
+  viewChannelId,
 }: Props) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(() => readDraft(channelId).text);
+  const pickedRef = useRef<Record<string, string>>(readDraft(channelId).picked);
+  const [suggest, setSuggest] = useState<{ kind: "@" | "#"; start: number; items: MentionItem[]; index: number } | null>(
+    null,
+  );
+  const [sendOriginal, setSendOriginal] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirmSlash, setConfirmSlash] = useState(false);
-  const [files, setFiles] = useState<File[]>([]);
+  const [items, setItems] = useState<PickedFile[]>([]);
+  const files = items.map((item) => (sendOriginal ? item.original : item.prepared));
+  const shrunk = items.some((item) => item.prepared !== item.original);
   const [preparing, setPreparing] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -113,16 +165,67 @@ export default function Composer({
   // 같은 내용을 다시 보내면(네트워크 오류 뒤 재시도) 같은 nonce → 서버가 한 번만 보낸다
   const nonceRef = useRef(newNonce());
 
+  // 고치기를 시작하면 그 메시지 내용으로, 끝나면 쓰다 만 글로 되돌린다
+  const wasEditing = useRef(false);
   useEffect(() => {
     if (editing) {
+      wasEditing.current = true;
       setText(editing.content);
       inputRef.current?.focus();
+    } else if (wasEditing.current) {
+      wasEditing.current = false;
+      const draft = readDraft(channelId);
+      pickedRef.current = draft.picked;
+      setText(draft.text);
     }
-  }, [editing]);
+  }, [editing, channelId]);
 
   useEffect(() => {
     if (replyTo) inputRef.current?.focus();
   }, [replyTo]);
+
+  // 쓰다 만 글 남기기(고치는 중인 메시지는 남기지 않는다)
+  useEffect(() => {
+    if (editing) return;
+    const timer = window.setTimeout(() => writeDraft(channelId, { text, picked: pickedRef.current }), 300);
+    return () => window.clearTimeout(timer);
+  }, [text, channelId, editing]);
+
+  // @, # 뒤에 글자를 치면 고를 목록
+  const updateSuggest = async (value: string, caret: number) => {
+    const trigger = groupId ? findTrigger(value, caret) : null;
+    if (!trigger || !groupId) {
+      setSuggest(null);
+      return;
+    }
+    const data = await loadMentionData(groupId);
+    let pool = trigger.kind === "#" ? data.channels : data.people;
+    const allowed = trigger.kind === "@" && viewChannelId ? data.restricted[viewChannelId] : undefined;
+    if (allowed) pool = pool.filter((item) => allowed.includes(item.id));
+    const found = filterItems(pool, trigger.query);
+    // 그 사이 글자가 또 바뀌었으면 버린다
+    const now = inputRef.current;
+    if (!now || now.value !== value) return;
+    setSuggest(found.length ? { kind: trigger.kind, start: trigger.start, items: found, index: 0 } : null);
+  };
+
+  const pickSuggest = (item: MentionItem) => {
+    const input = inputRef.current;
+    if (!input || !suggest) return;
+    const caret = input.selectionStart ?? text.length;
+    const token = `${item.kind}${item.name.replace(/\s+/g, "_")}`;
+    const next = `${text.slice(0, suggest.start)}${token} ${text.slice(caret)}`;
+    if (next.length > MAX_LENGTH) return;
+    pickedRef.current = { ...pickedRef.current, [token]: item.id };
+    setText(next);
+    setSuggest(null);
+    nonceRef.current = newNonce();
+    const at = suggest.start + token.length + 1;
+    window.requestAnimationFrame(() => {
+      input.focus();
+      input.setSelectionRange(at, at);
+    });
+  };
 
   // 내용 길이에 맞춰 높이 조절. 테두리까지 더해야 한 줄일 때 스크롤바(위아래 화살표)가 안 생긴다.
   // 최대 높이(CSS max-height)를 넘을 때만 안에서 스크롤
@@ -177,10 +280,12 @@ export default function Composer({
     setError("");
     setPreparing(true);
     try {
-      const prepared = await Promise.all(picked.map((file) => prepareImage(file)));
-      const next = [...files, ...prepared];
+      const prepared = await Promise.all(
+        picked.map(async (file) => ({ original: file, prepared: await prepareImage(file) })),
+      );
+      const next = [...items, ...prepared];
       if (next.length > MAX_FILES) setError(sendErrors.too_many_files ?? "");
-      setFiles(next.slice(0, MAX_FILES));
+      setItems(next.slice(0, MAX_FILES));
       nonceRef.current = newNonce();
     } finally {
       setPreparing(false);
@@ -216,9 +321,14 @@ export default function Composer({
     setBusy(true);
     setError("");
     try {
-      await onSubmit(text, nonceRef.current, editing ? [] : files);
+      await onSubmit(applyMentions(text, pickedRef.current), nonceRef.current, editing ? [] : files);
       setText("");
-      setFiles([]);
+      setItems([]);
+      setSendOriginal(false);
+      if (!editing) {
+        pickedRef.current = {};
+        writeDraft(channelId, { text: "", picked: {} });
+      }
       setPickerOpen(false);
       nonceRef.current = newNonce();
     } catch (caught) {
@@ -232,6 +342,25 @@ export default function Composer({
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     // 한글 조합 중 Enter는 글자 확정이라 보내지 않는다
     if (event.nativeEvent.isComposing) return;
+    if (suggest) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const step = event.key === "ArrowDown" ? 1 : -1;
+        setSuggest({ ...suggest, index: (suggest.index + step + suggest.items.length) % suggest.items.length });
+        return;
+      }
+      if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        const item = suggest.items[suggest.index];
+        if (item) pickSuggest(item);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setSuggest(null);
+        return;
+      }
+    }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       void submit();
@@ -297,6 +426,30 @@ export default function Composer({
           }
         />
       )}
+      {suggest && (
+        <ul className="mention-list" role="listbox" aria-label={suggest.kind === "@" ? "사람 고르기" : "채널 고르기"}>
+          {suggest.items.map((item, index) => (
+            <li key={`${item.kind}${item.id}`} role="option" aria-selected={index === suggest.index}>
+              <button
+                type="button"
+                className={index === suggest.index ? "mention-item mention-item-on" : "mention-item"}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => pickSuggest(item)}
+              >
+                {item.kind === "@" ? (
+                  <Avatar url={item.avatar ?? null} name={item.name} />
+                ) : (
+                  <span className="mention-hash" aria-hidden="true">
+                    #
+                  </span>
+                )}
+                <span className="mention-name">{item.name}</span>
+                {item.bot && <span className="member-bot">봇</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       {files.length > 0 && (
         <div className="composer-files">
           {files.map((file, index) => (
@@ -308,7 +461,7 @@ export default function Composer({
                 type="button"
                 aria-label={`${file.name} 빼기`}
                 onClick={() => {
-                  setFiles(files.filter((_, i) => i !== index));
+                  setItems(items.filter((_, i) => i !== index));
                   nonceRef.current = newNonce();
                 }}
               >
@@ -319,6 +472,25 @@ export default function Composer({
           <span className={totalBytes > MAX_FILES_BYTES ? "composer-error" : "file-total"}>
             합계 {formatBytes(totalBytes)} / 10MB
           </span>
+          {shrunk && (
+            <div className="photo-note">
+              <label className="photo-original">
+                <input
+                  type="checkbox"
+                  checked={sendOriginal}
+                  onChange={(event) => {
+                    setSendOriginal(event.target.checked);
+                    nonceRef.current = newNonce();
+                  }}
+                />
+                원본으로 보내기
+              </label>
+              <span className="photo-why">
+                사진은 화질은 거의 그대로 두고 크기만 줄여 보내요. 한 번에 10MB까지만 보낼 수 있고, 이 사이트가 한 달에
+                보낼 수 있는 양도 아낄 수 있어요. 위치 같은 사진 속 기록도 함께 지워져요.
+              </span>
+            </div>
+          )}
         </div>
       )}
       {looksLikeCommand && !confirmSlash && (
@@ -379,7 +551,9 @@ export default function Composer({
             setText(event.target.value);
             setConfirmSlash(false); // 고치면 다시 묻는다
             if (!editing) nonceRef.current = newNonce(); // 내용이 바뀌면 새 메시지
+            void updateSuggest(event.target.value, event.target.selectionStart ?? event.target.value.length);
           }}
+          onBlur={() => window.setTimeout(() => setSuggest(null), 150)}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
         />

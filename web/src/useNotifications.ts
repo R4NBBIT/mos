@@ -4,6 +4,7 @@
 // 위장 화면 중에는 알림을 띄우지 않고, 내용은 설정에서 켠 경우에만 보인다.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isDisguised } from "./boss/bossState";
+import { playSound } from "./notifySound";
 import { currentBaseTitle, currentIcon, type NotifyScope, setTitleBadge } from "./theme";
 
 const MAX_RETRY_MS = 30_000;
@@ -145,6 +146,7 @@ export function useNotifications({
 
   const showPopup = useCallback((event: NotifyEvent, total: number) => {
     if (isDisguised()) return;
+    playSound(); // 켜 둔 기기에서만(설정 › 알림 › 알림 소리)
     if (document.visibilityState === "visible" && document.hasFocus()) {
       showToast(event);
       return;

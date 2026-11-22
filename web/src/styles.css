@@ -6837,3 +6837,122 @@ body.sorting * {
   color: var(--link);
   font-weight: 600;
 }
+
+/* 알림 소리 음량 */
+.settings-volume {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.settings-volume input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--btn-bg);
+}
+
+.settings-volume output {
+  min-width: 28px;
+  text-align: right;
+  color: var(--sub);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------ @사람, #채널 고르기 */
+.composer {
+  position: relative;
+}
+
+.mention-list {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 100%;
+  z-index: 20;
+  max-width: 360px;
+  max-height: min(300px, 45vh);
+  margin: 0 0 6px;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  animation: pop-in 0.15s ease-out;
+}
+
+.mention-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px; /* 손가락으로 누르기 쉽게 */
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mention-item-on,
+.mention-item:hover {
+  background: var(--tint);
+}
+
+.mention-item .author-avatar {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  font-size: 11px;
+  line-height: 22px;
+}
+
+.mention-hash {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  color: var(--sub);
+  font-weight: 700;
+}
+
+.mention-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 사진 줄여 보내기 안내와 '원본으로 보내기' */
+.photo-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-basis: 100%;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--sub);
+}
+
+.photo-original {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  color: var(--ink);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.photo-original input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--btn-bg);
+}

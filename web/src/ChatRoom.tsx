@@ -432,6 +432,8 @@ export default function ChatRoom({
           : undefined
       }
       channelId={channel.id}
+      groupId={channel.group_id}
+      viewChannelId={channel.parent_id ?? channel.id}
       canSend={channel.can_send}
       replyTo={replyTo}
       editing={editing}
