@@ -269,7 +269,8 @@ def test_delete_needs_confirm_and_goes_to_trash(env: Env) -> None:
     item_id = added["structuredContent"]["added"][0]["id"]
     asked = call(env, token, "delete_todos", {"ids": [item_id]})
     assert "아직 실행하지 않았어요" in asked["content"][0]["text"]
-    assert "15:00 치과" in asked["structuredContent"]["summary"]
+    summary = asked["structuredContent"]["summary"]
+    assert "11월 23일 (월)\n[할 일]\n- 15:00 치과" in summary
     # 확인 전에는 그대로
     assert len(env.client.get("/api/todo/day/2026-11-23").json()["items"]) == 1
     bad = call(env, token, "confirm_action", {"confirm_id": "nope-nope"})
