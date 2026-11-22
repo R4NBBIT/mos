@@ -7820,3 +7820,121 @@ body.sorting * {
   border-color: #1f6e43;
   background: #e8f2ec;
 }
+
+/* ------------------------------------------------------------ 맨 아래로 단추(위로 한참 올렸을 때 대화 상자 오른쪽 아래) */
+.jump-bottom {
+  position: fixed;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+  cursor: pointer;
+  animation: jump-in 0.16s ease-out;
+}
+
+.jump-bottom:hover {
+  background: var(--tint);
+}
+
+.jump-bottom:focus-visible {
+  outline: 2px solid var(--honey);
+  outline-offset: 2px;
+}
+
+.jump-bottom-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 10px;
+  background: var(--honey);
+  color: #26272b;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+}
+
+@keyframes jump-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jump-bottom {
+    animation: none;
+  }
+}
+
+:root[data-theme="night"] .jump-bottom {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+/* 위장 테마: 그 프로그램의 떠 있는 단추처럼 */
+:root[data-theme="sheet"] .jump-bottom {
+  width: 36px;
+  height: 36px;
+  border-color: #c6c6c6;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #1f6e43;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16);
+}
+
+:root[data-theme="sheet"] .jump-bottom-count {
+  background: #1f6e43;
+  color: #ffffff;
+}
+
+:root[data-theme="memo"] .jump-bottom {
+  width: 36px;
+  height: 36px;
+  border-color: #c4c4c4;
+  border-radius: 4px;
+  background: #fbfbfb;
+  color: #005fb8;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
+}
+
+:root[data-theme="memo"] .jump-bottom-count {
+  background: #005fb8;
+  color: #ffffff;
+}
+
+:root[data-theme="note"] .jump-bottom {
+  border: 0;
+  background: #ffffff;
+  color: #37352f;
+  box-shadow:
+    rgba(15, 15, 15, 0.05) 0 0 0 1px,
+    rgba(15, 15, 15, 0.1) 0 3px 6px,
+    rgba(15, 15, 15, 0.2) 0 9px 24px;
+}
+
+:root[data-theme="note"] .jump-bottom-count {
+  background: #2383e2;
+  color: #ffffff;
+}
+
+:root[data-theme="word"] .jump-bottom {
+  border-color: #c8c6c4;
+  background: #ffffff;
+  color: #185abd;
+}
+
+:root[data-theme="word"] .jump-bottom-count {
+  background: #185abd;
+  color: #ffffff;
+}

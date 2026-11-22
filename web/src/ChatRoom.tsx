@@ -22,6 +22,7 @@ import MessageItem, { Avatar, MessageBody, paraColor, personId, type ReplyPrevie
 import SheetView, { plainText } from "./SheetView";
 import Drawer, { type DrawerTab } from "./Drawer";
 import HeaderTools from "./HeaderTools";
+import JumpToBottom from "./JumpToBottom";
 import type { Theme } from "./theme";
 import type { ChannelInfo, Message, RealtimeEvent } from "./types";
 import PostEditor from "./PostEditor";
@@ -34,6 +35,7 @@ const JUMP_PAGE_SIZE = 100;
 const JUMP_MAX_PAGES = 15;
 const JUMP_FLASH_MS = 2200;
 const SCROLL_HOLD_MS = 1500;
+const JUMP_SHOW_PX = 300;
 const NARROW_QUERY = "(max-width: 760px)";
 const NEAR_BOTTOM_PX = 120;
 
@@ -165,6 +167,7 @@ export default function ChatRoom({
     return () => window.clearTimeout(timer);
   }, [connected]);
   const [unseen, setUnseen] = useState(0);
+  const [farFromBottom, setFarFromBottom] = useState(false);
   const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -318,7 +321,10 @@ export default function ChatRoom({
   const onScroll = () => {
     const list = listRef.current;
     if (!list) return;
-    const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < NEAR_BOTTOM_PX;
+    const fromBottom = list.scrollHeight - list.scrollTop - list.clientHeight;
+    const nearBottom = fromBottom < NEAR_BOTTOM_PX;
+    // 한 화면의 반쯤 넘게 올라가 있으면 '맨 아래로' 단추
+    setFarFromBottom(fromBottom > Math.max(JUMP_SHOW_PX, list.clientHeight / 2));
     if (performance.now() >= holdScrollUntil.current) {
       stickToBottom.current = nearBottom;
       if (nearBottom) setUnseen(0);
@@ -573,6 +579,17 @@ export default function ChatRoom({
     />
   ) : null;
 
+  const jumpButton = (
+    <JumpToBottom
+      listRef={listRef}
+      shown={farFromBottom || unseen > 0}
+      unseen={unseen}
+      onClick={() => {
+        setFarFromBottom(false);
+        scrollToBottom();
+      }}
+    />
+  );
   const toggleDrawer = () => setDrawerTab((current) => (current ? null : "search"));
   if (theme === "sheet") {
     return (
@@ -620,7 +637,8 @@ export default function ChatRoom({
           onOpenTab={onOpenChannel}
           menu={menu}
         />
-        {drawer}
+        {jumpButton}
+      {drawer}
       </>
     );
   }
@@ -884,12 +902,8 @@ export default function ChatRoom({
         })}
       </div>
 
-      {unseen > 0 && (
-        <button type="button" className="unseen-pill" onClick={scrollToBottom}>
-          새 메시지 {unseen}개 ↓
-        </button>
-      )}
       {composer}
+      {jumpButton}
       {drawer}
     </div>
   );
