@@ -129,6 +129,11 @@ def test_full_flow_and_tools(env: Env) -> None:
         "update_todo",
         "complete_todo",
         "undo_last_add",
+        "delete_todos",
+        "add_category",
+        "update_category",
+        "close_category",
+        "confirm_action",
     ]
     cats = call(env, token, "list_categories")
     assert cats["structuredContent"]["categories"] == ["할 일"]
@@ -250,3 +255,89 @@ def test_disconnect(env: Env) -> None:
     assert env.client.delete(f"/api/todo/connections/{grant_id}", headers=POST).status_code == 204
     assert env.client.get("/api/todo/connections").json()["connections"] == []
     assert rpc(env, issued["access_token"], "ping").status_code == 401
+
+
+def test_delete_needs_confirm_and_goes_to_trash(env: Env) -> None:
+    _client_id, issued = connect(env)
+    token = issued["access_token"]
+    added = call(
+        env,
+        token,
+        "add_todos",
+        {"items": [{"title": "치과", "day": "2026-11-23", "time": "15:00"}]},
+    )
+    item_id = added["structuredContent"]["added"][0]["id"]
+    asked = call(env, token, "delete_todos", {"ids": [item_id]})
+    assert "아직 실행하지 않았어요" in asked["content"][0]["text"]
+    assert "15:00 치과" in asked["structuredContent"]["summary"]
+    # 확인 전에는 그대로
+    assert len(env.client.get("/api/todo/day/2026-11-23").json()["items"]) == 1
+    bad = call(env, token, "confirm_action", {"confirm_id": "nope-nope"})
+    assert bad["isError"] is True
+    done = call(
+        env, token, "confirm_action", {"confirm_id": asked["structuredContent"]["confirm_id"]}
+    )
+    assert "휴지통" in done["content"][0]["text"]
+    assert env.client.get("/api/todo/day/2026-11-23").json()["items"] == []
+    # 같은 확인 번호는 한 번만
+    again = call(
+        env, token, "confirm_action", {"confirm_id": asked["structuredContent"]["confirm_id"]}
+    )
+    assert again["isError"] is True
+    trash = env.client.get("/api/todo/ai").json()["trash"]
+    assert [t["title"] for t in trash] == ["치과"] and trash[0]["client"] == "Claude"
+    restored = env.client.post(f"/api/todo/ai/trash/{trash[0]['id']}/restore", headers=POST)
+    assert restored.status_code == 204
+    items = env.client.get("/api/todo/day/2026-11-23").json()["items"]
+    assert [(i["title"], i["time"]) for i in items] == [("치과", "15:00")]
+    assert env.client.get("/api/todo/ai").json()["trash"] == []
+
+
+def test_category_actions_and_widening_needs_app_approval(env: Env) -> None:
+    _client_id, issued = connect(env)
+    token = issued["access_token"]
+    made = call(env, token, "add_category", {"name": "운동", "color": "#16A34A"})
+    call(env, token, "confirm_action", {"confirm_id": made["structuredContent"]["confirm_id"]})
+    names = call(env, token, "list_categories")["structuredContent"]["categories"]
+    assert names == ["할 일", "운동"]
+    # 좁히기(친구 → 나만)는 대화 확인만
+    narrow = call(env, token, "update_category", {"category": "운동", "visibility": "private"})
+    assert "친구 → 나만" in narrow["structuredContent"]["summary"]
+    call(env, token, "confirm_action", {"confirm_id": narrow["structuredContent"]["confirm_id"]})
+    cats = env.client.get("/api/todo/categories").json()["categories"]
+    assert next(c for c in cats if c["name"] == "운동")["visibility"] == "private"
+    # 넓히기(나만 → 전체)는 ㅁㅇㅅ 화면 승인까지
+    wide = call(env, token, "update_category", {"category": "운동", "visibility": "public"})
+    waiting = call(
+        env, token, "confirm_action", {"confirm_id": wide["structuredContent"]["confirm_id"]}
+    )
+    assert "승인해야" in waiting["content"][0]["text"]
+    cats = env.client.get("/api/todo/categories").json()["categories"]
+    assert next(c for c in cats if c["name"] == "운동")["visibility"] == "private"
+    pending = env.client.get("/api/todo/ai").json()["pending"]
+    assert len(pending) == 1 and "나만 → 전체" in pending[0]["summary"]
+    news = env.client.get("/api/todo/news").json()
+    assert news["unread"] == 1 and news["items"][0]["kind"] == "ai_request"
+    ok = env.client.post(
+        f"/api/todo/ai/pending/{pending[0]['id']}", json={"approve": True}, headers=POST
+    )
+    assert ok.status_code == 200
+    cats = env.client.get("/api/todo/categories").json()["categories"]
+    assert next(c for c in cats if c["name"] == "운동")["visibility"] == "public"
+    # 끝내기는 지우지 않고 숨김
+    close = call(env, token, "close_category", {"category": "운동"})
+    call(env, token, "confirm_action", {"confirm_id": close["structuredContent"]["confirm_id"]})
+    cats = env.client.get("/api/todo/categories").json()["categories"]
+    assert next(c for c in cats if c["name"] == "운동")["closed"] is True
+
+
+def test_other_connection_cannot_confirm(env: Env) -> None:
+    _client_id, issued = connect(env)
+    asked = call(env, issued["access_token"], "add_category", {"name": "공부"})
+    second_client = register(env)
+    query = approve(env, authorize(env, second_client))
+    other = tokens(env, query["code"][0], second_client)["access_token"]
+    result = call(
+        env, other, "confirm_action", {"confirm_id": asked["structuredContent"]["confirm_id"]}
+    )
+    assert result["isError"] is True

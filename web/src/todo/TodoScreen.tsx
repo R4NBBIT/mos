@@ -304,7 +304,7 @@ export default function TodoScreen({
         </button>
       </nav>
       <div className="todo-body">
-        {aiOpen && <TodoAiPanel onClose={() => setAiOpen(false)} />}
+        {aiOpen && <TodoAiPanel onClose={() => setAiOpen(false)} onChanged={() => setBump((value) => value + 1)} />}
         {alertsOpen && <TodoAlertPanel onClose={() => setAlertsOpen(false)} onSeen={newsSeen} />}
         {error && (
           <p className="todo-error" role="alert">

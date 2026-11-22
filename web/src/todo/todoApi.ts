@@ -209,3 +209,25 @@ export const decideConnectRequest = (id: string, allow: boolean) =>
 export const fetchConnections = () => call<{ connections: TodoConnection[]; mcp_url: string }>("/api/todo/connections");
 
 export const disconnectAi = (id: string) => call<void>(`/api/todo/connections/${encodeURIComponent(id)}`, "DELETE");
+
+export interface TodoAiPending {
+  id: string;
+  summary: string;
+  created_at: number;
+  client: string;
+}
+
+export interface TodoAiTrash {
+  id: string;
+  title: string;
+  day: string;
+  client: string;
+  deleted_at: number;
+}
+
+export const fetchAiState = () => call<{ pending: TodoAiPending[]; trash: TodoAiTrash[] }>("/api/todo/ai");
+
+export const decideAiPending = (id: string, approve: boolean) =>
+  call<{ message: string }>(`/api/todo/ai/pending/${encodeURIComponent(id)}`, "POST", { approve });
+
+export const restoreAiTrash = (id: string) => call<void>(`/api/todo/ai/trash/${encodeURIComponent(id)}/restore`, "POST");

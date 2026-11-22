@@ -2257,3 +2257,24 @@
     grid-template-columns: 1fr;
   }
 }
+
+.todo-ai-request {
+  align-items: flex-start;
+}
+
+.todo-ai-summary {
+  flex: 1 1 100%;
+  order: 2;
+  white-space: pre-line;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.todo-ai-request .todo-ai-confirm {
+  order: 1;
+}
+
+.todo-connect-lists strong + ul + strong {
+  display: block;
+  margin-top: 10px;
+}

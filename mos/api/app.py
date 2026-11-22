@@ -81,6 +81,7 @@ from mos.services.settings import SettingsError, SettingsStore
 from mos.services.todo import TodoService
 from mos.services.todo_access import FEATURE_NAME as TODO_FEATURE
 from mos.services.todo_access import TodoAccess
+from mos.services.todo_ai_actions import TodoAiActions
 from mos.services.todo_alerts import TodoAlerts
 from mos.services.todo_mcp import TodoMcp
 from mos.services.todo_oauth import TodoOAuth
@@ -618,6 +619,7 @@ def create_app(
             return None
         return int(account["discord_user_id"])
 
+    todo_actions = TodoAiActions(db, todo_service, todo_repo, clock)
     register_todo_ai_routes(
         app,
         origin=settings.public_origin.rstrip("/"),
@@ -625,7 +627,8 @@ def create_app(
         account_status=active_user,
         access=todo_access,
         oauth=TodoOAuth(db, clock),
-        mcp=TodoMcp(todo_service, todo_repo, clock),
+        mcp=TodoMcp(todo_service, todo_repo, todo_actions, clock),
+        actions=todo_actions,
         todo=todo_service,
         clock=clock,
     )

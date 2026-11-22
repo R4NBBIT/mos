@@ -23,6 +23,7 @@ from mos.api.rate_limit import RateLimiter
 from mos.services.session import ActiveAccount
 from mos.services.todo import TodoService
 from mos.services.todo_access import TodoAccess
+from mos.services.todo_ai_actions import TodoAiActions
 from mos.services.todo_mcp import TodoMcp
 from mos.services.todo_oauth import SCOPE, OAuthError, TodoOAuth
 
@@ -57,6 +58,7 @@ def register_todo_ai_routes(
     access: TodoAccess,
     oauth: TodoOAuth,
     mcp: TodoMcp,
+    actions: TodoAiActions,
     todo: TodoService,
     clock: Callable[[], float],
 ) -> None:
@@ -265,6 +267,36 @@ def register_todo_ai_routes(
     async def todo_connections(request: Request) -> dict[str, Any]:
         account = await todo_account(request)
         return {"connections": await oauth.connections(account.account_id), "mcp_url": resource}
+
+    # AI가 만든 요청 중 ㅁㅇㅅ에서 승인해야 하는 것(공개 범위 넓히기 등), AI가 지운 것(7일)
+    @app.get("/api/todo/ai")
+    async def todo_ai_state(request: Request) -> dict[str, Any]:
+        account = await todo_account(request)
+        return {
+            "pending": await actions.pending(account.account_id),
+            "trash": await actions.trash(account.account_id),
+        }
+
+    @app.post("/api/todo/ai/pending/{action_id}")
+    async def todo_ai_decide(action_id: str, request: Request) -> Any:
+        account = await todo_account(request)
+        try:
+            body = await request.json()
+        except ValueError:
+            body = None
+        if not isinstance(body, dict) or not isinstance(body.get("approve"), bool):
+            return JSONResponse({"detail": "bad_body"}, status_code=400)
+        result = await actions.decide(account.account_id, action_id, body["approve"])
+        if result is None:
+            return JSONResponse({"detail": "expired"}, status_code=410)
+        return {"message": result}
+
+    @app.post("/api/todo/ai/trash/{trash_id}/restore", status_code=204)
+    async def todo_ai_restore(trash_id: str, request: Request) -> Response:
+        account = await todo_account(request)
+        if not await actions.restore(account.account_id, trash_id):
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
+        return Response(status_code=204)
 
     @app.delete("/api/todo/connections/{grant_id}", status_code=204)
     async def todo_disconnect(grant_id: str, request: Request) -> Response:
