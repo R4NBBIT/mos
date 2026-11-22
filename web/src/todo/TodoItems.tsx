@@ -1,6 +1,6 @@
 // 할 일 한 줄과 할 일 메뉴(SCR-03), 카테고리 묶음의 입력칸(날짜 알아보기, TODO-13~15)
 import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { addDays, longLabel, timeLabel, today, WEEKDAY_NAMES } from "./dates";
+import { addDays, dateWithWeekday, longLabel, timeLabel, today, WEEKDAY_NAMES } from "./dates";
 import { useEnterKey } from "./enterKey";
 import { parseWhen } from "./parseWhen";
 import {
@@ -60,6 +60,68 @@ function MemoText({ text }: { text: string }) {
 
 type RuleChoice = "none" | RepeatRule;
 
+/** 날짜, 시각 고르기: 글자(요일 포함)를 누르면 브라우저 고르기 창이 바로 열린다 */
+function PickField({
+  type,
+  value,
+  label,
+  empty,
+  min,
+  required,
+  onChange,
+}: {
+  type: "date" | "time";
+  value: string;
+  label: string;
+  empty: string;
+  min?: string;
+  required?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const open = () => {
+    const input = ref.current;
+    if (!input) return;
+    try {
+      input.showPicker();
+    } catch {
+      input.focus(); // 고르기 창을 열 수 없는 브라우저는 칸에 바로 입력
+    }
+  };
+  const shown = value ? (type === "date" ? dateWithWeekday(value) : timeLabel(value)) : empty;
+  return (
+    <span className="todo-pick">
+      <button type="button" className={value ? "todo-pick-button" : "todo-pick-button todo-pick-empty"} onClick={open}>
+        {shown}
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          {type === "date" ? (
+            <>
+              <rect x="3.5" y="4.5" width="13" height="12" rx="2" />
+              <path d="M3.5 8.5h13M7 3v3M13 3v3" />
+            </>
+          ) : (
+            <>
+              <circle cx="10" cy="10" r="6.5" />
+              <path d="M10 6.5V10l2.5 1.5" />
+            </>
+          )}
+        </svg>
+      </button>
+      <input
+        ref={ref}
+        className="todo-pick-input"
+        type={type}
+        value={value}
+        min={min}
+        required={required}
+        aria-label={label}
+        tabIndex={-1}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </span>
+  );
+}
+
 function TodoMenu({
   item,
   categories,
@@ -85,6 +147,7 @@ function TodoMenu({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const titleRef = useRef(title);
   titleRef.current = title;
   // 메모는 쓰다 멈추면(1초) 저절로 저장(TODO-14). 저장한 값을 기억해 '저장' 때 또 보내지 않는다
@@ -188,6 +251,18 @@ function TodoMenu({
     });
 
   const enter = useEnterKey(() => void save());
+  // 저장하지 않은 바뀐 점(메모는 저절로 저장되므로 빼고)
+  const dirty =
+    title.trim() !== item.title ||
+    day !== item.day ||
+    (time || null) !== item.time ||
+    (place.trim() || null) !== item.place ||
+    categoryId !== item.category_id ||
+    rule !== (item.repeat?.rule ?? "none") ||
+    (rule !== "none" && (endDay || null) !== (item.repeat?.end_day ?? null)) ||
+    (rule === "weekly" && !!item.repeat && weekdays.join() !== item.repeat.weekdays.join()) ||
+    forFuture;
+  const cancel = () => (dirty ? setLeaving(true) : onClose());
   const toggleDay = (value: number) =>
     setWeekdays((current) => (current.includes(value) ? current.filter((d) => d !== value) : [...current, value].sort()));
 
@@ -211,7 +286,7 @@ function TodoMenu({
         <label className="todo-prop">
           <span className="todo-prop-key">날짜</span>
           <span className="todo-prop-value">
-            <input type="date" value={day} required onChange={(event) => event.target.value && setDay(event.target.value)} />
+            <PickField type="date" label="날짜" value={day} empty="" required onChange={(value) => value && setDay(value)} />
             <button type="button" className="todo-link-button" disabled={busy} onClick={() => void moveTo(isPast ? today() : addDays(item.day, 1))}>
               {isPast ? "오늘 하기" : "내일 하기"}
             </button>
@@ -220,7 +295,7 @@ function TodoMenu({
         <label className="todo-prop">
           <span className="todo-prop-key">시각</span>
           <span className="todo-prop-value">
-            <input type="time" value={time} onChange={(event) => setTime(event.target.value)} />
+            <PickField type="time" label="시각" value={time} empty="없음" onChange={setTime} />
             {time && (
               <button type="button" className="todo-link-button" onClick={() => setTime("")} aria-label="시각 지우기">
                 지우기
@@ -280,7 +355,19 @@ function TodoMenu({
           <label className="todo-prop">
             <span className="todo-prop-key">끝나는 날</span>
             <span className="todo-prop-value">
-              <input type="date" value={endDay} min={item.repeat ? undefined : item.day} onChange={(event) => setEndDay(event.target.value)} />
+              <PickField
+                type="date"
+                label="끝나는 날"
+                value={endDay}
+                empty="없음"
+                min={item.repeat ? undefined : item.day}
+                onChange={setEndDay}
+              />
+              {endDay && (
+                <button type="button" className="todo-link-button" onClick={() => setEndDay("")}>
+                  지우기
+                </button>
+              )}
               {!endDay && <span className="todo-hint">비우면 계속</span>}
             </span>
           </label>
@@ -313,14 +400,27 @@ function TodoMenu({
         <button type="button" className="todo-small-button todo-primary" disabled={busy} onClick={() => void save()}>
           저장
         </button>
-        <button type="button" className="todo-small-button" onClick={onClose}>
-          닫기
+        <button type="button" className="todo-small-button" onClick={cancel}>
+          취소
         </button>
         <span className="todo-spacer" />
         <button type="button" className="todo-small-button todo-danger-text" onClick={() => setConfirming(true)}>
           지우기
         </button>
       </div>
+      {leaving && (
+        <div className="todo-confirm" role="alertdialog" aria-label="취소 확인">
+          <span>바꾼 내용이 저장되지 않아요. 취소할까요?{memoState === "saved" ? " (메모는 이미 저장됐어요)" : ""}</span>
+          <div className="todo-confirm-buttons">
+            <button type="button" className="todo-small-button" onClick={() => setLeaving(false)}>
+              계속 고치기
+            </button>
+            <button type="button" className="todo-small-button todo-danger" onClick={onClose}>
+              확인
+            </button>
+          </div>
+        </div>
+      )}
       {confirming && (
         <div className="todo-confirm" role="group" aria-label="지우기 확인">
           <span>
@@ -379,7 +479,7 @@ export function TodoRow({
             <path d={CHECK_PATH} />
           </svg>
         </button>
-        <button type="button" className="todo-title" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <button type="button" className="todo-title" aria-expanded={open} onClick={() => setOpen(true)}>
           <span className="todo-title-text">{item.title}</span>
           {meta && <span className="todo-meta">{meta}</span>}
         </button>
@@ -392,8 +492,8 @@ export function TodoRow({
             onClick={() => setMemoOpen(!memoOpen)}
           >
             <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M5 3h7l3 3v11H5z" />
-              <path d="M8 10h5M8 13h4" />
+              <path d="M4 1.5h8.5l4 4v13H4z" />
+              <path d="M12.5 1.5v4h4M7 10h6.5M7 13.5h5" />
             </svg>
           </button>
         )}

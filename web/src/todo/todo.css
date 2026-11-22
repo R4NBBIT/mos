@@ -1805,3 +1805,97 @@
 .todo-alerts .todo-hint {
   margin: 0;
 }
+
+/* ---------- 2026-11-22 피드백: 아이콘을 글자 가까이, 크게 */
+.todo-title {
+  flex: 0 1 auto;
+}
+
+.todo-memo-button {
+  width: 32px;
+  height: 30px;
+  margin-left: -4px;
+  color: var(--ink);
+  opacity: 0.7;
+}
+
+.todo-memo-button:hover,
+.todo-memo-button-on {
+  opacity: 1;
+}
+
+.todo-memo-button svg {
+  width: 23px;
+  height: 23px;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+/* 고치기 메뉴의 값: 칸을 늘리지 않아 아이콘이 글자 바로 옆에 */
+.todo-prop-value input,
+.todo-prop-value select {
+  flex: none;
+  width: auto;
+}
+
+.todo-prop-value input:not([type]) {
+  flex: 1;
+  max-width: 260px;
+}
+
+.todo-pick {
+  position: relative;
+  display: inline-flex;
+}
+
+.todo-pick-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.todo-pick-button:hover {
+  background: var(--tint);
+}
+
+.todo-pick-button:focus-visible {
+  outline: 0;
+  border-color: var(--honey);
+}
+
+.todo-pick-empty {
+  color: var(--sub);
+}
+
+.todo-pick-button svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--sub);
+}
+
+/* 실제 입력칸은 보이지 않게 두고 고르기 창만 쓴다(display: none이면 창이 안 열림) */
+.todo-pick-input {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  opacity: 0;
+  pointer-events: none;
+}

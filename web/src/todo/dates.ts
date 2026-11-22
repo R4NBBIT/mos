@@ -71,6 +71,11 @@ export function monthLabel(key: string): string {
 
 export const WEEKDAY_NAMES = WEEKDAYS;
 
+/** 2026-11-22 → 2026. 11. 22. (일) */
+export function dateWithWeekday(key: string): string {
+  return `${key.slice(0, 4)}. ${Number(key.slice(5, 7))}. ${Number(key.slice(8, 10))}. (${weekdayName(key)})`;
+}
+
 /** 15:00 → 오후 3:00 */
 export function timeLabel(time: string): string {
   const [hour = 0, minute = 0] = time.split(":").map(Number);
