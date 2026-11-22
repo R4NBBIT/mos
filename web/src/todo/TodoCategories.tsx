@@ -37,7 +37,7 @@ function rgbToHex(rgb: [number, number, number]): string {
 }
 
 /** 기본 7색 + 팔레트(브라우저 색 고르기 창) + HEX, R G B 직접 입력 */
-function ColorPicker({ value, onChange }: { value: string; onChange: (color: string) => void }) {
+function ColorPicker({ value, recent, onChange }: { value: string; recent: string[]; onChange: (color: string) => void }) {
   const [hex, setHex] = useState(value);
   const [rgb, setRgb] = useState<string[]>(hexToRgb(value).map(String));
   useEffect(() => {
@@ -47,7 +47,7 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (color: str
   const hexBad = normalHex(hex) === null;
   const rgbParsed = rgb.map((part) => (/^\d{1,3}$/.test(part.trim()) ? Number(part) : -1));
   const rgbBad = rgbParsed.some((part) => part < 0 || part > 255);
-  const custom = !PRESETS.includes(value);
+  const custom = !PRESETS.includes(value) && !recent.includes(value);
   return (
     <div className="todo-color">
       <div className="todo-color-presets" role="radiogroup" aria-label="기본 색">
@@ -69,6 +69,23 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (color: str
           {custom && <span className="todo-swatch-fill" style={{ background: value }} />}
         </label>
       </div>
+      {recent.length > 0 && (
+        <div className="todo-color-recent" role="radiogroup" aria-label="최근에 고른 색">
+          <span className="todo-color-recent-label">최근</span>
+          {recent.map((color) => (
+            <button
+              key={color}
+              type="button"
+              role="radio"
+              aria-checked={value === color}
+              aria-label={`최근 색 ${color}`}
+              className={value === color ? "todo-swatch todo-swatch-small todo-swatch-on" : "todo-swatch todo-swatch-small"}
+              style={{ background: color }}
+              onClick={() => onChange(color)}
+            />
+          ))}
+        </div>
+      )}
       <div className="todo-color-fields">
         <label className="todo-field todo-field-hex">
           HEX
@@ -112,11 +129,13 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (color: str
 
 function CategoryEditor({
   category,
+  recent,
   onSaved,
   onDeleted,
   onClose,
 }: {
   category: TodoCategory;
+  recent: string[];
   onSaved: (category: TodoCategory) => void;
   onDeleted: () => void;
   onClose: () => void;
@@ -154,7 +173,7 @@ function CategoryEditor({
       </label>
       <div className="todo-field todo-field-wide">
         색
-        <ColorPicker value={color} onChange={setColor} />
+        <ColorPicker value={color} recent={recent} onChange={setColor} />
       </div>
       {error && <p className="todo-error">{error}</p>}
       <div className="todo-edit-actions">
@@ -202,7 +221,7 @@ function CategoryEditor({
   );
 }
 
-function NewCategory({ count, onMade }: { count: number; onMade: (category: TodoCategory) => void }) {
+function NewCategory({ count, recent, onMade }: { count: number; recent: string[]; onMade: (category: TodoCategory) => void }) {
   const [name, setName] = useState("");
   const [color, setColor] = useState(PRESETS[count % PRESETS.length] ?? "#FFD66B");
   const [error, setError] = useState("");
@@ -230,7 +249,7 @@ function NewCategory({ count, onMade }: { count: number; onMade: (category: Todo
       </label>
       <div className="todo-field todo-field-wide">
         색
-        <ColorPicker value={color} onChange={setColor} />
+        <ColorPicker value={color} recent={recent} onChange={setColor} />
       </div>
       {error && <p className="todo-error">{error}</p>}
       <button type="button" className="todo-small-button todo-primary" disabled={!name.trim()} onClick={() => void make()}>
@@ -255,14 +274,24 @@ export default function TodoCategories({
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [recent, setRecent] = useState<string[]>([]);
   useEffect(() => {
     fetchCategories()
-      .then(setItems)
+      .then((data) => {
+        setItems(data.categories);
+        setRecent(data.recent_colors);
+      })
       .catch(() => setFailed(true));
   }, []);
+  // 직접 고른 색은 서버가 최근 색으로 기억한다(다시 받아 맞춘다)
+  const refreshRecent = () =>
+    void fetchCategories()
+      .then((data) => setRecent(data.recent_colors))
+      .catch(() => {});
   const changed = (next: TodoCategory[]) => {
     setItems(next);
     onChanged?.();
+    refreshRecent();
   };
   const reorder = async (ids: string[]) => {
     if (!items) return;
@@ -325,6 +354,7 @@ export default function TodoCategories({
                 {open === category.id && (
                   <CategoryEditor
                     category={category}
+                    recent={recent}
                     onSaved={(saved) => changed(items.map((item) => (item.id === saved.id ? saved : item)))}
                     onDeleted={() => {
                       setOpen(null);
@@ -337,7 +367,7 @@ export default function TodoCategories({
             )}
           </Sortable>
         )}
-        {items && <NewCategory count={items.length} onMade={(made) => changed([...items, made])} />}
+        {items && <NewCategory count={items.length} recent={recent} onMade={(made) => changed([...items, made])} />}
       </div>
     </div>
   );

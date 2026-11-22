@@ -183,11 +183,14 @@
 }
 
 .todo-row {
+  padding: 6px 0;
+}
+
+.todo-row-line {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  min-height: 40px;
-  padding: 6px 0;
+  min-height: 28px;
 }
 
 .todo-check {
@@ -711,4 +714,266 @@
 
 .todo-field-hex input {
   font-family: var(--mono);
+}
+
+/* ------------------------------------------------------------ 메모, 할 일 메뉴, 입력 미리보기 */
+
+.todo-memo-button {
+  flex: none;
+  width: 32px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--sub);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.todo-memo-button:hover,
+.todo-memo-button-on {
+  background: var(--tint);
+  color: var(--ink);
+}
+
+.todo-memo-button svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.todo-memo {
+  margin: 6px 0 2px 34px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--tint);
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+
+.todo-memo a {
+  color: var(--link);
+}
+
+.todo-menu {
+  margin: 8px 0 4px 34px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@media (max-width: 520px) {
+  .todo-menu,
+  .todo-memo {
+    margin-left: 0;
+  }
+}
+
+.todo-menu-quick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.todo-chip {
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 12px;
+  background: var(--tint);
+  color: var(--sub);
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.todo-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.todo-field-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.todo-field select,
+.todo-field textarea {
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  padding: 0 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.todo-field textarea {
+  height: auto;
+  padding: 8px 10px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.todo-field select:focus,
+.todo-field textarea:focus {
+  outline: 2px solid var(--honey);
+  outline-offset: 0;
+}
+
+.todo-weekdays {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.todo-weekday {
+  width: 38px;
+  height: 38px;
+  border-radius: 19px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.todo-weekday-on {
+  background: var(--btn-bg);
+  border-color: var(--btn-bg);
+  color: var(--btn-fg);
+  font-weight: 700;
+}
+
+.todo-hint {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--sub);
+}
+
+.todo-check-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ink);
+  margin-top: 4px;
+}
+
+.todo-check-line input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--btn-bg);
+}
+
+.todo-preview {
+  margin: 2px 0 0 34px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--honey-soft);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.todo-preview-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.todo-preview-line > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.todo-preview-raw {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin: -4px -4px -4px 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--sub);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.todo-preview-raw:hover {
+  background: var(--tint);
+}
+
+.todo-ask {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.todo-info {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.todo-info > span {
+  flex: 1;
+}
+
+@media (min-width: 641px) {
+  .todo-body > .todo-info {
+    grid-column: 1 / -1;
+  }
+}
+
+.todo-color-recent {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.todo-color-recent-label {
+  font-size: 12px;
+  color: var(--sub);
+  margin-right: 2px;
+}
+
+.todo-swatch-small {
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
 }

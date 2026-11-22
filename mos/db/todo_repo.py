@@ -9,7 +9,10 @@ from mos.db.database import Database
 CATEGORY_COLUMNS = "id, name, color, visibility, memo_shared, position, closed_at"
 ITEM_COLUMNS = (
     "id, category_id, title, memo, day, time, place, visibility, position, done_at, source,"
-    " created_at"
+    " created_at, repeat_id, skipped"
+)
+REPEAT_COLUMNS = (
+    "id, category_id, title, memo, time, place, rule, weekdays, start_day, end_day, position"
 )
 
 
@@ -100,7 +103,7 @@ class TodoRepo:
     async def day_summary(self, account_id: int, start: str, end: str) -> list[dict[str, Any]]:
         rows = await self.db.fetch_all(
             "SELECT day, COUNT(*) AS total, SUM(CASE WHEN done_at IS NULL THEN 0 ELSE 1 END)"
-            " AS done FROM todo_item WHERE account_id = ? AND day BETWEEN ? AND ?"
+            " AS done FROM todo_item WHERE account_id = ? AND day BETWEEN ? AND ? AND skipped = 0"
             " GROUP BY day",
             (account_id, start, end),
         )
@@ -110,7 +113,7 @@ class TodoRepo:
         """(그날 개수, 전체 개수)"""
         row = await self.db.fetch_one(
             "SELECT SUM(CASE WHEN day = ? THEN 1 ELSE 0 END), COUNT(*) FROM todo_item"
-            " WHERE account_id = ?",
+            " WHERE account_id = ? AND skipped = 0",
             (day, account_id),
         )
         if row is None:
@@ -125,10 +128,11 @@ class TodoRepo:
                 (account_id, values["day"], values["category_id"]),
             ) as cursor:
                 (last,) = await cursor.fetchone()
+            position = values.get("position") or last + 1
             cursor = await conn.execute(
                 "INSERT INTO todo_item (account_id, category_id, title, memo, day, time, place,"
-                " position, source, created_at, updated_at)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " position, source, repeat_id, skipped, done_at, created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     account_id,
                     values["category_id"],
@@ -137,8 +141,11 @@ class TodoRepo:
                     values["day"],
                     values["time"],
                     values["place"],
-                    last + 1,
+                    position,
                     values["source"],
+                    values.get("repeat_id"),
+                    int(values.get("skipped", 0)),
+                    values.get("done_at"),
                     now,
                     now,
                 ),
@@ -171,3 +178,115 @@ class TodoRepo:
             (account_id, day, category_id),
         )
         return int(row[0] if row else 0) + 1
+
+    async def materialized(self, account_id: int, start: str, end: str) -> set[tuple[int, str]]:
+        """반복 할 일 중 행이 이미 있는 (반복 ID, 날짜)."""
+        rows = await self.db.fetch_all(
+            "SELECT repeat_id, day FROM todo_item WHERE account_id = ? AND repeat_id IS NOT NULL"
+            " AND day BETWEEN ? AND ?",
+            (account_id, start, end),
+        )
+        return {(int(row[0]), str(row[1])) for row in rows}
+
+    async def item_for_repeat(
+        self, account_id: int, repeat_id: int, day: str
+    ) -> dict[str, Any] | None:
+        row = await self.db.fetch_one(
+            f"SELECT {ITEM_COLUMNS} FROM todo_item"  # noqa: S608
+            " WHERE account_id = ? AND repeat_id = ? AND day = ?",
+            (account_id, repeat_id, day),
+        )
+        return dict(row) if row else None
+
+    async def delete_repeat_rows_from(self, account_id: int, repeat_id: int, day: str) -> None:
+        async with self.db.writing() as conn:
+            await conn.execute(
+                "DELETE FROM todo_item WHERE account_id = ? AND repeat_id = ? AND day >= ?",
+                (account_id, repeat_id, day),
+            )
+
+    # ------------------------------------------------------------ 반복
+
+    async def repeats(self, account_id: int) -> list[dict[str, Any]]:
+        rows = await self.db.fetch_all(
+            f"SELECT {REPEAT_COLUMNS} FROM todo_repeat WHERE account_id = ? ORDER BY id",  # noqa: S608
+            (account_id,),
+        )
+        return [dict(row) for row in rows]
+
+    async def repeat(self, account_id: int, repeat_id: int) -> dict[str, Any] | None:
+        row = await self.db.fetch_one(
+            f"SELECT {REPEAT_COLUMNS} FROM todo_repeat"  # noqa: S608
+            " WHERE account_id = ? AND id = ?",
+            (account_id, repeat_id),
+        )
+        return dict(row) if row else None
+
+    async def count_repeats(self, account_id: int) -> int:
+        row = await self.db.fetch_one(
+            "SELECT COUNT(*) FROM todo_repeat WHERE account_id = ?", (account_id,)
+        )
+        return int(row[0]) if row else 0
+
+    async def add_repeat(
+        self, account_id: int, values: dict[str, Any], item_id: int, now: int
+    ) -> int:
+        """할 일 하나를 반복으로: 규칙을 만들고 그 할 일을 첫 회차로 묶는다."""
+        async with self.db.writing() as conn:
+            cursor = await conn.execute(
+                "INSERT INTO todo_repeat (account_id, category_id, title, memo, time, place,"
+                " rule, weekdays, start_day, end_day, position, created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    account_id,
+                    values["category_id"],
+                    values["title"],
+                    values["memo"],
+                    values["time"],
+                    values["place"],
+                    values["rule"],
+                    values["weekdays"],
+                    values["start_day"],
+                    values["end_day"],
+                    values["position"],
+                    now,
+                    now,
+                ),
+            )
+            repeat_id = int(cursor.lastrowid or 0)
+            await conn.execute(
+                "UPDATE todo_item SET repeat_id = ?, updated_at = ?"
+                " WHERE account_id = ? AND id = ?",
+                (repeat_id, now, account_id, item_id),
+            )
+            return repeat_id
+
+    async def update_repeat(
+        self, account_id: int, repeat_id: int, changes: dict[str, Any], now: int
+    ) -> None:
+        if not changes:
+            return
+        sets = ", ".join(f"{column} = ?" for column in changes)
+        async with self.db.writing() as conn:
+            await conn.execute(
+                f"UPDATE todo_repeat SET {sets}, updated_at = ?"  # noqa: S608
+                " WHERE account_id = ? AND id = ?",
+                (*changes.values(), now, account_id, repeat_id),
+            )
+
+    # ------------------------------------------------------------ 할 일 설정
+
+    async def prefs(self, account_id: int) -> str | None:
+        row = await self.db.fetch_one(
+            "SELECT prefs_json FROM todo_pref WHERE account_id = ?", (account_id,)
+        )
+        return str(row[0]) if row else None
+
+    async def save_prefs(self, account_id: int, prefs_json: str, now: int) -> None:
+        async with self.db.writing() as conn:
+            await conn.execute(
+                "INSERT INTO todo_pref (account_id, prefs_json, updated_at) VALUES (?, ?, ?)"
+                " ON CONFLICT (account_id) DO UPDATE SET prefs_json = excluded.prefs_json,"
+                " updated_at = excluded.updated_at",
+                (account_id, prefs_json, now),
+            )

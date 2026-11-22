@@ -89,7 +89,10 @@ def register_todo_routes(
     async def todo_categories(request: Request) -> dict[str, Any]:
         account = await todo_account(request)
         rows = await todo.categories(account.account_id)
-        return {"categories": [category_to_api(row) for row in rows]}
+        return {
+            "categories": [category_to_api(row) for row in rows],
+            "recent_colors": await todo.recent_colors(account.account_id),
+        }
 
     # ------------------------------------------------------------ 할 일 쓰기
 
@@ -101,14 +104,35 @@ def register_todo_routes(
     @app.patch("/api/todo/items/{item_id}")
     async def todo_update(item_id: str, request: Request) -> dict[str, Any]:
         account = await writer(request)
-        return await todo.update_item(
-            account.account_id, parse_id(item_id), await json_body(request)
-        )
+        # 반복 회차는 r<반복 ID>:<날짜> 모양의 ID로 온다(서비스가 검사)
+        return await todo.update_item(account.account_id, item_id, await json_body(request))
 
     @app.delete("/api/todo/items/{item_id}", status_code=204)
-    async def todo_delete(item_id: str, request: Request) -> None:
+    async def todo_delete(item_id: str, request: Request, scope: str = "today") -> None:
         account = await writer(request)
-        await todo.delete_item(account.account_id, parse_id(item_id))
+        if scope not in ("today", "future"):
+            raise TodoError("bad_scope")
+        await todo.delete_item(account.account_id, item_id, scope)
+
+    # ------------------------------------------------------------ 반복
+
+    @app.post("/api/todo/repeats")
+    async def todo_repeat_add(request: Request) -> dict[str, Any]:
+        account = await writer(request)
+        return await todo.create_repeat(account.account_id, await json_body(request))
+
+    @app.patch("/api/todo/repeats/{repeat_id}")
+    async def todo_repeat_update(repeat_id: str, request: Request) -> dict[str, Any]:
+        account = await writer(request)
+        return await todo.update_repeat(
+            account.account_id, parse_id(repeat_id), await json_body(request)
+        )
+
+    @app.post("/api/todo/repeats/{repeat_id}/stop", status_code=204)
+    async def todo_repeat_stop(repeat_id: str, request: Request) -> None:
+        account = await writer(request)
+        body = await json_body(request)
+        await todo.stop_repeat(account.account_id, parse_id(repeat_id), body.get("day"))
 
     @app.put("/api/todo/order", status_code=204)
     async def todo_order(request: Request) -> None:

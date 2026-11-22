@@ -3,7 +3,7 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BackIcon from "../BackIcon";
 import SplitToggle from "../SplitToggle";
-import { useEnterKey } from "./enterKey";
+import { CategoryBlock, type NewTodoValues } from "./TodoItems";
 import {
   addDays,
   isDayKey,
@@ -12,7 +12,6 @@ import {
   monthLabel,
   monthStart,
   shiftMonth,
-  timeLabel,
   today,
   WEEKDAY_NAMES,
   weekOf,
@@ -20,7 +19,6 @@ import {
 import {
   addTodo,
   type DaySummary,
-  deleteTodo,
   fetchTodoDay,
   fetchTodoDays,
   type TodoCategory,
@@ -30,25 +28,6 @@ import {
   updateTodo,
 } from "./todoApi";
 import "./todo.css";
-
-export const PRESET_COLORS = ["#FFD66B", "#2563EB", "#7C5CDB", "#16A34A", "#C2410C", "#DB2777", "#0891B2"];
-
-/** 화면 바탕과 잘 구분되지 않는 아주 밝은 색이면 얇은 테두리(CAT-11) */
-function needsRing(color: string): boolean {
-  const value = Number.parseInt(color.slice(1), 16);
-  const channel = (shift: number) => {
-    const c = ((value >> shift) & 255) / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  };
-  const luminance = 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0);
-  return luminance > 0.6;
-}
-
-function CategoryDot({ color }: { color: string }) {
-  return <span className={needsRing(color) ? "todo-dot todo-dot-ring" : "todo-dot"} style={{ background: color }} />;
-}
-
-const CHECK_PATH = "M5 12.5l4.5 4.5L19 7.5";
 
 /** 그 주(또는 몇 주)의 날짜별 요약. 날짜가 바뀌거나 할 일이 바뀌면 다시 */
 function useSummary(start: string, end: string, version: number): DaySummary {
@@ -76,179 +55,6 @@ function DayMark({ day, summary }: { day: string; summary: DaySummary }) {
     <span className={all ? "todo-mark todo-mark-all" : "todo-mark"} aria-label={`${info.total}개 중 ${info.done}개 했어요`}>
       {info.done}/{info.total}
     </span>
-  );
-}
-
-// ------------------------------------------------------------ 할 일 한 줄
-
-function TodoRow({
-  item,
-  onChange,
-  onDelete,
-}: {
-  item: TodoItem;
-  onChange: (changes: Partial<TodoItem>) => Promise<boolean>;
-  onDelete: () => Promise<void>;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const [draft, setDraft] = useState(item.title);
-  const meta = [item.time ? timeLabel(item.time) : "", item.place ?? ""].filter(Boolean).join(", ");
-  const enter = useEnterKey(() => void save());
-
-  const draftRef = useRef(draft);
-  draftRef.current = draft;
-  const save = async () => {
-    const title = draftRef.current.trim();
-    if (!title || title === item.title) {
-      setDraft(item.title);
-      setEditing(false);
-      return;
-    }
-    if (await onChange({ title })) setEditing(false);
-  };
-
-  return (
-    <li className={item.done ? "todo-row todo-row-done" : "todo-row"}>
-      <button
-        type="button"
-        className={item.done ? "todo-check todo-check-on" : "todo-check"}
-        aria-pressed={item.done}
-        aria-label={item.done ? `${item.title} 완료 취소` : `${item.title} 완료`}
-        onClick={() => void onChange({ done: !item.done })}
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d={CHECK_PATH} />
-        </svg>
-      </button>
-      {editing ? (
-        <div
-          className="todo-edit"
-          onKeyDown={(event) => {
-            if (event.key !== "Escape") return;
-            setDraft(item.title);
-            setEditing(false);
-            setConfirming(false);
-          }}
-        >
-          <input
-            className="todo-edit-input"
-            value={draft}
-            maxLength={100}
-            autoFocus
-            aria-label="할 일 고치기"
-            onChange={(event) => setDraft(event.target.value)}
-            {...enter}
-          />
-          <div className="todo-edit-actions">
-            <button type="button" className="todo-small-button" onClick={() => void save()}>
-              저장
-            </button>
-            <button type="button" className="todo-small-button todo-danger-text" onClick={() => setConfirming(true)}>
-              지우기
-            </button>
-          </div>
-          {confirming && (
-            <div className="todo-confirm" role="group" aria-label="지우기 확인">
-              <span>이 할 일을 지울까요? 되돌릴 수 없어요.</span>
-              <div className="todo-confirm-buttons">
-                <button type="button" className="todo-small-button" onClick={() => setConfirming(false)}>
-                  취소
-                </button>
-                <button type="button" className="todo-small-button todo-danger" onClick={() => void onDelete()}>
-                  지우기
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      ) : (
-        <button
-          type="button"
-          className="todo-title"
-          onClick={() => {
-            setDraft(item.title);
-            setEditing(true);
-          }}
-        >
-          <span className="todo-title-text">{item.title}</span>
-          {meta && <span className="todo-meta">{meta}</span>}
-        </button>
-      )}
-    </li>
-  );
-}
-
-// ------------------------------------------------------------ 카테고리 묶음
-
-function CategoryBlock({
-  category,
-  items,
-  onAdd,
-  onChange,
-  onDelete,
-}: {
-  category: TodoCategory;
-  items: TodoItem[];
-  onAdd: (title: string) => Promise<boolean>;
-  onChange: (item: TodoItem, changes: Partial<TodoItem>) => Promise<boolean>;
-  onDelete: (item: TodoItem) => Promise<void>;
-}) {
-  const [text, setText] = useState("");
-  const textRef = useRef(text);
-  textRef.current = text;
-  const busy = useRef(false);
-  const submit = async () => {
-    const title = textRef.current.trim();
-    if (!title || busy.current) return;
-    busy.current = true;
-    if (await onAdd(title)) setText(""); // 칸은 열린 채로 이어서 입력
-    busy.current = false;
-  };
-  const enter = useEnterKey(() => void submit());
-  return (
-    <section className="todo-block" aria-label={category.name}>
-      <h2 className="todo-cat">
-        <CategoryDot color={category.color} />
-        {category.name}
-      </h2>
-      <ul className="todo-list">
-        {items.map((item) => (
-          <TodoRow
-            key={item.id}
-            item={item}
-            onChange={(changes) => onChange(item, changes)}
-            onDelete={() => onDelete(item)}
-          />
-        ))}
-      </ul>
-      {!category.closed && (
-        <form
-          className="todo-add"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void submit();
-          }}
-        >
-          <span className="todo-check todo-check-ghost" aria-hidden="true" />
-          <input
-            className="todo-add-input"
-            value={text}
-            maxLength={100}
-            placeholder="할 일 입력"
-            aria-label={`${category.name}에 할 일 입력`}
-            enterKeyHint="done"
-            onChange={(event) => setText(event.target.value)}
-            {...enter}
-          />
-          {text.trim() && (
-            <button type="submit" className="todo-small-button todo-add-button">
-              추가
-            </button>
-          )}
-        </form>
-      )}
-    </section>
   );
 }
 
@@ -285,6 +91,7 @@ export default function TodoScreen({
   const [data, setData] = useState<TodoDay | null>(null);
   const [failed, setFailed] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState<{ text: string; day?: string } | null>(null);
   const [bump, setBump] = useState(0);
   const dayRef = useRef(day);
   dayRef.current = day;
@@ -323,23 +130,15 @@ export default function TodoScreen({
   const week = useMemo(() => weekOf(day), [day]);
   const summary = useSummary(week[0] ?? day, week[6] ?? day, bump + version);
 
-  const replaceItem = (next: TodoItem) =>
-    setData((current) =>
-      current
-        ? {
-            ...current,
-            items:
-              next.day === current.day
-                ? current.items.map((item) => (item.id === next.id ? next : item))
-                : current.items.filter((item) => item.id !== next.id),
-          }
-        : current,
-    );
-
-  const add = async (category: TodoCategory, title: string) => {
+  const add = async (category: TodoCategory, values: NewTodoValues) => {
     try {
-      const made = await addTodo({ title, day, category_id: category.id });
-      setData((current) => (current ? { ...current, items: [...current.items, made] } : current));
+      const made = await addTodo({ ...values, category_id: category.id });
+      if (made.day === day) {
+        setData((current) => (current ? { ...current, items: [...current.items, made] } : current));
+        setInfo(null);
+      } else {
+        setInfo({ text: `${longLabel(made.day)}에 넣었어요.`, day: made.day });
+      }
       setError("");
       changed();
       return true;
@@ -349,28 +148,27 @@ export default function TodoScreen({
     }
   };
 
-  const change = async (item: TodoItem, changes: Partial<TodoItem>) => {
-    replaceItem({ ...item, ...changes }); // 바로 보이게 하고 실패하면 되돌린다
+  const toggle = async (item: TodoItem) => {
+    const flipped = { ...item, done: !item.done };
+    const swap = (from: TodoItem, to: TodoItem) =>
+      setData((current) =>
+        current ? { ...current, items: current.items.map((it) => (it.id === from.id ? to : it)) } : current,
+      );
+    swap(item, flipped); // 바로 보이게 하고 실패하면 되돌린다
     try {
-      replaceItem(await updateTodo(item.id, changes));
+      swap(flipped, await updateTodo(item.id, { done: flipped.done })); // 반복 회차면 새 ID로
       setError("");
       changed();
-      return true;
     } catch (failure) {
-      replaceItem(item);
+      swap(flipped, item);
       setError(todoErrorText(failure));
-      return false;
     }
   };
 
-  const remove = async (item: TodoItem) => {
-    try {
-      await deleteTodo(item.id);
-      setData((current) => (current ? { ...current, items: current.items.filter((it) => it.id !== item.id) } : current));
-      changed();
-    } catch (failure) {
-      setError(todoErrorText(failure));
-    }
+  const done = (notice?: string) => {
+    setInfo(notice ? { text: notice } : null);
+    void load();
+    changed();
   };
 
   const items = data?.items ?? [];
@@ -452,15 +250,30 @@ export default function TodoScreen({
             {error}
           </p>
         )}
+        {info && (
+          <p className="todo-info" role="status">
+            <span>{info.text}</span>
+            {info.day && (
+              <button type="button" className="todo-small-button" onClick={() => info.day && onDay(info.day)}>
+                보기
+              </button>
+            )}
+            <button type="button" className="todo-small-button" aria-label="안내 닫기" onClick={() => setInfo(null)}>
+              닫기
+            </button>
+          </p>
+        )}
         {data === null && <p className="list-note">{failed ? "불러오지 못했어요. 잠시 뒤 다시 열어 주세요." : "불러오는 중…"}</p>}
         {data?.categories.map((category) => (
           <CategoryBlock
             key={category.id}
             category={category}
             items={items.filter((item) => item.category_id === category.id)}
-            onAdd={(title) => add(category, title)}
-            onChange={change}
-            onDelete={remove}
+            categories={data.categories}
+            viewDay={day}
+            onAdd={(values) => add(category, values)}
+            onToggle={(item) => void toggle(item)}
+            onDone={done}
           />
         ))}
       </div>

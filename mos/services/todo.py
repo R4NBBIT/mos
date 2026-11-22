@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import re
 import time
+from calendar import monthrange
 from collections.abc import Callable
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from mos.db.todo_repo import TodoRepo
@@ -21,6 +23,11 @@ MAX_RANGE_DAYS = 42
 FIRST_CATEGORY = ("할 일", "#FFD66B")  # 사용자 결정: 노랑(ㅁㅇㅅ 꿀색)
 VISIBILITIES = ("public", "friends", "private")
 DEFAULT_VISIBILITY = "friends"
+RULES = ("daily", "weekdays", "weekly", "monthly")
+MAX_REPEATS = 100
+PRESET_COLORS = ("#FFD66B", "#2563EB", "#7C5CDB", "#16A34A", "#C2410C", "#DB2777", "#0891B2")
+MAX_RECENT_COLORS = 8
+VIRTUAL_RE = re.compile(r"^r(\d{1,18}):(\d{4}-\d{2}-\d{2})$")
 
 DAY_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
 TIME_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
@@ -118,9 +125,20 @@ def category_to_api(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def item_to_api(row: dict[str, Any]) -> dict[str, Any]:
+def repeat_to_api(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": str(row["id"]),
+        "rule": row["rule"],
+        "weekdays": [day for day in range(7) if row["weekdays"] & (1 << day)],
+        "end_day": row["end_day"],
+    }
+
+
+def item_to_api(row: dict[str, Any], repeat: dict[str, Any] | None = None) -> dict[str, Any]:
+    virtual = row.get("id") is None
+    return {
+        # 아직 행이 없는 반복 회차는 r<반복 ID>:<날짜>
+        "id": f"r{repeat['id']}:{row['day']}" if virtual and repeat else str(row["id"]),
         "category_id": str(row["category_id"]),
         "title": row["title"],
         "memo": row["memo"],
@@ -130,7 +148,52 @@ def item_to_api(row: dict[str, Any]) -> dict[str, Any]:
         "done": row["done_at"] is not None,
         "source": row["source"],
         "position": row["position"],
+        "repeat": repeat_to_api(repeat) if repeat else None,
     }
+
+
+def repeat_on(rep: dict[str, Any], day: str) -> bool:
+    """그날 반복 회차가 있는지(시작 전, 끝난 뒤는 없음)."""
+    if day < rep["start_day"] or (rep["end_day"] and day > rep["end_day"]):
+        return False
+    value = date.fromisoformat(day)
+    sunday_index = (value.weekday() + 1) % 7  # 일=0 … 토=6
+    rule = rep["rule"]
+    if rule == "daily":
+        return True
+    if rule == "weekdays":
+        return 1 <= sunday_index <= 5
+    if rule == "weekly":
+        return bool(rep["weekdays"] & (1 << sunday_index))
+    if rule == "monthly":
+        start = date.fromisoformat(rep["start_day"])
+        last = monthrange(value.year, value.month)[1]
+        return value.day == min(start.day, last)  # 31일 반복은 짧은 달엔 마지막 날
+    return False
+
+
+def virtual_row(rep: dict[str, Any], day: str) -> dict[str, Any]:
+    return {
+        "id": None,
+        "category_id": rep["category_id"],
+        "title": rep["title"],
+        "memo": rep["memo"],
+        "day": day,
+        "time": rep["time"],
+        "place": rep["place"],
+        "visibility": None,
+        "position": rep["position"],
+        "done_at": None,
+        "source": "app",
+        "repeat_id": rep["id"],
+        "skipped": 0,
+    }
+
+
+def day_range(start: str, end: str) -> list[str]:
+    first = date.fromisoformat(start)
+    count = (date.fromisoformat(end) - first).days + 1
+    return [(first + timedelta(days=offset)).isoformat() for offset in range(max(count, 0))]
 
 
 class TodoService:
@@ -179,6 +242,7 @@ class TodoService:
         )
         if new_id is None:
             raise TodoError("too_many_categories", 409)
+        await self.remember_color(account_id, color)
         row = await self.repo.category(account_id, new_id)
         if row is None:  # 방금 넣었으니 오지 않는다
             raise TodoError("not_found", 404)
@@ -197,6 +261,7 @@ class TodoService:
             changes["name"] = name
         if "color" in body:
             changes["color"] = clean_color(body["color"])
+            await self.remember_color(account_id, changes["color"])
         if "visibility" in body:
             if body["visibility"] not in VISIBILITIES:
                 raise TodoError("bad_visibility")
@@ -249,17 +314,29 @@ class TodoService:
 
     # ------------------------------------------------------------ 하루, 요약
 
+    async def _open_category_ids(self, account_id: int) -> set[int]:
+        return {row["id"] for row in await self.categories(account_id) if row["closed_at"] is None}
+
     async def day(self, account_id: int, raw_day: Any) -> dict[str, Any]:
         day = clean_day(raw_day)
         categories = await self.categories(account_id)
-        items = await self.repo.items_on(account_id, day)
+        open_ids = {row["id"] for row in categories if row["closed_at"] is None}
+        rows = await self.repo.items_on(account_id, day)
+        repeats = {rep["id"]: rep for rep in await self.repo.repeats(account_id)}
+        made = {row["repeat_id"] for row in rows if row["repeat_id"] is not None}
+        items = [row for row in rows if not row["skipped"]]
+        for rep in repeats.values():
+            # 끝낸 카테고리의 반복은 멈춘다(CAT-04)
+            if rep["id"] not in made and rep["category_id"] in open_ids and repeat_on(rep, day):
+                items.append(virtual_row(rep, day))
+        items.sort(key=lambda row: (row["position"], row["id"] or 0))
         used = {item["category_id"] for item in items}
         # 끝낸 카테고리는 그날 할 일이 남아 있을 때만(지난 기록)
         shown = [row for row in categories if row["closed_at"] is None or row["id"] in used]
         return {
             "day": day,
             "categories": [category_to_api(row) for row in shown],
-            "items": [item_to_api(item) for item in items],
+            "items": [item_to_api(item, repeats.get(item["repeat_id"])) for item in items],
         }
 
     async def days(self, account_id: int, raw_start: Any, raw_end: Any) -> dict[str, Any]:
@@ -267,13 +344,26 @@ class TodoService:
         span = (date.fromisoformat(end) - date.fromisoformat(start)).days
         if span < 0 or span >= MAX_RANGE_DAYS:
             raise TodoError("bad_range")
-        rows = await self.repo.day_summary(account_id, start, end)
-        return {
-            "days": {
-                row["day"]: {"total": int(row["total"]), "done": int(row["done"] or 0)}
-                for row in rows
-            }
+        summary = {
+            row["day"]: {"total": int(row["total"]), "done": int(row["done"] or 0)}
+            for row in await self.repo.day_summary(account_id, start, end)
         }
+        repeats = await self.repo.repeats(account_id)
+        if repeats:
+            open_ids = await self._open_category_ids(account_id)
+            made = await self.repo.materialized(account_id, start, end)
+            for day in day_range(start, end):
+                extra = sum(
+                    1
+                    for rep in repeats
+                    if rep["category_id"] in open_ids
+                    and (rep["id"], day) not in made
+                    and repeat_on(rep, day)
+                )
+                if extra:
+                    entry = summary.setdefault(day, {"total": 0, "done": 0})
+                    entry["total"] += extra
+        return {"days": summary}
 
     # ------------------------------------------------------------ 할 일
 
@@ -300,12 +390,39 @@ class TodoService:
             raise TodoError("not_found", 404)
         return item_to_api(row)
 
-    async def update_item(
-        self, account_id: int, item_id: int, body: dict[str, Any]
-    ) -> dict[str, Any]:
-        row = await self.repo.item(account_id, item_id)
+    async def _row(self, account_id: int, raw_id: Any, skipped: bool = False) -> dict[str, Any]:
+        """할 일 행. 아직 행이 없는 반복 회차(r<반복>:<날짜>)면 지금 만든다."""
+        match = VIRTUAL_RE.match(raw_id) if isinstance(raw_id, str) else None
+        if match is None:
+            row = await self.repo.item(account_id, parse_id(raw_id))
+            if row is None or (row["skipped"] and not skipped):
+                raise TodoError("not_found", 404)
+            return row
+        repeat_id, day = int(match.group(1)), clean_day(match.group(2))
+        existing = await self.repo.item_for_repeat(account_id, repeat_id, day)
+        if existing is not None:
+            if existing["skipped"] and not skipped:
+                raise TodoError("not_found", 404)
+            return existing
+        rep = await self.repo.repeat(account_id, repeat_id)
+        if rep is None or not repeat_on(rep, day):
+            raise TodoError("not_found", 404)
+        values = {**virtual_row(rep, day), "skipped": int(skipped)}
+        new_id = await self.repo.add_item(account_id, values, self.now())
+        row = await self.repo.item(account_id, new_id)
         if row is None:
             raise TodoError("not_found", 404)
+        return row
+
+    async def _with_repeat(self, account_id: int, row: dict[str, Any]) -> dict[str, Any]:
+        rep = await self.repo.repeat(account_id, row["repeat_id"]) if row["repeat_id"] else None
+        return item_to_api(row, rep)
+
+    async def update_item(
+        self, account_id: int, raw_id: Any, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        row = await self._row(account_id, raw_id)
+        item_id = row["id"]
         changes: dict[str, Any] = {}
         if "title" in body:
             changes["title"] = one_line(body["title"], MAX_TITLE, "bad_title")
@@ -331,6 +448,16 @@ class TodoService:
                 on_day, _ = await self.repo.counts(account_id, moved_day)
                 if on_day >= MAX_PER_DAY:
                     raise TodoError("too_many_items", 409)
+                if row["repeat_id"] is not None:
+                    # 반복 회차를 다른 날로 옮기면 따로인 할 일이 되고, 원래 날 회차는 건너뜀
+                    changes["repeat_id"] = None
+                    rep = await self.repo.repeat(account_id, row["repeat_id"])
+                    if rep is not None:
+                        skip = {**virtual_row(rep, row["day"]), "skipped": 1}
+                        await self.repo.update_item(
+                            account_id, item_id, {"repeat_id": None}, self.now()
+                        )
+                        await self.repo.add_item(account_id, skip, self.now())
             changes["day"] = moved_day
             changes["category_id"] = moved_category
             changes["position"] = await self.repo.next_position(
@@ -338,7 +465,7 @@ class TodoService:
             )
         await self.repo.update_item(account_id, item_id, changes, self.now())
         updated = await self.repo.item(account_id, item_id)
-        return item_to_api(updated or row)
+        return await self._with_repeat(account_id, updated or row)
 
     async def reorder_items(
         self, account_id: int, raw_day: Any, raw_category: Any, ids: Any
@@ -347,19 +474,137 @@ class TodoService:
         category_id = parse_id(raw_category)
         if not isinstance(ids, list) or len(ids) > MAX_PER_DAY:
             raise TodoError("bad_order")
-        wanted = [parse_id(value) for value in ids]
-        current = {
-            item["id"]
-            for item in await self.repo.items_on(account_id, day)
-            if item["category_id"] == category_id
-        }
+        shown = await self.day(account_id, day)
+        current = {item["id"] for item in shown["items"] if item["category_id"] == str(category_id)}
+        wanted = [str(value) for value in ids]
         if set(wanted) != current or len(wanted) != len(current):
             raise TodoError("bad_order")
         now = self.now()
-        for position, item_id in enumerate(wanted, start=1):
-            await self.repo.update_item(account_id, item_id, {"position": position}, now)
+        for position, raw in enumerate(wanted, start=1):
+            row = await self._row(account_id, raw)  # 반복 회차면 행을 만든다
+            await self.repo.update_item(account_id, row["id"], {"position": position}, now)
 
-    async def delete_item(self, account_id: int, item_id: int) -> None:
-        if await self.repo.item(account_id, item_id) is None:
+    async def delete_item(self, account_id: int, raw_id: Any, scope: str = "today") -> None:
+        row = await self._row(account_id, raw_id)
+        if row["repeat_id"] is None:
+            await self.repo.delete_item(account_id, row["id"])
+            return
+        if scope == "future":
+            await self.stop_repeat(account_id, row["repeat_id"], row["day"], keep_day=False)
+            return
+        # 오늘 것만: 행은 남기고 건너뜀 표시(그날 회차가 다시 생기지 않게)
+        await self.repo.update_item(
+            account_id, row["id"], {"skipped": 1, "done_at": None}, self.now()
+        )
+
+    # ------------------------------------------------------------ 반복
+
+    def _rule(self, body: dict[str, Any], start_day: str) -> dict[str, Any]:
+        rule = body.get("rule")
+        if rule not in RULES:
+            raise TodoError("bad_rule")
+        weekdays = 0
+        if rule == "weekly":
+            days = body.get("weekdays")
+            if not isinstance(days, list) or not days or len(days) > 7:
+                raise TodoError("bad_weekdays")
+            for value in days:
+                if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 6:
+                    raise TodoError("bad_weekdays")
+                weekdays |= 1 << value
+        end_day = body.get("end_day")
+        if end_day is not None:
+            end_day = clean_day(end_day)
+            if end_day < start_day:
+                raise TodoError("bad_end_day")
+        return {"rule": rule, "weekdays": weekdays, "end_day": end_day}
+
+    async def create_repeat(self, account_id: int, body: dict[str, Any]) -> dict[str, Any]:
+        row = await self._row(account_id, body.get("item_id"))
+        if row["repeat_id"] is not None:
+            raise TodoError("already_repeating", 409)
+        if await self.repo.count_repeats(account_id) >= MAX_REPEATS:
+            raise TodoError("too_many_repeats", 409)
+        rule = self._rule(body, row["day"])
+        values = {
+            "category_id": row["category_id"],
+            "title": row["title"],
+            "memo": row["memo"],
+            "time": row["time"],
+            "place": row["place"],
+            "start_day": row["day"],
+            "position": row["position"],
+            **rule,
+        }
+        repeat_id = await self.repo.add_repeat(account_id, values, row["id"], self.now())
+        rep = await self.repo.repeat(account_id, repeat_id)
+        return repeat_to_api(rep) if rep else {}
+
+    async def update_repeat(
+        self, account_id: int, repeat_id: int, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        """규칙(종류, 요일, 끝나는 날)과 앞으로의 이름, 시각, 장소, 메모, 카테고리."""
+        rep = await self.repo.repeat(account_id, repeat_id)
+        if rep is None:
             raise TodoError("not_found", 404)
-        await self.repo.delete_item(account_id, item_id)
+        changes: dict[str, Any] = {}
+        if "rule" in body:
+            changes.update(self._rule(body, rep["start_day"]))
+        elif "end_day" in body:
+            end_day = None if body["end_day"] is None else clean_day(body["end_day"])
+            if end_day is not None and end_day < rep["start_day"]:
+                raise TodoError("bad_end_day")
+            changes["end_day"] = end_day
+        if "title" in body:
+            changes["title"] = one_line(body["title"], MAX_TITLE, "bad_title")
+        if "memo" in body:
+            changes["memo"] = clean_memo(body["memo"])
+        if "time" in body:
+            changes["time"] = clean_time(body["time"])
+        if "place" in body:
+            changes["place"] = clean_place(body["place"])
+        if "category_id" in body:
+            changes["category_id"] = (await self._open_category(account_id, body["category_id"]))[
+                "id"
+            ]
+        await self.repo.update_repeat(account_id, repeat_id, changes, self.now())
+        updated = await self.repo.repeat(account_id, repeat_id)
+        return repeat_to_api(updated or rep)
+
+    async def stop_repeat(
+        self, account_id: int, repeat_id: int, raw_day: Any, keep_day: bool = True
+    ) -> None:
+        """그날부터 반복 그만. keep_day면 그날 할 일은 따로인 할 일로 남긴다."""
+        rep = await self.repo.repeat(account_id, repeat_id)
+        if rep is None:
+            raise TodoError("not_found", 404)
+        day = clean_day(raw_day)
+        if keep_day and repeat_on(rep, day):
+            row = await self._row(account_id, f"r{repeat_id}:{day}")
+            await self.repo.update_item(account_id, row["id"], {"repeat_id": None}, self.now())
+        before = (date.fromisoformat(day) - timedelta(days=1)).isoformat()
+        await self.repo.delete_repeat_rows_from(account_id, repeat_id, day)
+        await self.repo.update_repeat(account_id, repeat_id, {"end_day": before}, self.now())
+
+    # ------------------------------------------------------------ 최근 색
+
+    async def recent_colors(self, account_id: int) -> list[str]:
+        raw = await self.repo.prefs(account_id)
+        try:
+            prefs = json.loads(raw) if raw else {}
+        except ValueError:
+            prefs = {}
+        colors = prefs.get("recent_colors") if isinstance(prefs, dict) else None
+        if not isinstance(colors, list):
+            return []
+        return [value for value in colors if isinstance(value, str) and COLOR_RE.match(value)][
+            :MAX_RECENT_COLORS
+        ]
+
+    async def remember_color(self, account_id: int, color: str) -> None:
+        """기본 색이 아닌 직접 고른 색만 최근 색 맨 앞에(CAT-10)."""
+        if color in PRESET_COLORS:
+            return
+        colors = [color, *(c for c in await self.recent_colors(account_id) if c != color)]
+        prefs = {"recent_colors": colors[:MAX_RECENT_COLORS]}
+        await self.repo.save_prefs(account_id, json.dumps(prefs), self.now())

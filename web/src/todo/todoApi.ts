@@ -21,6 +21,17 @@ export interface TodoItem {
   done: boolean;
   source: string;
   position: number;
+  repeat: TodoRepeat | null;
+}
+
+export type RepeatRule = "daily" | "weekdays" | "weekly" | "monthly";
+
+export interface TodoRepeat {
+  id: string;
+  rule: RepeatRule;
+  /** 매주: 고른 요일(일=0 … 토=6) */
+  weekdays: number[];
+  end_day: string | null;
 }
 
 export interface TodoDay {
@@ -71,15 +82,30 @@ export const addTodo = (todo: NewTodo) => call<TodoItem>("/api/todo/items", "POS
 export type TodoChanges = Partial<Pick<TodoItem, "title" | "memo" | "day" | "time" | "place" | "done" | "category_id">>;
 
 export const updateTodo = (id: string, changes: TodoChanges) =>
-  call<TodoItem>(`/api/todo/items/${id}`, "PATCH", changes);
+  call<TodoItem>(`/api/todo/items/${encodeURIComponent(id)}`, "PATCH", changes);
 
-export const deleteTodo = (id: string) => call<void>(`/api/todo/items/${id}`, "DELETE");
+export const deleteTodo = (id: string, scope: "today" | "future" = "today") =>
+  call<void>(`/api/todo/items/${encodeURIComponent(id)}?scope=${scope}`, "DELETE");
+
+export interface RepeatInput {
+  rule: RepeatRule;
+  weekdays?: number[];
+  end_day?: string | null;
+}
+
+export const createRepeat = (itemId: string, input: RepeatInput) =>
+  call<TodoRepeat>("/api/todo/repeats", "POST", { item_id: itemId, ...input });
+
+export const updateRepeat = (id: string, changes: Partial<RepeatInput> & Partial<Pick<TodoItem, "title" | "memo" | "time" | "place" | "category_id">>) =>
+  call<TodoRepeat>(`/api/todo/repeats/${id}`, "PATCH", changes);
+
+export const stopRepeat = (id: string, day: string) => call<void>(`/api/todo/repeats/${id}/stop`, "POST", { day });
 
 export const reorderTodos = (day: string, categoryId: string, ids: string[]) =>
   call<void>("/api/todo/order", "PUT", { day, category_id: categoryId, ids });
 
-export const fetchCategories = async (): Promise<TodoCategory[]> =>
-  (await call<{ categories: TodoCategory[] }>("/api/todo/categories")).categories;
+export const fetchCategories = () =>
+  call<{ categories: TodoCategory[]; recent_colors: string[] }>("/api/todo/categories");
 
 export const reorderCategories = async (ids: string[]): Promise<TodoCategory[]> =>
   (await call<{ categories: TodoCategory[] }>("/api/todo/categories/order", "PUT", { ids })).categories;
@@ -107,6 +133,11 @@ export function todoErrorText(error: unknown): string {
     last_category: "열린 카테고리가 하나는 있어야 해요.",
     bad_time: "시각이 올바르지 않아요.",
     bad_day: "날짜가 올바르지 않아요.",
+    bad_place: "장소는 40자까지예요.",
+    bad_memo: "메모는 1000자까지예요.",
+    bad_weekdays: "요일을 하나 이상 골라 주세요.",
+    bad_end_day: "끝나는 날은 시작한 날보다 뒤여야 해요.",
+    too_many_repeats: "반복 할 일은 100개까지예요.",
   };
   return words[code] ?? "저장하지 못했어요. 다시 해 주세요.";
 }

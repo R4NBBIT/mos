@@ -286,3 +286,130 @@ def test_write_rate_limit(env: Env) -> None:
         for n in range(6)
     ]
     assert codes[:5] == [200] * 5 and codes[5] == 429
+
+
+# ------------------------------------------------------------ 반복, 최근 색
+
+
+def day_items(env: Env, day: str) -> list[dict]:
+    return env.client.get(f"/api/todo/day/{day}").json()["items"]
+
+
+def test_daily_repeat(env: Env) -> None:
+    signed_up(env, "mocha")
+    item = add(env, "물 마시기")
+    made = env.client.post(
+        "/api/todo/repeats", json={"item_id": item["id"], "rule": "daily"}, headers=POST
+    )
+    assert made.status_code == 200 and made.json()["rule"] == "daily"
+    today = day_items(env, DAY)
+    assert today[0]["id"] == item["id"] and today[0]["repeat"]["rule"] == "daily"
+    tomorrow = day_items(env, "2026-11-23")
+    assert [i["id"] for i in tomorrow] == [f"r{made.json()['id']}:2026-11-23"]
+    summary = env.client.get(f"/api/todo/days?start={DAY}&end=2026-11-28").json()["days"]
+    assert summary["2026-11-25"] == {"total": 1, "done": 0}
+    # 아직 행이 없는 회차도 완료할 수 있다(그때 행이 생김)
+    done = env.client.patch(
+        f"/api/todo/items/{tomorrow[0]['id']}", json={"done": True}, headers=POST
+    ).json()
+    assert done["done"] is True and done["id"].isdigit() and done["repeat"]["rule"] == "daily"
+    assert day_items(env, "2026-11-23")[0]["done"] is True
+    env.tick(1)
+    # 오늘 것만 지우기: 그날만 빠진다
+    skip = env.client.delete(f"/api/todo/items/r{made.json()['id']}:2026-11-24", headers=POST)
+    assert skip.status_code == 204
+    assert day_items(env, "2026-11-24") == []
+    assert len(day_items(env, "2026-11-25")) == 1
+    # 앞으로도 지우기: 그날부터 없다
+    rid = made.json()["id"]
+    gone = env.client.delete(f"/api/todo/items/r{rid}:2026-11-26?scope=future", headers=POST)
+    assert gone.status_code == 204
+    assert day_items(env, "2026-11-26") == [] and day_items(env, "2026-12-01") == []
+    assert len(day_items(env, "2026-11-25")) == 1
+
+
+def test_weekly_repeat_and_moving_one_day(env: Env) -> None:
+    signed_up(env, "mocha")
+    item = add(env, "운동")
+    rid = env.client.post(
+        "/api/todo/repeats",
+        json={"item_id": item["id"], "rule": "weekly", "weekdays": [1, 3]},
+        headers=POST,
+    ).json()["id"]
+    assert len(day_items(env, "2026-11-23")) == 1  # 월
+    assert day_items(env, "2026-11-24") == []  # 화
+    # 월요일 회차를 화요일로 옮기면 따로인 할 일이 되고 월요일은 비어 있다
+    moved = env.client.patch(
+        f"/api/todo/items/r{rid}:2026-11-23", json={"day": "2026-11-24"}, headers=POST
+    ).json()
+    assert moved["day"] == "2026-11-24" and moved["repeat"] is None
+    assert day_items(env, "2026-11-23") == []
+    assert [i["title"] for i in day_items(env, "2026-11-24")] == ["운동"]
+    assert len(day_items(env, "2026-11-30")) == 1  # 다음 월요일은 그대로
+
+
+def test_stop_repeat_keeps_that_day(env: Env) -> None:
+    signed_up(env, "mocha")
+    item = add(env, "일기")
+    rid = env.client.post(
+        "/api/todo/repeats", json={"item_id": item["id"], "rule": "daily"}, headers=POST
+    ).json()["id"]
+    stop = env.client.post(
+        f"/api/todo/repeats/{rid}/stop", json={"day": "2026-11-24"}, headers=POST
+    )
+    assert stop.status_code == 204
+    kept = day_items(env, "2026-11-24")
+    assert [i["title"] for i in kept] == ["일기"] and kept[0]["repeat"] is None
+    assert day_items(env, "2026-11-25") == []
+
+
+def test_repeat_checks(env: Env) -> None:
+    signed_up(env, "mocha")
+    item = add(env, "청소")
+    for body, code in [
+        ({"rule": "yearly"}, "bad_rule"),
+        ({"rule": "weekly", "weekdays": []}, "bad_weekdays"),
+        ({"rule": "weekly", "weekdays": [7]}, "bad_weekdays"),
+        ({"rule": "daily", "end_day": "2026-11-01"}, "bad_end_day"),
+    ]:
+        response = env.client.post(
+            "/api/todo/repeats", json={"item_id": item["id"], **body}, headers=POST
+        )
+        assert response.json()["detail"] == code
+    env.tick(1)
+    ok = env.client.post(
+        "/api/todo/repeats", json={"item_id": item["id"], "rule": "monthly"}, headers=POST
+    )
+    assert ok.status_code == 200
+    again = env.client.post(
+        "/api/todo/repeats", json={"item_id": item["id"], "rule": "daily"}, headers=POST
+    )
+    assert again.json()["detail"] == "already_repeating"
+    assert len(day_items(env, "2026-12-22")) == 1 and day_items(env, "2026-12-21") == []
+
+
+def test_reorder_with_repeat_occurrence(env: Env) -> None:
+    signed_up(env, "mocha")
+    first = add(env, "반복")
+    env.client.post(
+        "/api/todo/repeats", json={"item_id": first["id"], "rule": "daily"}, headers=POST
+    )
+    env.client.post(
+        "/api/todo/items",
+        json={"title": "한 번", "day": "2026-11-23", "category_id": first_category(env)},
+        headers=POST,
+    )
+    ids = [i["id"] for i in day_items(env, "2026-11-23")]
+    body = {"day": "2026-11-23", "category_id": first_category(env), "ids": list(reversed(ids))}
+    env.tick(1)
+    assert env.client.put("/api/todo/order", json=body, headers=POST).status_code == 204
+    assert [i["title"] for i in day_items(env, "2026-11-23")] == ["한 번", "반복"]
+
+
+def test_recent_colors(env: Env) -> None:
+    signed_up(env, "mocha")
+    env.client.post("/api/todo/categories", json={"name": "a", "color": "#2E8B57"}, headers=POST)
+    env.client.post("/api/todo/categories", json={"name": "b", "color": "#2563EB"}, headers=POST)
+    env.client.post("/api/todo/categories", json={"name": "c", "color": "#123456"}, headers=POST)
+    recent = env.client.get("/api/todo/categories").json()["recent_colors"]
+    assert recent == ["#123456", "#2E8B57"]  # 기본 색은 넣지 않고 최근 것 먼저
