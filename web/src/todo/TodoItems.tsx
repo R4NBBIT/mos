@@ -5,13 +5,10 @@ import { useEnterKey } from "./enterKey";
 import { TodoReactions } from "./TodoReactions";
 import { parseWhen } from "./parseWhen";
 import {
-  createRepeat,
   deleteTodo,
   fetchAudience,
   fetchGroups,
   fetchPeople,
-  type RepeatRule,
-  stopRepeat,
   type TodoCategory,
   todoErrorText,
   type TodoItem,
@@ -160,7 +157,6 @@ export function useMemoAudience(category: TodoCategory | undefined): { short: st
   };
 }
 
-type RuleChoice = "none" | RepeatRule;
 
 /** 날짜, 시각 고르기: 글자(요일 포함)를 누르면 브라우저 고르기 창이 바로 열린다 */
 export function PickField({
@@ -245,9 +241,6 @@ function TodoMenu({
   const [place, setPlace] = useState(item.place ?? "");
   const [memo, setMemo] = useState(item.memo);
   const [categoryId, setCategoryId] = useState(item.category_id);
-  const [rule, setRule] = useState<RuleChoice>(item.repeat?.rule ?? "none");
-  const [weekdays, setWeekdays] = useState<number[]>(item.repeat?.weekdays ?? [new Date(`${item.day}T12:00`).getDay()]);
-  const [endDay, setEndDay] = useState(item.repeat?.end_day ?? "");
   const [forFuture, setForFuture] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -270,10 +263,7 @@ function TodoMenu({
   };
 
   const save = () => {
-    if (rule === "weekly" && weekdays.length === 0) {
-      setError("요일을 하나 이상 골라 주세요.");
-      return;
-    }
+    // 반복 만들기와 바꾸기는 반복 화면에서만(2026-11-23 사용자 요청: TODO 메뉴에서는 반복을 뺌)
     return run(async () => {
       const changes: Record<string, unknown> = {};
       if (titleRef.current.trim() !== item.title) changes.title = titleRef.current.trim();
@@ -282,29 +272,13 @@ function TodoMenu({
       if (memo.trim() !== item.memo) changes.memo = memo;
       if (categoryId !== item.category_id) changes.category_id = categoryId;
       if (day !== item.day) changes.day = day;
-      let saved = item;
-      if (Object.keys(changes).length > 0) saved = await updateTodo(item.id, changes);
+      if (Object.keys(changes).length > 0) await updateTodo(item.id, changes);
       const repeat = item.repeat;
       if (repeat && forFuture) {
         // 앞으로의 반복에도: 이름, 시각, 장소, 메모, 카테고리
         const { day: _skip, ...rest } = changes;
         void _skip;
         if (Object.keys(rest).length > 0) await updateRepeat(repeat.id, rest);
-      }
-      if (repeat) {
-        // 다른 날로 옮긴 회차는 따로인 TODO가 되므로 반복은 건드리지 않는다
-        if (day === item.day) {
-          if (rule === "none") await stopRepeat(repeat.id, item.day);
-          else if (
-            rule !== repeat.rule ||
-            (endDay || null) !== repeat.end_day ||
-            (rule === "weekly" && weekdays.join() !== repeat.weekdays.join())
-          ) {
-            await updateRepeat(repeat.id, { rule, weekdays: rule === "weekly" ? weekdays : undefined, end_day: endDay || null });
-          }
-        }
-      } else if (rule !== "none") {
-        await createRepeat(saved.id, { rule, weekdays: rule === "weekly" ? weekdays : undefined, end_day: endDay || null });
       }
       return day !== item.day ? `${longLabel(day)}로 옮겼어요.` : undefined;
     });
@@ -331,9 +305,6 @@ function TodoMenu({
     (place.trim() || null) !== item.place ||
     memo.trim() !== item.memo ||
     categoryId !== item.category_id ||
-    rule !== (item.repeat?.rule ?? "none") ||
-    (rule !== "none" && (endDay || null) !== (item.repeat?.end_day ?? null)) ||
-    (rule === "weekly" && !!item.repeat && weekdays.join() !== item.repeat.weekdays.join()) ||
     forFuture;
   const cancel = () => (dirty ? setLeaving(true) : onClose());
   const cancelRef = useRef(cancel);
@@ -342,8 +313,6 @@ function TodoMenu({
   useEffect(() => {
     if (closeAsk !== firstAsk.current) cancelRef.current();
   }, [closeAsk]);
-  const toggleDay = (value: number) =>
-    setWeekdays((current) => (current.includes(value) ? current.filter((d) => d !== value) : [...current, value].sort()));
 
   return (
     <div className="todo-menu" role="group" aria-label={`${item.title} 수정`}>
@@ -398,60 +367,7 @@ function TodoMenu({
             </select>
           </span>
         </label>
-        <div className="todo-prop">
-          <span className="todo-prop-key">반복</span>
-          <span className="todo-prop-value">
-            <select aria-label="반복" value={rule} onChange={(event) => setRule(event.target.value as RuleChoice)}>
-              <option value="none">안 함</option>
-              <option value="daily">매일</option>
-              <option value="weekdays">평일마다</option>
-              <option value="weekends">주말마다</option>
-              <option value="weekly">매주 고른 요일</option>
-              {rule === "monthly" && <option value="monthly">매달 같은 날</option>}
-            </select>
-          </span>
-        </div>
-        {rule === "weekly" && (
-          <div className="todo-prop">
-            <span className="todo-prop-key" />
-            <div className="todo-weekdays" role="group" aria-label="반복할 요일">
-              {WEEKDAY_NAMES.map((name, index) => (
-                <button
-                  key={name}
-                  type="button"
-                  aria-pressed={weekdays.includes(index)}
-                  className={weekdays.includes(index) ? "todo-weekday todo-weekday-on" : "todo-weekday"}
-                  onClick={() => toggleDay(index)}
-                >
-                  {name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-        {rule !== "none" && (
-          <label className="todo-prop">
-            <span className="todo-prop-key">마지막 날</span>
-            <span className="todo-prop-value">
-              <PickField
-                type="date"
-                label="마지막 날"
-                value={endDay}
-                empty="없음"
-                min={item.repeat ? undefined : item.day}
-                onChange={setEndDay}
-              />
-              {endDay && (
-                <button type="button" className="todo-link-button" onClick={() => setEndDay("")}>
-                  삭제
-                </button>
-              )}
-              {!endDay && <span className="todo-hint">비우면 계속</span>}
-            </span>
-          </label>
-        )}
       </div>
-      {rule === "none" && item.repeat && <span className="todo-hint">저장하면 이날부터 반복을 그만해요. 이 TODO는 남아요.</span>}
       {item.repeat && (
         <label className="todo-check-line">
           <input type="checkbox" checked={forFuture} onChange={(event) => setForFuture(event.target.checked)} />
