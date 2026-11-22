@@ -78,6 +78,14 @@ export const deleteTodo = (id: string) => call<void>(`/api/todo/items/${id}`, "D
 export const reorderTodos = (day: string, categoryId: string, ids: string[]) =>
   call<void>("/api/todo/order", "PUT", { day, category_id: categoryId, ids });
 
+export const fetchCategories = async (): Promise<TodoCategory[]> =>
+  (await call<{ categories: TodoCategory[] }>("/api/todo/categories")).categories;
+
+export const reorderCategories = async (ids: string[]): Promise<TodoCategory[]> =>
+  (await call<{ categories: TodoCategory[] }>("/api/todo/categories/order", "PUT", { ids })).categories;
+
+export const deleteCategory = (id: string) => call<void>(`/api/todo/categories/${id}`, "DELETE");
+
 export const addCategory = (name: string, color: string) =>
   call<TodoCategory>("/api/todo/categories", "POST", { name, color });
 

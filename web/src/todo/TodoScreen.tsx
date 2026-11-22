@@ -1,8 +1,9 @@
 // 할 일(공개 전): 하루 화면(SCR-02, 넓은 화면 오른쪽)과 넓은 화면 왼쪽 달력(SCR-04)
 // 허용된 계정에서만 이 파일을 내려받는다(App에서 lazy). 테마 색은 ㅁㅇㅅ CSS 변수를 그대로 쓴다
-import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BackIcon from "../BackIcon";
 import SplitToggle from "../SplitToggle";
+import { useEnterKey } from "./enterKey";
 import {
   addDays,
   isDayKey,
@@ -17,7 +18,6 @@ import {
   weekOf,
 } from "./dates";
 import {
-  addCategory,
   addTodo,
   type DaySummary,
   deleteTodo,
@@ -31,7 +31,7 @@ import {
 } from "./todoApi";
 import "./todo.css";
 
-const PRESET_COLORS = ["#FFD66B", "#2563EB", "#7C5CDB", "#16A34A", "#C2410C", "#DB2777", "#0891B2"];
+export const PRESET_COLORS = ["#FFD66B", "#2563EB", "#7C5CDB", "#16A34A", "#C2410C", "#DB2777", "#0891B2"];
 
 /** 화면 바탕과 잘 구분되지 않는 아주 밝은 색이면 얇은 테두리(CAT-11) */
 function needsRing(color: string): boolean {
@@ -67,11 +67,16 @@ function useSummary(start: string, end: string, version: number): DaySummary {
   return summary;
 }
 
+/** 그날 한 수/전체(예: 1/4). 다 했으면 꿀색 바탕 */
 function DayMark({ day, summary }: { day: string; summary: DaySummary }) {
   const info = summary[day];
   if (!info || info.total === 0) return <span className="todo-mark" />;
-  if (info.done >= info.total) return <span className="todo-mark todo-mark-done" aria-label="다 했어요" />;
-  return <span className="todo-mark todo-mark-left">{info.total - info.done}</span>;
+  const all = info.done >= info.total;
+  return (
+    <span className={all ? "todo-mark todo-mark-all" : "todo-mark"} aria-label={`${info.total}개 중 ${info.done}개 했어요`}>
+      {info.done}/{info.total}
+    </span>
+  );
 }
 
 // ------------------------------------------------------------ 할 일 한 줄
@@ -89,9 +94,12 @@ function TodoRow({
   const [confirming, setConfirming] = useState(false);
   const [draft, setDraft] = useState(item.title);
   const meta = [item.time ? timeLabel(item.time) : "", item.place ?? ""].filter(Boolean).join(", ");
+  const enter = useEnterKey(() => void save());
 
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
   const save = async () => {
-    const title = draft.trim();
+    const title = draftRef.current.trim();
     if (!title || title === item.title) {
       setDraft(item.title);
       setEditing(false);
@@ -130,9 +138,7 @@ function TodoRow({
             autoFocus
             aria-label="할 일 고치기"
             onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.nativeEvent.isComposing) void save();
-            }}
+            {...enter}
           />
           <div className="todo-edit-actions">
             <button type="button" className="todo-small-button" onClick={() => void save()}>
@@ -189,15 +195,17 @@ function CategoryBlock({
   onDelete: (item: TodoItem) => Promise<void>;
 }) {
   const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    const title = text.trim();
-    if (!title || busy) return;
-    setBusy(true);
+  const textRef = useRef(text);
+  textRef.current = text;
+  const busy = useRef(false);
+  const submit = async () => {
+    const title = textRef.current.trim();
+    if (!title || busy.current) return;
+    busy.current = true;
     if (await onAdd(title)) setText(""); // 칸은 열린 채로 이어서 입력
-    setBusy(false);
+    busy.current = false;
   };
+  const enter = useEnterKey(() => void submit());
   return (
     <section className="todo-block" aria-label={category.name}>
       <h2 className="todo-cat">
@@ -215,7 +223,13 @@ function CategoryBlock({
         ))}
       </ul>
       {!category.closed && (
-        <form className="todo-add" onSubmit={(event) => void submit(event)}>
+        <form
+          className="todo-add"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submit();
+          }}
+        >
           <span className="todo-check todo-check-ghost" aria-hidden="true" />
           <input
             className="todo-add-input"
@@ -225,58 +239,16 @@ function CategoryBlock({
             aria-label={`${category.name}에 할 일 입력`}
             enterKeyHint="done"
             onChange={(event) => setText(event.target.value)}
+            {...enter}
           />
+          {text.trim() && (
+            <button type="submit" className="todo-small-button todo-add-button">
+              추가
+            </button>
+          )}
         </form>
       )}
     </section>
-  );
-}
-
-function NewCategory({ count, onMade }: { count: number; onMade: (category: TodoCategory) => void }) {
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [error, setError] = useState("");
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    const value = name.trim();
-    if (!value) return;
-    try {
-      onMade(await addCategory(value, PRESET_COLORS[count % PRESET_COLORS.length] ?? "#FFD66B"));
-      setName("");
-      setOpen(false);
-      setError("");
-    } catch (failure) {
-      setError(todoErrorText(failure));
-    }
-  };
-  if (!open) {
-    return (
-      <button type="button" className="todo-new-cat" onClick={() => setOpen(true)}>
-        + 카테고리
-      </button>
-    );
-  }
-  return (
-    <form className="todo-new-cat-form" onSubmit={(event) => void submit(event)}>
-      <input
-        value={name}
-        maxLength={20}
-        autoFocus
-        placeholder="카테고리 이름"
-        aria-label="새 카테고리 이름"
-        onChange={(event) => setName(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") setOpen(false);
-        }}
-      />
-      <button type="submit" className="todo-small-button">
-        만들기
-      </button>
-      <button type="button" className="todo-small-button" onClick={() => setOpen(false)}>
-        취소
-      </button>
-      {error && <p className="todo-error">{error}</p>}
-    </form>
   );
 }
 
@@ -293,6 +265,8 @@ export interface TodoScreenProps {
   /** 할 일이 바뀌면(왼쪽 달력, 서버 목록 요약을 다시) */
   onChanged?: () => void;
   version?: number;
+  /** 카테고리 관리 화면으로 */
+  onCategories: () => void;
 }
 
 export default function TodoScreen({
@@ -305,6 +279,7 @@ export default function TodoScreen({
   onNoticeClose,
   onChanged,
   version = 0,
+  onCategories,
 }: TodoScreenProps) {
   const day = isDayKey(rawDay) ? rawDay : today();
   const [data, setData] = useState<TodoDay | null>(null);
@@ -416,11 +391,22 @@ export default function TodoScreen({
           <strong>{longLabel(day)}</strong>
           <span className="room-sub">{sub}</span>
         </div>
-        {!isToday && (
-          <button type="button" className="todo-small-button" onClick={() => onDay(today())}>
-            오늘
+        <div className="header-tools">
+          {!isToday && (
+            <button type="button" className="header-tool" onClick={() => onDay(today())}>
+              <span className="header-tool-label todo-tool-always">오늘</span>
+            </button>
+          )}
+          <button type="button" className="header-tool" aria-label="카테고리 관리" onClick={onCategories}>
+            <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <rect x="3" y="3.5" width="6" height="6" rx="1.5" />
+              <rect x="11" y="3.5" width="6" height="6" rx="1.5" />
+              <rect x="3" y="11.5" width="6" height="6" rx="1.5" />
+              <path d="M14 11.5v6M11 14.5h6" strokeLinecap="round" />
+            </svg>
+            <span className="header-tool-label">카테고리</span>
           </button>
-        )}
+        </div>
         {menu}
       </header>
       {notice && (
@@ -477,14 +463,6 @@ export default function TodoScreen({
             onDelete={remove}
           />
         ))}
-        {data && (
-          <NewCategory
-            count={data.categories.length}
-            onMade={(category) =>
-              setData((current) => (current ? { ...current, categories: [...current.categories, category] } : current))
-            }
-          />
-        )}
       </div>
     </div>
   );
