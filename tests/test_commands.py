@@ -161,6 +161,10 @@ def test_todo_commands_more(env: Env) -> None:
     assert ok(env, "/todo 휴지통 1번 되살려줘").startswith("♻️ 되살렸어요")
     # 친구 이름이 없으면 찾지 못했다고
     assert "찾지 못했어요" in run(env, "/todo 없는사람에게 친구 요청")["text"]
+    # '차단' 대신 '비공개'(예전 말도 알아들음). 카테고리 공개 범위 말은 사람 비공개로 받지 않음
+    assert "찾지 못했어요" in run(env, "/todo 없는사람 비공개로 해줘")["text"]
+    assert "찾지 못했어요" in run(env, "/todo 없는사람 차단")["text"]
+    assert "찾지 못했어요" not in run(env, "/todo 회사 카테고리 비공개로 해줘")["text"]
 
 
 def test_understand_words() -> None:

@@ -10,10 +10,10 @@ LLM 없이 규칙으로 알아듣는다. 넣기, 보기, 완료, 옮기기, 삭�
 - 카테고리: '카테고리 보여줘', '운동 카테고리 만들어줘', '운동 카테고리 끝내기/다시 열기/삭제'
 - 반복: '반복 보여줘', '매일 9시 출근 반복 만들어줘', '출근 반복 끝내기', '출근 반복 삭제'
 - 친구: '친구 보여줘', '라떼에게 친구 요청', '라떼 친구 수락', '라떼 친구 끊기',
-  '라떼 차단', '라떼 차단 풀기'
+  '라떼 비공개', '라떼 비공개 풀기'(예전 말 '차단'도 알아들음)
 - 휴지통: '휴지통 보여줘', '휴지통 2번 되살려줘'
 
-되돌리기 어려운 일(삭제, 끝내기, 친구 끊기, 차단)은 [확인] [취소] 단추로 한 번 묻는다.
+되돌리기 어려운 일(삭제, 끝내기, 친구 끊기, 비공개)은 [확인] [취소] 단추로 한 번 묻는다.
 단추가 보내는 말은 '/todo 확인 <종류> <ID>'(사람이 쓰는 말이 아님).
 """
 
@@ -89,7 +89,7 @@ class MoreCommands:
                 )
             if kind == "catdel":
                 await self.todo.delete_category(account_id, int(target))
-                return Reply("🗑️ 카테고리를 삭제했어요. 휴지통에서 7일 동안 되살릴 수 있어요.")
+                return Reply("🗑️ 카테고리를 삭제했어요. 휴지통에서 7일 동안 되돌릴 수 있어요.")
             if kind == "repend":
                 await self.todo.end_repeat(account_id, target, today)
                 return Reply("🔁 반복을 오늘까지만 하게 했어요. 지난 TODO는 그대로 남아요.")
@@ -97,7 +97,7 @@ class MoreCommands:
                 await self.todo.delete_repeat_series(account_id, target, today)
                 return Reply(
                     "🗑️ 반복을 삭제했어요. "
-                    "오늘까지의 TODO는 남고, 휴지통에서 7일 동안 되살릴 수 있어요."
+                    "오늘까지의 TODO는 남고, 휴지통에서 7일 동안 되돌릴 수 있어요."
                 )
             if self.friends is None:
                 return Reply("지금은 할 수 없어요.")
@@ -105,7 +105,7 @@ class MoreCommands:
                 await self.friends.remove(account_id, target)
                 return Reply("친구를 끊었어요.")
             await self.friends.block(account_id, target)
-            return Reply("🚫 차단했어요. '이름 차단 풀기'로 풀 수 있어요.")
+            return Reply("🔒 비공개로 했어요. '이름 비공개 풀기'로 풀 수 있어요.")
         except TodoError as error:
             return Reply(f"하지 못했어요({error.code}).")
 
@@ -140,7 +140,7 @@ class MoreCommands:
     async def _friends(
         self, account_id: int, _today: str, text: str, ask: Any = None
     ) -> Reply | None:
-        if self.friends is None or not re.search(r"친구|차단", text):
+        if self.friends is None or not re.search(r"친구|차단|비공개", text):
             return None
         if re.fullmatch(
             r"(?:내\s?)?친구(?:\s?목록)?\s?(?:보여" + ACT + r"|알려" + ACT + r"|목록)?", text
@@ -154,17 +154,21 @@ class MoreCommands:
             if people["outgoing"]:
                 parts.append("보낸 요청: " + " | ".join(p["name"] for p in people["outgoing"]))
             if people["blocked"]:
-                parts.append("차단: " + " | ".join(p["name"] for p in people["blocked"]))
+                parts.append("비공개: " + " | ".join(p["name"] for p in people["blocked"]))
             return Reply("\n".join(parts))
         patterns = (
             ("request", r"(.+?)\s?(?:에게|한테|께)\s?친구\s?(?:요청|신청)" + ACT),
             ("accept", r"(.+?)(?:의)?\s?친구\s?(?:요청\s?)?(?:수락|받아)" + ACT),
             ("unfriend", r"(.+?)(?:랑|와|과)?\s?친구\s?(?:끊어|끊기|끊|삭제)" + ACT),
-            ("unblock", r"(.+?)\s?차단\s?(?:풀어|풀기|해제)" + ACT),
-            ("block", r"(.+?)\s?차단" + ACT),
+            ("unblock", r"(.+?)\s?(?:차단|비공개)\s?(?:풀어|풀기|해제)" + ACT),
+            ("block", r"(.+?)\s?(?:차단|비공개)(?:로)?\s?" + ACT),
         )
         for kind, pattern in patterns:
             found = re.fullmatch(pattern, text)
+            if found and kind in ("block", "unblock") and "카테고리" in found[1]:
+                return (
+                    None  # '회사 카테고리 비공개로' 같은 카테고리 공개 범위 말은 사람 비공개가 아님
+                )
             if found:
                 return await self._friend_action(account_id, kind, found[1].strip(), ask)
         return None
@@ -191,7 +195,7 @@ class MoreCommands:
         person = matches[0]
         words = {"request": "에게 친구 요청을 보낼까요?", "accept": "의 친구 요청을 수락할까요?"}
         if ask and kind in ("request", "accept", "unblock"):
-            return ask(person["name"] + words.get(kind, " 차단을 풀까요?"))
+            return ask(person["name"] + words.get(kind, " 비공개를 풀까요?"))
         try:
             if kind == "request":
                 await self.friends.request(account_id, person["id"])
@@ -201,7 +205,7 @@ class MoreCommands:
                 return Reply(f"🤝 {person['name']}와(과) 친구가 됐어요.")
             if kind == "unblock":
                 await self.friends.unblock(account_id, person["id"])
-                return Reply(f"{person['name']} 차단을 풀었어요.")
+                return Reply(f"{person['name']} 비공개를 풀었어요.")
         except TodoError as error:
             return Reply(f"하지 못했어요({error.code}).")
         if kind == "unfriend":
@@ -209,10 +213,10 @@ class MoreCommands:
                 f"{person['name']}와(과) 친구를 끊을까요?", "unfriend", person["id"], "끊기"
             )
         return _ask(
-            f"{person['name']}을(를) 차단할까요? 친구와 요청이 끊기고 서로 TODO가 안 보여요.",
+            f"{person['name']}에게 비공개로 할까요? 친구와 요청이 끊기고 서로 TODO가 안 보여요.",
             "block",
             person["id"],
-            "차단",
+            "비공개",
         )
 
     # ------------------------------------------------------------ 카테고리
@@ -260,7 +264,7 @@ class MoreCommands:
         if verb == "삭제":
             return _ask(
                 f"'{name}' 카테고리를 삭제할까요? 안의 TODO와 반복도 같이 지워지고, "
-                "휴지통에서 7일 동안 되살릴 수 있어요.",
+                "휴지통에서 7일 동안 되돌릴 수 있어요.",
                 "catdel",
                 str(cat["id"]),
                 "삭제",

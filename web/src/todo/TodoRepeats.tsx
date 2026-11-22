@@ -396,7 +396,7 @@ function SeriesCard({
           <span>
             {asking === "end"
               ? `'${current.title}' 반복을 오늘까지만 할까요? 내일부터 생길 TODO는 삭제되고, 지난 TODO는 그대로 남아요.`
-              : `'${current.title}' 반복을 삭제할까요? 내일부터 생길 TODO는 삭제되고, 오늘까지의 TODO는 끝내지 못한 것도 그대로 남아요. 휴지통에서 7일 동안 되살릴 수 있어요.`}
+              : `'${current.title}' 반복을 삭제할까요? 내일부터 생길 TODO는 삭제되고, 오늘까지의 TODO는 끝내지 못한 것도 그대로 남아요. 휴지통에서 7일 동안 되돌릴 수 있어요.`}
           </span>
           <div className="todo-confirm-buttons">
             <button type="button" className="todo-small-button" onClick={() => setAsking(null)}>

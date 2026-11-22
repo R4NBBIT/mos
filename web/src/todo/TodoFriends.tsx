@@ -73,7 +73,7 @@ export default function TodoFriends({
   const blockable = (person: TodoPerson, actions: ReactNode): ReactNode =>
     blocking === person.id ? (
       <>
-        <span className="todo-friend-ask">차단하면 친구가 끊기고 서로 TODO가 안 보여요.</span>
+        <span className="todo-friend-ask">비공개로 하면 친구가 끊기고 서로 TODO가 안 보여요.</span>
         <button type="button" className="todo-small-button" onClick={() => setBlocking(null)}>
           취소
         </button>
@@ -87,14 +87,14 @@ export default function TodoFriends({
             })
           }
         >
-          차단
+          비공개로 하기
         </button>
       </>
     ) : (
       <>
         {actions}
         <button type="button" className="todo-text-button todo-danger-text" onClick={() => setBlocking(person.id)}>
-          차단
+          비공개
         </button>
       </>
     );
@@ -181,7 +181,7 @@ export default function TodoFriends({
               </div>
               <p className="todo-field-help">
                 같은 디스코드 서버에서 TODO를 쓰는 사람에게 요청할 수 있어요. 친구가 되면 서로 '친구' 카테고리까지
-                보이고 반응을 달 수 있어요. 친구가 아니어도 같은 서버 사람은 내 '전체' 카테고리를 볼 수 있어요(차단한
+                보이고 반응을 달 수 있어요. 친구가 아니어도 같은 서버 사람은 내 '전체' 카테고리를 볼 수 있어요(비공개한
                 사람 빼고).
               </p>
               {adding && (
@@ -280,12 +280,12 @@ export default function TodoFriends({
             <GroupsSection friends={people.friends} />
             {/* 차단 목록은 비어 있어도 늘 보이게(어디서 푸는지 찾을 수 있게, 2026-11-23) */}
             <section className="todo-friend-section">
-              <h2 className="todo-friend-title">차단한 사람 {people.blocked.length}명</h2>
+              <h2 className="todo-friend-title">비공개한 사람 {people.blocked.length}명</h2>
               <p className="todo-field-help">
-                서로 TODO가 안 보이고, 요청과 반응도 할 수 없어요. '차단 풀기'를 누르면 풀려요(친구는 다시 요청해야
+                서로 TODO가 안 보이고, 요청과 반응도 할 수 없어요. '비공개 풀기'를 누르면 풀려요(친구는 다시 요청해야
                 해요).
               </p>
-              {people.blocked.length === 0 && <p className="todo-field-help">차단한 사람이 없어요.</p>}
+              {people.blocked.length === 0 && <p className="todo-field-help">비공개한 사람이 없어요.</p>}
               <ul>
                 {people.blocked.map((person) => (
                   <li key={person.id} className="todo-friend-row">
@@ -297,7 +297,7 @@ export default function TodoFriends({
                         className="todo-small-button"
                         onClick={() => void run(() => unblockPerson(person.id))}
                       >
-                        차단 풀기
+                        비공개 풀기
                       </button>
                     </span>
                   </li>

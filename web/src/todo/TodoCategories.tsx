@@ -339,7 +339,7 @@ function CategoryEditor({
       )}
       {asking === "delete" && (
         <div className="todo-confirm" role="alertdialog" aria-label="카테고리 삭제 확인">
-          <span>'{category.name}' 카테고리와 안의 TODO를 삭제할까요? 휴지통에서 7일 동안 되살릴 수 있어요.</span>
+          <span>'{category.name}' 카테고리와 안의 TODO를 삭제할까요? 휴지통에서 7일 동안 되돌릴 수 있어요.</span>
           <div className="todo-confirm-buttons">
             <button type="button" className="todo-small-button" onClick={() => setAsking(null)}>
               취소

@@ -1,4 +1,5 @@
 // TODO 한 줄과 TODO 메뉴(SCR-03), 카테고리 묶음의 입력칸(날짜 알아보기, TODO-13~15)
+import { Sortable } from "../listOrder";
 import { type CSSProperties, Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { dateWithWeekday, longLabel, timeLabel, today, WEEKDAY_NAMES } from "./dates";
 import { useEnterKey } from "./enterKey";
@@ -9,6 +10,7 @@ import {
   fetchAudience,
   fetchGroups,
   fetchPeople,
+  reorderTodos,
   type TodoCategory,
   todoErrorText,
   type TodoItem,
@@ -443,8 +445,8 @@ function TodoMenu({
         <div className="todo-confirm" role="group" aria-label="삭제 확인">
           <span>
             {item.repeat
-              ? "반복 TODO예요. 이날 것만 삭제할까요, 앞으로 것까지 삭제할까요? 어느 쪽이든 휴지통(카테고리 화면 › 휴지통)에서 7일 동안 되살릴 수 있어요."
-              : "이 TODO를 삭제할까요? 휴지통(카테고리 화면 › 휴지통)에서 7일 동안 되살릴 수 있어요."}
+              ? "반복 TODO예요. 이날 것만 삭제할까요, 앞으로 것까지 삭제할까요? 어느 쪽이든 휴지통(TODO 화면 맨 아래)에서 7일 동안 되돌릴 수 있어요."
+              : "이 TODO를 삭제할까요? 휴지통(TODO 화면 맨 아래)에서 7일 동안 되돌릴 수 있어요."}
           </span>
           <div className="todo-confirm-buttons">
             <button type="button" className="todo-small-button" onClick={() => setConfirming(false)}>
@@ -482,11 +484,14 @@ export function TodoRow({
   categories,
   onToggle,
   onDone,
+  handle,
 }: {
   item: TodoItem;
   categories: TodoCategory[];
   onToggle: () => void;
   onDone: (notice?: string) => void;
+  /** 순서 바꾸기 중일 때 줄 앞 손잡이 */
+  handle?: ReactNode;
 }) {
   const [reactions, setReactions] = useState(item.reactions ?? []);
   useEffect(() => setReactions(item.reactions ?? []), [item.reactions]);
@@ -500,6 +505,7 @@ export function TodoRow({
   return (
     <li className={item.done ? "todo-row todo-row-done" : "todo-row"}>
       <div className="todo-row-line">
+        {handle}
         <button
           type="button"
           className={item.done ? "todo-check todo-check-on" : "todo-check"}
@@ -584,6 +590,19 @@ export function CategoryBlock({
   onDone: (notice?: string) => void;
 }) {
   const [text, setText] = useState("");
+  // 같은 카테고리 안 TODO 순서 바꾸기(2026-11-23 사용자 요청). '순서'를 누르면 줄마다 손잡이
+  const [sorting, setSorting] = useState(false);
+  useEffect(() => {
+    if (items.length < 2) setSorting(false);
+  }, [items.length]);
+  const reorder = async (ids: string[]) => {
+    try {
+      await reorderTodos(viewDay, category.id, ids);
+      onDone();
+    } catch {
+      onDone("순서를 바꾸지 못했어요.");
+    }
+  };
   // 넣을 때 칸: 날짜, 시각, 장소, 메모(2026-11-23 사용자 요청 '이름만이 아니라 모든 칸'). 비우면 쓴 글에서 뗀 값
   const [fields, setFields] = useState({
     day: "",
@@ -688,14 +707,62 @@ export function CategoryBlock({
 
   return (
     <section className="todo-block" aria-label={category.name}>
-      <h2 className="todo-cat" style={checkStyle(category.color)}>
-        <CategoryDot color={category.color} />
-        {category.name}
-      </h2>
+      <div className="todo-cat-head">
+        <h2 className="todo-cat" style={checkStyle(category.color)}>
+          <CategoryDot color={category.color} />
+          {category.name}
+        </h2>
+        {items.length > 1 && (
+          <button
+            type="button"
+            className={sorting ? "todo-sort-toggle todo-sort-toggle-on" : "todo-sort-toggle"}
+            aria-pressed={sorting}
+            aria-label={sorting ? `${category.name} 순서 바꾸기 끝` : `${category.name} 순서 바꾸기`}
+            onClick={() => setSorting(!sorting)}
+          >
+            {sorting ? (
+              "완료"
+            ) : (
+              <>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8 4v16M4 8l4-4 4 4M16 20V4M12 16l4 4 4-4" />
+                </svg>
+                순서
+              </>
+            )}
+          </button>
+        )}
+      </div>
       <ul className="todo-list">
-        {items.map((item) => (
-          <TodoRow key={item.id} item={item} categories={categories} onToggle={() => onToggle(item)} onDone={onDone} />
-        ))}
+        {sorting ? (
+          <Sortable
+            items={items}
+            editing
+            label={(item) => item.title}
+            handleTitle="끌어서 옮기기"
+            onReorder={(ids) => void reorder(ids)}
+          >
+            {(item, handle) => (
+              <TodoRow
+                item={item}
+                categories={categories}
+                handle={handle}
+                onToggle={() => onToggle(item)}
+                onDone={onDone}
+              />
+            )}
+          </Sortable>
+        ) : (
+          items.map((item) => (
+            <TodoRow
+              key={item.id}
+              item={item}
+              categories={categories}
+              onToggle={() => onToggle(item)}
+              onDone={onDone}
+            />
+          ))
+        )}
       </ul>
       {!category.closed && (
         <form

@@ -374,7 +374,7 @@ class BotCommands:
         line = " | ".join(part for part in parts if part)
         repeat = "\n반복 TODO라 이날 것만 삭제돼요." if found.get("repeat") else ""
         return CommandResult(
-            f"삭제할까요? {line}{repeat}\n휴지통에서 7일 동안 되살릴 수 있어요.",
+            f"삭제할까요? {line}{repeat}\n휴지통에서 7일 동안 되돌릴 수 있어요.",
             choices=[("삭제", f"/todo 삭제 확인 {found['id']}"), ("취소", "/todo 삭제 취소")],
         )
 
@@ -390,7 +390,7 @@ class BotCommands:
         if not done:
             return CommandResult("이미 삭제했거나 찾지 못했어요.")
         return CommandResult(
-            "🗑️ 삭제했어요. 휴지통(TODO 카테고리 화면 › 휴지통)에서 7일 동안 되살릴 수 있어요."
+            "🗑️ 삭제했어요. 휴지통(TODO 화면 맨 아래)에서 7일 동안 되돌릴 수 있어요."
         )
 
     async def _find(

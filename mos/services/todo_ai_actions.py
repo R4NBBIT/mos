@@ -168,7 +168,7 @@ class TodoAiActions:
                         count += 1
                 return (
                     f"{count}개를 지웠어요. "
-                    "ㅁㅇㅅ 휴지통(TODO › 카테고리 화면 맨 아래, 또는 TODO › AI)에서 "
+                    "ㅁㅇㅅ 휴지통(TODO 화면 맨 아래)에서 "
                     "7일 동안 되돌릴 수 있어요."
                 )
             if kind == "add_category":
@@ -213,18 +213,18 @@ class TodoAiActions:
         ):
             raise ActionError("그런 반복이 없어요")
         return (
-            "반복을 지웠어요. 지난 회차는 따로 남겼고, ㅁㅇㅅ 휴지통(카테고리 화면 맨 아래)에서 "
-            "7일 동안 되살릴 수 있어요."
+            "반복을 지웠어요. 지난 회차는 따로 남겼고, ㅁㅇㅅ 휴지통(TODO 화면 맨 아래)에서 "
+            "7일 동안 되돌릴 수 있어요."
         )
 
     async def _run_friend(self, account_id: int, kind: str, payload: dict[str, Any]) -> str:
         friends = self.friends
         if kind == "block":
             await friends.block(account_id, payload["person"])
-            return "차단했어요. 서로 TODO가 안 보이고 친구도 끊겼어요."
+            return "비공개로 했어요. 서로 TODO가 안 보이고 친구도 끊겼어요."
         if kind == "unblock":
             await friends.unblock(account_id, payload["person"])
-            return "차단을 풀었어요."
+            return "비공개를 풀었어요."
         if kind == "friend_request":
             state = await friends.request(account_id, payload["person"])
             return "친구가 됐어요." if state == "friends" else "친구 요청을 보냈어요."

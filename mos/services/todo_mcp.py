@@ -59,9 +59,10 @@ INSTRUCTIONS = """ㅁㅇㅅ TODO에 사용자의 TODO를 넣고 고치는 도구
   사용자가 한 번 더 승인해야 적용돼요.
 - 여러 개나 '전부' 지우라고 하면 먼저 list_todos로 그 범위를 보고, 날짜별로 어느 카테고리에
   무슨 TODO가 있는지 빠짐없이 모두 보여 준 뒤 물어보세요(delete_todos 요약도 같은 모양이에요).
-- 지운 TODO는 ㅁㅇㅅ 휴지통에 7일 있어요(TODO › 카테고리 › 휴지통).
+- 지운 TODO는 ㅁㅇㅅ 휴지통에 7일 있어요(TODO 화면 맨 아래 '휴지통').
 - 카테고리는 지우지 않고 '끝내기'(다시 열 수 있음)만 해요.
-- 친구 일(요청, 수락, 끊기, 차단, 차단 풀기, 그룹, 일부 공개 대상)은 list_friends로 이름을 확인하고,
+- 친구 일(요청, 수락, 끊기, 비공개, 비공개 풀기, 그룹, 일부 공개 대상)은
+  list_friends로 이름을 확인하고,
   같은 두 단계 뒤에 ㅁㅇㅅ 화면에서 사용자가 한 번 더 승인해야 실행돼요.
 - 반복 TODO(정해 둔 날마다 자동으로 생기는 TODO)은 list_repeats로 보고, create_repeat,
   add_repeat_period(끝난 반복을 새 기간으로), update_repeat, end_repeat, delete_repeat도
@@ -417,9 +418,10 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "block_person",
-        "title": "차단(승인 필요)",
+        "title": "비공개(승인 필요)",
         "description": (
-            "사람을 차단해요. 친구와 요청이 끊기고 서로 TODO가 안 보여요. 대화 확인 뒤 ㅁㅇㅅ 승인."
+            "그 사람에게 비공개로 해요. 친구와 요청이 끊기고 서로 TODO가 안 보여요. "
+            "대화 확인 뒤 ㅁㅇㅅ 승인."
         ),
         "inputSchema": {
             "type": "object",
@@ -432,8 +434,8 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "unblock_person",
-        "title": "차단 풀기(승인 필요)",
-        "description": "차단을 풀어요. 대화 확인 뒤 ㅁㅇㅅ 승인.",
+        "title": "비공개 풀기(승인 필요)",
+        "description": "비공개를 풀어요. 대화 확인 뒤 ㅁㅇㅅ 승인.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -903,7 +905,7 @@ class TodoMcp:
             "받은 요청: " + (", ".join(data["incoming"]) or "없음"),
             "보낸 요청: " + (", ".join(data["outgoing"]) or "없음"),
             "같은 서버 사람(요청 가능): " + (", ".join(data["candidates"]) or "없음"),
-            "차단한 사람: " + (", ".join(data["blocked"]) or "없음"),
+            "비공개한 사람: " + (", ".join(data["blocked"]) or "없음"),
             "그룹: "
             + (
                 "; ".join(
@@ -954,10 +956,10 @@ class TodoMcp:
             person, shown = await self._person_id(
                 account_id, args.get("person"), ("friends", "incoming", "outgoing", "candidates")
             )
-            kind, payload, summary = "block", {"person": person}, f"{shown}님 차단"
+            kind, payload, summary = "block", {"person": person}, f"{shown}님에게 비공개"
         elif name == "unblock_person":
             person, shown = await self._person_id(account_id, args.get("person"), ("blocked",))
-            kind, payload, summary = "unblock", {"person": person}, f"{shown}님 차단 풀기"
+            kind, payload, summary = "unblock", {"person": person}, f"{shown}님 비공개 풀기"
         elif name == "friend_request":
             person, shown = await self._person_id(
                 account_id, args.get("person"), ("candidates", "incoming")

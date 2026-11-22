@@ -1,7 +1,15 @@
 // 왼쪽 목록 순서 바꾸기(이 사이트에서만, 디스코드에는 그대로).
 // 순서는 계정 설정 list_order에 저장돼서 다른 브라우저에서도 같다.
 // PC는 마우스로 줄을 바로 끌고, 휴대폰은 '목록 편집'을 눌러 나오는 손잡이를 끈다.
-import { type KeyboardEvent, type PointerEvent, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useLook } from "./lookContext";
 import { reducedMotion } from "./motion";
 import type { ChannelInfo } from "./types";
@@ -93,8 +101,11 @@ export function Sortable<T extends { id: string }>({
   label,
   onReorder,
   children,
+  handleTitle = "끌어서 옮기기(이 사이트에서만 바뀌어요)",
 }: {
   items: T[];
+  /** 손잡이에 마우스를 올렸을 때 안내 */
+  handleTitle?: string;
   /** 순서 바꾸기 중(손잡이가 보인다) */
   editing: boolean;
   label: (item: T) => string;
@@ -235,7 +246,7 @@ export function Sortable<T extends { id: string }>({
             type="button"
             className="sort-handle"
             aria-label={`${label(item)} 순서 옮기기(위아래 화살표)`}
-            title="끌어서 옮기기(이 사이트에서만 바뀌어요)"
+            title={handleTitle}
             onPointerDown={(event) => {
               event.preventDefault();
               event.stopPropagation();

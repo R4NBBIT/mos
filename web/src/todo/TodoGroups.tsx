@@ -89,8 +89,8 @@ function GroupEditor({
       {confirming && group && (
         <div className="todo-confirm" role="alertdialog" aria-label="그룹 삭제 확인">
           <span>
-            '{group.name}' 그룹을 삭제할까요? 이 그룹으로 일부 공개한 카테고리는 그룹 사람들이 못 보게 돼요.
-            휴지통(카테고리 화면 › 휴지통)에서 7일 동안 되살릴 수 있어요.
+            '{group.name}' 그룹을 삭제할까요? 이 그룹으로 일부 공개한 카테고리는 그룹 사람들이 못 보게 돼요. 휴지통(TODO
+            화면 맨 아래)에서 7일 동안 되돌릴 수 있어요.
           </span>
           <div className="todo-confirm-buttons">
             <button type="button" className="todo-small-button" onClick={() => setConfirming(false)}>
