@@ -4012,3 +4012,32 @@
   padding: 0 10px;
   white-space: nowrap;
 }
+
+/* TODO 줄: 'TODO | 시각 | 장소'를 같은 글꼴, 크기, 색으로 한 줄처럼(2026-11-23 사용자 요청) */
+.todo-title {
+  gap: 2px 0;
+}
+
+.todo-meta {
+  margin-left: 0.3em;
+}
+
+.todo-meta,
+:root[data-theme] .todo-meta {
+  font: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+  padding: 0;
+}
+
+.todo-row-done .todo-meta,
+:root[data-theme] .todo-row-done .todo-meta {
+  color: var(--sub);
+  text-decoration: line-through;
+}
+
+:root[data-theme="memo"] .todo-row-done .todo-meta {
+  text-decoration: none;
+  color: inherit;
+}

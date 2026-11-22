@@ -34,7 +34,7 @@ function FriendRow({ owner, item, color }: { owner: string; item: TodoItem; colo
         </span>
         <span className="todo-title todo-title-readonly">
           <span className="todo-title-text">{item.title}</span>
-          {meta && <span className="todo-meta">{meta}</span>}
+          {meta && <span className="todo-meta">| {meta}</span>}
         </span>
         {item.memo && (
           <button

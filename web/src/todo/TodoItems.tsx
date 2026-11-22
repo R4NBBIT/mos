@@ -487,7 +487,7 @@ export function TodoRow({
           onClick={() => (open ? setCloseAsk((value) => value + 1) : setOpen(true))}
         >
           <span className="todo-title-text">{item.title}</span>
-          {meta && <span className="todo-meta">{meta}</span>}
+          {meta && <span className="todo-meta">| {meta}</span>}
         </button>
         {item.memo && (
           <button

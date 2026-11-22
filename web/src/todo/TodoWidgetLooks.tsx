@@ -44,9 +44,9 @@ function Check({ model, item }: { model: WidgetModel; item: TodoItem }) {
   );
 }
 
-/** 장소(시각과 함께 위젯에 보임, 메모는 안 보임) */
-function Place({ item }: { item: TodoItem }) {
-  return item.place ? <span className="tw-place">| {item.place}</span> : null;
+/** 위젯 한 줄: 'TODO | 시각 | 장소', 같은 글꼴과 크기(2026-11-23 사용자 요청). 메모는 안 보임 */
+function lineOf(item: TodoItem): string {
+  return [item.title, item.time ? timeLabel(item.time) : "", item.place ?? ""].filter(Boolean).join(" | ");
 }
 
 // ------------------------------------------------------------ 기본, 다크: 카드
@@ -72,11 +72,7 @@ function CardLook({ model }: { model: WidgetModel }) {
         {model.items.map((item) => (
           <li key={item.id} className={item.done ? "todo-widget-item todo-widget-done" : "todo-widget-item"}>
             <Check model={model} item={item} />
-            <span className="todo-widget-title">
-              {item.title}
-              <Place item={item} />
-            </span>
-            {item.time && <span className="todo-widget-time">{timeLabel(item.time)}</span>}
+            <span className="todo-widget-title">{lineOf(item)}</span>
           </li>
         ))}
       </ul>
@@ -182,8 +178,8 @@ function MemoLook({ model }: { model: WidgetModel }) {
             onClick={() => model.onToggle(item)}
           >
             <span className="tw-memo-mark">{item.done ? "[✓]" : "[ ]"}</span>
-            {item.time ? ` ${item.time}` : ""} {item.title}
-            {item.place ? ` @${item.place}` : ""}
+            {" "}
+            {lineOf(item)}
           </button>
         ))}
         {model.note && <div className="tw-memo-line tw-memo-dim">{model.note}</div>}
@@ -224,11 +220,7 @@ function NoteLook({ model }: { model: WidgetModel }) {
           {model.items.map((item) => (
             <li key={item.id} className={item.done ? "tw-note-todo tw-done" : "tw-note-todo"}>
               <Check model={model} item={item} />
-              <span className="tw-note-text">
-                {item.title}
-                <Place item={item} />
-              </span>
-              {item.time && <span className="tw-note-time">{timeLabel(item.time)}</span>}
+              <span className="tw-note-text">{lineOf(item)}</span>
             </li>
           ))}
         </ul>
@@ -263,11 +255,7 @@ function WordLook({ model }: { model: WidgetModel }) {
             {model.items.map((item) => (
               <li key={item.id} className={item.done ? "tw-word-item tw-done" : "tw-word-item"}>
                 <Check model={model} item={item} />
-                <span className="tw-word-text">
-                  {item.time ? `${timeLabel(item.time)} ` : ""}
-                  {item.title}
-                  <Place item={item} />
-                </span>
+                <span className="tw-word-text">{lineOf(item)}</span>
               </li>
             ))}
           </ul>

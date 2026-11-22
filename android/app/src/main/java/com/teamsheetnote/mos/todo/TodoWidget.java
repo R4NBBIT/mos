@@ -10,7 +10,6 @@ import android.net.Uri;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
-import android.text.style.RelativeSizeSpan;
 import android.text.style.StrikethroughSpan;
 import android.view.View;
 import android.widget.RemoteViews;
@@ -190,28 +189,28 @@ public class TodoWidget extends AppWidgetProvider {
                     0, mark.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             views.setTextViewText(MARKS[index], mark);
             String title = item.optString("title", "");
-            String line = look.timeInline && !shownTime.isEmpty() ? shownTime + " " + title : title;
-            // 장소도 보인다(메모는 안 보임)
+            // 한 줄로 'TODO | 시각 | 장소', 같은 글꼴과 크기(2026-11-23 사용자 요청).
+            // 스프레드시트만 시각을 C열에 따로 둔다(표 모양)
+            boolean sheet = "sheet".equals(look.key);
             String place = item.isNull("place") ? "" : item.optString("place", "");
-            int placeAt = line.length();
-            if (!place.isEmpty()) {
-                line = line + "  |  " + place;
+            StringBuilder joined = new StringBuilder(title);
+            if (!sheet && !shownTime.isEmpty()) {
+                joined.append(" | ").append(shownTime);
             }
+            if (!place.isEmpty()) {
+                joined.append(" | ").append(place);
+            }
+            String line = joined.toString();
             SpannableString text = new SpannableString(line);
-            if (!place.isEmpty()) {
-                text.setSpan(new ForegroundColorSpan(look.doneColor), placeAt, line.length(),
-                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                text.setSpan(new RelativeSizeSpan(0.86f), placeAt, line.length(),
-                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            }
             if (isDone) {
                 text.setSpan(new StrikethroughSpan(), 0, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 text.setSpan(new ForegroundColorSpan(look.doneColor), 0, text.length(),
                         Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             }
             views.setTextViewText(TEXTS[index], text);
-            views.setTextViewText(TIMES[index], look.timeInline ? "" : shownTime);
-            views.setViewVisibility(TIMES[index], look.timeInline ? View.GONE : View.VISIBLE);
+            boolean timeColumn = "sheet".equals(look.key);
+            views.setTextViewText(TIMES[index], timeColumn ? shownTime : "");
+            views.setViewVisibility(TIMES[index], timeColumn ? View.VISIBLE : View.GONE);
             Intent toggle = new Intent(TOGGLE)
                     .putExtra("id", item.optString("id"))
                     .putExtra("done", isDone);
