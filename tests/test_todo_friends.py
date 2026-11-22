@@ -227,6 +227,18 @@ def test_groups_and_selected_visibility(env: Env) -> None:
         f"/api/todo/categories/{secret}/audience", json={"friends": ["99999"]}, headers=POST
     )
     assert bad.status_code == 400
+    # 그룹을 지우면 휴지통으로, 되살리면 대상도 다시
+    env.tick(1)
+    env.client.delete(f"/api/todo/groups/{group['id']}", headers=POST)
+    assert env.client.get("/api/todo/groups").json()["groups"] == []
+    trash = env.client.get("/api/todo/ai").json()["trash"]
+    assert trash[0]["title"] == "'회사' 그룹"
+    env.tick(1)
+    env.client.post(f"/api/todo/ai/trash/{trash[0]['id']}/restore", headers=POST)
+    group = env.client.get("/api/todo/groups").json()["groups"][0]
+    assert env.client.get(f"/api/todo/categories/{secret}/audience").json()["groups"] == [
+        group["id"]
+    ]
     # 그룹에서 빼면 다시 못 봄
     env.tick(1)
     env.client.patch(f"/api/todo/groups/{group['id']}", json={"members": []}, headers=POST)

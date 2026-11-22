@@ -57,6 +57,7 @@ class TodoAiActions:
         self.repo = repo
         self.clock = clock
         self.friends: Any = None  # TodoFriends(앱이 이어 줌, 친구 일 실행용)
+        self.bin: Any = None  # TodoBin(앱이 이어 줌, 카테고리, 반복, 그룹 묶음 되살리기)
 
     def now(self) -> int:
         return int(self.clock())
@@ -286,7 +287,7 @@ class TodoAiActions:
 
     async def trash(self, account_id: int) -> list[dict[str, Any]]:
         rows = await self.db.fetch_all(
-            "SELECT id, label, day, client_name, deleted_at FROM todo_trash"
+            "SELECT id, label, day, client_name, deleted_at, kind FROM todo_trash"
             " WHERE account_id = ? AND deleted_at >= ? ORDER BY id DESC LIMIT 100",
             (account_id, self.now() - TRASH_KEEP_SEC),
         )
@@ -297,6 +298,7 @@ class TodoAiActions:
                 "day": str(r[2]),
                 "client": str(r[3]),
                 "deleted_at": int(r[4]),
+                "kind": "item" if r[5] in ("item", "skip") else "bundle",
             }
             for r in rows
         ]
@@ -311,7 +313,11 @@ class TodoAiActions:
         )
         if row is None:
             return False
-        if row[0] == "skip":
+        if row[0] == "bundle":
+            if self.bin is None:
+                return False
+            await self.bin.restore(account_id, json.loads(row[2]))
+        elif row[0] == "skip":
             if row[1] is not None and await self.repo.item(account_id, int(row[1])):
                 await self.repo.update_item(account_id, int(row[1]), {"skipped": 0}, self.now())
         else:

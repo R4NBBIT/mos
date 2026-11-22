@@ -149,6 +149,24 @@ def register_todo_routes(
 
     # ------------------------------------------------------------ 반복
 
+    @app.get("/api/todo/repeats")
+    async def todo_repeat_list(request: Request, today: str) -> dict[str, Any]:
+        account = await todo_account(request)
+        return {"series": await todo.repeat_series(account.account_id, today)}
+
+    @app.post("/api/todo/repeats/new")
+    async def todo_repeat_new(request: Request) -> dict[str, Any]:
+        account = await writer(request)
+        return await todo.new_repeat(account.account_id, await json_body(request))
+
+    @app.delete("/api/todo/repeats/series/{series_id}", status_code=204)
+    async def todo_repeat_series_delete(series_id: str, request: Request) -> None:
+        account = await writer(request)
+        if todo.bin is None or not await todo.bin.repeat_series(
+            account.account_id, parse_id(series_id)
+        ):
+            raise TodoError("not_found", 404)
+
     @app.post("/api/todo/repeats")
     async def todo_repeat_add(request: Request) -> dict[str, Any]:
         account = await writer(request)

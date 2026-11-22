@@ -69,6 +69,7 @@ class TodoFriends:
         notify: Notify | None = None,
         clock: Callable[[], float] = time.time,
     ) -> None:
+        self.bin: Any = None  # TodoBin(앱이 이어 줌): 그룹 지우기도 휴지통으로
         self.db = db
         self.todo = todo
         self.repo = repo
@@ -488,6 +489,9 @@ class TodoFriends:
 
     async def delete_group(self, me_id: int, raw_id: Any) -> None:
         group_id = await self._own_group(me_id, raw_id)
+        if self.bin is not None:
+            await self.bin.group(me_id, group_id)  # 휴지통에 7일(되살리기)
+            return
         async with self.db.writing() as conn:
             await conn.execute(
                 "DELETE FROM todo_category_audience WHERE kind = 'group' AND target = ?",

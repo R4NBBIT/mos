@@ -1,6 +1,6 @@
 // 할 일(공개 전): 하루 화면(SCR-02, 넓은 화면 오른쪽)과 넓은 화면 왼쪽 달력(SCR-04)
 // 허용된 계정에서만 이 파일을 내려받는다(App에서 lazy). 테마 색은 ㅁㅇㅅ CSS 변수를 그대로 쓴다
-import { canFloat, openTodoWidget } from "./TodoWidget";
+import { openTodoWidget } from "./TodoWidget";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BackIcon from "../BackIcon";
 import SplitToggle from "../SplitToggle";
@@ -32,7 +32,10 @@ import {
   type TodoPerson,
   TODO_NEWS_EVENT,
 } from "./todoApi";
+import { onTodoRefresh } from "./todoSync";
 import "./todo.css";
+
+const SYNC_MS = 30_000;
 
 /** 그 주(또는 몇 주)의 날짜별 요약. 날짜가 바뀌거나 할 일이 바뀌면 다시 */
 function useSummary(start: string, end: string, version: number): DaySummary {
@@ -84,6 +87,8 @@ export interface TodoScreenProps {
   onAlerts: () => void;
   /** AI 연결 화면으로 */
   onAi: () => void;
+  /** 반복 화면으로 */
+  onRepeats: () => void;
 }
 
 export default function TodoScreen({
@@ -100,6 +105,7 @@ export default function TodoScreen({
   onFriends,
   onAlerts,
   onAi,
+  onRepeats,
 }: TodoScreenProps) {
   const day = isDayKey(rawDay) ? rawDay : today();
   const [data, setData] = useState<TodoDay | null>(null);
@@ -143,14 +149,17 @@ export default function TodoScreen({
     void load();
   }, [load, version]);
 
-  useEffect(() => {
-    // 다른 기기에서 고쳤을 수 있어, 탭으로 돌아오면 다시 받는다
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void load();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [load]);
+  // 다른 창(위젯)이나 다른 기기에서 바꿨을 수 있어: 알림을 받거나, 탭으로 돌아오거나, 30초마다 다시 받는다
+  const onChangedRef = useRef(onChanged);
+  onChangedRef.current = onChanged;
+  useEffect(
+    () =>
+      onTodoRefresh(() => {
+        if (onChangedRef.current) onChangedRef.current(); // 왼쪽 달력 요약까지(version이 바뀌며 다시 받음)
+        else void load();
+      }, SYNC_MS),
+    [load],
+  );
 
   const changed = () => {
     setBump((value) => value + 1);
@@ -264,9 +273,9 @@ export default function TodoScreen({
             <button
               type="button"
               className="header-tool"
-              aria-label={canFloat() ? "위젯 창(항상 위)" : "위젯 창"}
-              title="오늘 할 일만 작은 창으로(보스키를 누르면 같이 닫혀요)"
-              onClick={() => void openTodoWidget()}
+              aria-label="위젯 창"
+              title="오늘 할 일만 작은 창으로(이 탭을 닫아도 남고, 보스키를 누르면 같이 닫혀요)"
+              onClick={openTodoWidget}
             >
               <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
                 <rect x="2.5" y="3.5" width="15" height="13" rx="2" />
@@ -275,6 +284,15 @@ export default function TodoScreen({
               <span className="header-tool-label">위젯</span>
             </button>
           )}
+          <button type="button" className="header-tool" aria-label="반복 할 일" onClick={onRepeats}>
+            <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <path d="M4 9a6 6 0 0 1 10.5-3.5L16 7" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M16 3.5V7h-3.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M16 11a6 6 0 0 1-10.5 3.5L4 13" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M4 16.5V13h3.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span className="header-tool-label">반복</span>
+          </button>
           <button type="button" className="header-tool" aria-label="카테고리 관리" onClick={onCategories}>
             <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
               <rect x="3" y="3.5" width="6" height="6" rx="1.5" />

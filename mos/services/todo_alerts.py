@@ -24,7 +24,7 @@ LATE_SEC = 180  # 서버가 잠깐 멈췄어도 3분 안이면 보낸다(그보�
 MORNING_LATE_SEC = 30 * 60
 KEEP_SEC = 3 * 86400
 NEWS_KEEP_SEC = 30 * 86400
-MORNING_TOP = 3
+DM_LIMIT = 1900
 URL = "/#/todo"
 
 
@@ -124,20 +124,17 @@ class TodoAlerts:
                 key = f"m:{today.isoformat()}"
                 if left and await self.repo.mark_alert(account_id, key, int(now)):
                     left.sort(key=lambda item: (item["time"] is None, item["time"] or ""))
+                    # 남은 할 일 전부(2026-11-22 사용자 요청: 앞의 몇 개만이 아니라)
                     names = [
                         f"{item['time']} {item['title']}" if item["time"] else item["title"]
-                        for item in left[:MORNING_TOP]
+                        for item in left
                     ]
-                    more = f" 외 {len(left) - MORNING_TOP}개" if len(left) > MORNING_TOP else ""
                     title = f"오늘 할 일 {len(left)}개"
-                    body = ", ".join(names) + more
+                    body = ", ".join(names)
                     await self.repo.add_news(account_id, "morning", title, body, int(now))
                     via = settings["morning_via"]
                     if via in ("dm", "both"):
-                        lines_dm = [f"- {name}" for name in names]
-                        if more:
-                            lines_dm.append(f"-{more}")
-                        dm = "\n".join([f"좋은 아침이에요. {title}", *lines_dm])
+                        dm = _dm_list(f"좋은 아침이에요. {title}", names)
                     if via in ("push", "both"):
                         parts.append({"title": title, "body": body})
 
@@ -159,3 +156,17 @@ class TodoAlerts:
 def _at(day: date, hhmm: str, zone: ZoneInfo) -> datetime:
     hour, minute = (int(part) for part in hhmm.split(":"))
     return datetime(day.year, day.month, day.day, hour, minute, tzinfo=zone)
+
+
+def _dm_list(head: str, names: list[str]) -> str:
+    """디스코드 메시지는 2000자까지라, 넘치면 남은 개수만 적는다."""
+    lines = [head]
+    size = len(head)
+    for index, name in enumerate(names):
+        line = f"- {name}"
+        if size + len(line) + 1 > DM_LIMIT:
+            lines.append(f"- 외 {len(names) - index}개")
+            break
+        lines.append(line)
+        size += len(line) + 1
+    return "\n".join(lines)

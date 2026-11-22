@@ -4,7 +4,8 @@ import AccountMenu from "./AccountMenu";
 import BossScreen from "./boss/BossScreen";
 import { DOUBLE_PRESS_MS, keyFromEvent, parseBossKey, sameKey } from "./boss/bossKey";
 import { type AssetList, cachedInfo, fetchBossInfo, loadAsset, uploadAsset } from "./boss/bossStore";
-import { isCapturingKey, isDisguised, setDisguised } from "./boss/bossState";
+import { isCapturingKey, isDisguised, onDisguiseChange, setDisguised } from "./boss/bossState";
+import { announceDisguise, onTodoSync } from "./todo/todoSync";
 import { loadMyFile, type StoredFile } from "./boss/myFile";
 import { docTitle, memoExample, NoteDisguise, noteExample, WordDisguise, wordExample } from "./boss/DocDisguise";
 import { EDIT_KEYS, ImageDisguise, TextDisguise } from "./boss/OtherDisguise";
@@ -63,6 +64,7 @@ const TodoWidget = lazy(() => import("./todo/TodoWidget"));
 const TodoSide = lazy(() => import("./todo/TodoScreen").then((module) => ({ default: module.TodoSide })));
 const TodoCategories = lazy(() => import("./todo/TodoCategories"));
 const TodoPanelPage = lazy(() => import("./todo/TodoPanelPage"));
+const TodoRepeats = lazy(() => import("./todo/TodoRepeats"));
 const TODO_FEATURE = "todo";
 
 // 서버의 자동 잠금(계정 설정, 기본 30분)과 같게. 조작이 없으면 화면도 잠금으로 간다
@@ -86,6 +88,7 @@ type Route =
   | { view: "todoFriends" }
   | { view: "todoAlerts" }
   | { view: "todoAi" }
+  | { view: "todoRepeats" }
   | { view: "todoFriend"; friendId: string; day: string }
   | { view: "channels"; groupId: string }
   | { view: "chat"; groupId: string; channelId: string }
@@ -113,6 +116,7 @@ function parseRoute(hash: string): Route {
   if (hash === "#/todo/friends") return { view: "todoFriends" };
   if (hash === "#/todo/alerts") return { view: "todoAlerts" };
   if (hash === "#/todo/ai") return { view: "todoAi" };
+  if (hash === "#/todo/repeats") return { view: "todoRepeats" };
   const friend = /^#\/todo\/f\/(\d{1,18})(?:\/(\d{4}-\d{2}-\d{2}))?$/.exec(hash);
   if (friend?.[1]) {
     const friendDay = friend[2] && isDayKey(friend[2]) ? friend[2] : today();
@@ -138,7 +142,7 @@ function parseRoute(hash: string): Route {
 /** 할 일 화면들(오늘, 카테고리, 친구 관리, 친구 할 일) */
 type TodoRoute = Extract<
   Route,
-  { view: "todo" | "todoCategories" | "todoFriends" | "todoFriend" | "todoAlerts" | "todoAi" }
+  { view: "todo" | "todoCategories" | "todoFriends" | "todoFriend" | "todoAlerts" | "todoAi" | "todoRepeats" }
 >;
 function isTodoRoute(route: Route): route is TodoRoute {
   return (
@@ -147,7 +151,8 @@ function isTodoRoute(route: Route): route is TodoRoute {
     route.view === "todoFriends" ||
     route.view === "todoFriend" ||
     route.view === "todoAlerts" ||
-    route.view === "todoAi"
+    route.view === "todoAi" ||
+    route.view === "todoRepeats"
   );
 }
 
@@ -160,7 +165,8 @@ function routeLevel(route: Route): number {
     route.view === "todoFriends" ||
     route.view === "todoFriend" ||
     route.view === "todoAlerts" ||
-    route.view === "todoAi"
+    route.view === "todoAi" ||
+    route.view === "todoRepeats"
   )
     return 2;
   return 2;
@@ -511,6 +517,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           onFriends={inSplit ? undefined : () => go("#/todo/friends")}
           onAlerts={() => go("#/todo/alerts")}
           onAi={() => go("#/todo/ai")}
+          onRepeats={() => go("#/todo/repeats")}
         />
       </Suspense>
     );
@@ -535,6 +542,11 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           menu={common.menu}
           onChanged={bumpTodo}
         />
+      </Suspense>
+    );
+    const todoRepeats = (inSplit: boolean) => (
+      <Suspense fallback={<div className="center-note">불러오는 중…</div>}>
+        <TodoRepeats key={active.id} showBack={!inSplit} onBack={() => go("#/todo")} menu={common.menu} onChanged={bumpTodo} />
       </Suspense>
     );
     const todoFriends = (inSplit: boolean) => (
@@ -689,6 +701,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
       if (at.view === "todoFriends") return todoAllowed ? todoFriends(false) : groupList();
       if (at.view === "todoAlerts") return todoAllowed ? todoPanel("alerts", false) : groupList();
       if (at.view === "todoAi") return todoAllowed ? todoPanel("ai", false) : groupList();
+      if (at.view === "todoRepeats") return todoAllowed ? todoRepeats(false) : groupList();
       if (at.view === "todoFriend") return todoAllowed ? todoFriend(at.friendId, at.day, false) : groupList();
       if (at.view === "chat") return chatRoom(at.groupId, at.channelId, false);
       if (at.view === "voice") return voiceRoom(at.groupId, at.channelId, false);
@@ -777,6 +790,8 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
               todoPanel("alerts", true)
             ) : route.view === "todoAi" && todoAllowed ? (
               todoPanel("ai", true)
+            ) : route.view === "todoRepeats" && todoAllowed ? (
+              todoRepeats(true)
             ) : route.view === "todoFriend" && todoAllowed ? (
               todoFriend(route.friendId, route.day, true)
             ) : route.view === "chat" ? (
@@ -1007,6 +1022,20 @@ export default function App() {
     },
     [relock, fullscreen, mode, bossUrl],
   );
+
+  // 다른 ㅁㅇㅅ 창(위젯 창 포함)에서 위장하면 이 창도, 이 창에서 위장하면 다른 창도(todoSync)
+  useEffect(() => {
+    const stopOwn = onDisguiseChange((value) => {
+      if (value) announceDisguise();
+    });
+    const stopOthers = onTodoSync((message) => {
+      if (message === "disguise" && window.location.hash !== "#/todo/widget") toggle(true);
+    });
+    return () => {
+      stopOwn();
+      stopOthers();
+    };
+  }, [toggle]);
 
   // 보스키(기본 Esc 두 번, 사람마다 바꿀 수 있음). 어느 화면에서나
   const bossKey = look.boss_key;

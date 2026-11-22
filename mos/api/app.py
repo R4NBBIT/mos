@@ -84,6 +84,7 @@ from mos.services.todo_access import FEATURE_NAME as TODO_FEATURE
 from mos.services.todo_access import TodoAccess
 from mos.services.todo_ai_actions import TodoAiActions
 from mos.services.todo_alerts import TodoAlerts
+from mos.services.todo_bin import TodoBin
 from mos.services.todo_friends import TodoFriends
 from mos.services.todo_mcp import TodoMcp
 from mos.services.todo_oauth import TodoOAuth
@@ -491,9 +492,7 @@ def create_app(
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         opened_here = not db.is_open
         await db.open()
-        alert_task = (
-            asyncio.create_task(_app.state.todo_alert_loop()) if run_background else None
-        )
+        alert_task = asyncio.create_task(_app.state.todo_alert_loop()) if run_background else None
         try:
             yield
         finally:
@@ -623,6 +622,9 @@ def create_app(
 
     todo_actions = TodoAiActions(db, todo_service, todo_repo, clock)
     todo_service.trash = todo_actions.trash_item
+    todo_bin = TodoBin(db, clock)  # 카테고리, 반복 앞으로 것, 그룹 지우기도 휴지통에 7일
+    todo_service.bin = todo_bin
+    todo_actions.bin = todo_bin
     register_todo_ai_routes(
         app,
         origin=settings.public_origin.rstrip("/"),
@@ -726,6 +728,7 @@ def create_app(
     )
     todo_service.decorate = todo_friends.annotate
     todo_actions.friends = todo_friends  # AI가 요청한 친구 일을 승인하면 실행
+    todo_friends.bin = todo_bin
     register_todo_friend_routes(
         app,
         todo_account=todo_account,

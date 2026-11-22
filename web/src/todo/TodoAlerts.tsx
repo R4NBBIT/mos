@@ -179,7 +179,7 @@ export default function TodoAlertPanel({ onSeen }: { onSeen: () => void }) {
               onChange={(value) => void save({ alert_lead: value })}
             />
           </Setting>
-          <Setting name="아침 요약" help="오늘 남은 할 일 수와 앞의 3개를 알려요.">
+          <Setting name="아침 요약" help="오늘 남은 할 일을 모두 알려요.">
             <div className="todo-setting-row">
               <label className="todo-switch">
                 <input

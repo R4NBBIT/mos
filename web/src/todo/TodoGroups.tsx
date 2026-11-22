@@ -1,4 +1,4 @@
-// 친구 그룹(친구 화면 안): 만들기, 이름 바꾸기, 친구 넣고 빼기, 지우기(확인). 일부 공개에서 그룹째 고를 수 있다
+// 친구 그룹(친구 화면 안): 만들기, 이름 바꾸기, 친구 넣고 빼기, 삭제(확인, 휴지통 7일). 일부 공개에서 그룹째 고를 수 있다
 import { useCallback, useEffect, useState } from "react";
 import { createGroup, deleteGroup, fetchGroups, type TodoGroup, type TodoPerson, todoErrorText, updateGroup } from "./todoApi";
 
@@ -32,7 +32,7 @@ function GroupEditor({
       <input
         className="todo-menu-title"
         aria-label="그룹 이름"
-        placeholder="그룹 이름(예: 회사)"
+        placeholder="그룹 이름"
         value={name}
         maxLength={20}
         onChange={(event) => setName(event.target.value)}
@@ -65,13 +65,13 @@ function GroupEditor({
         <span className="todo-spacer" />
         {group && (
           <button type="button" className="todo-small-button todo-danger-text" onClick={() => setConfirming(true)}>
-            지우기
+            삭제
           </button>
         )}
       </div>
       {confirming && group && (
-        <div className="todo-confirm" role="alertdialog" aria-label="그룹 지우기 확인">
-          <span>'{group.name}' 그룹을 지울까요? 이 그룹으로 일부 공개한 카테고리는 그룹 사람들이 못 보게 돼요.</span>
+        <div className="todo-confirm" role="alertdialog" aria-label="그룹 삭제 확인">
+          <span>'{group.name}' 그룹을 삭제할까요? 이 그룹으로 일부 공개한 카테고리는 그룹 사람들이 못 보게 돼요. 휴지통(카테고리 화면 아래)에서 7일 동안 되살릴 수 있어요.</span>
           <div className="todo-confirm-buttons">
             <button type="button" className="todo-small-button" onClick={() => setConfirming(false)}>
               취소
@@ -85,7 +85,7 @@ function GroupEditor({
                   .catch((failure: unknown) => setError(todoErrorText(failure)))
               }
             >
-              지우기
+              삭제
             </button>
           </div>
         </div>
@@ -127,7 +127,7 @@ export function GroupsSection({ friends }: { friends: TodoPerson[] }) {
               </span>
               <span className="todo-friend-actions">
                 <button type="button" className="todo-small-button" onClick={() => setEditing(group.id)}>
-                  고치기
+                  수정
                 </button>
               </span>
             </li>

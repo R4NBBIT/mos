@@ -183,7 +183,7 @@ export default function EmojiPicker({ channelId, loadCustom, onPick, onClose, on
           className="emoji-search"
           type="search"
           value={query}
-          placeholder="이모지 찾기(예: 웃음, 하트, smile)"
+          placeholder="이모지 찾기"
           aria-label="이모지 찾기"
           onChange={(event) => setQuery(event.target.value)}
         />

@@ -13,7 +13,8 @@ ITEM_COLUMNS = (
     " created_at, repeat_id, skipped"
 )
 REPEAT_COLUMNS = (
-    "id, category_id, title, memo, time, place, rule, weekdays, start_day, end_day, position"
+    "id, category_id, title, memo, time, place, rule, weekdays, start_day, end_day, position,"
+    " skip_holidays, series_id"
 )
 
 
@@ -233,14 +234,15 @@ class TodoRepo:
         return int(row[0]) if row else 0
 
     async def add_repeat(
-        self, account_id: int, values: dict[str, Any], item_id: int, now: int
+        self, account_id: int, values: dict[str, Any], item_id: int | None, now: int
     ) -> int:
-        """할 일 하나를 반복으로: 규칙을 만들고 그 할 일을 첫 회차로 묶는다."""
+        """반복 규칙을 만든다. item_id가 있으면 그 할 일을 첫 회차로 묶는다."""
         async with self.db.writing() as conn:
             cursor = await conn.execute(
                 "INSERT INTO todo_repeat (account_id, category_id, title, memo, time, place,"
-                " rule, weekdays, start_day, end_day, position, created_at, updated_at)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " rule, weekdays, start_day, end_day, position, skip_holidays, series_id,"
+                " created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     account_id,
                     values["category_id"],
@@ -253,16 +255,19 @@ class TodoRepo:
                     values["start_day"],
                     values["end_day"],
                     values["position"],
+                    int(bool(values.get("skip_holidays"))),
+                    values.get("series_id"),
                     now,
                     now,
                 ),
             )
             repeat_id = int(cursor.lastrowid or 0)
-            await conn.execute(
-                "UPDATE todo_item SET repeat_id = ?, updated_at = ?"
-                " WHERE account_id = ? AND id = ?",
-                (repeat_id, now, account_id, item_id),
-            )
+            if item_id is not None:
+                await conn.execute(
+                    "UPDATE todo_item SET repeat_id = ?, updated_at = ?"
+                    " WHERE account_id = ? AND id = ?",
+                    (repeat_id, now, account_id, item_id),
+                )
             return repeat_id
 
     async def update_repeat(

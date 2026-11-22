@@ -52,6 +52,11 @@ function Check({ model, item }: { model: WidgetModel; item: TodoItem }) {
   );
 }
 
+/** 장소(시각과 함께 위젯에 보임, 메모는 안 보임) */
+function Place({ item }: { item: TodoItem }) {
+  return item.place ? <span className="tw-place">@{item.place}</span> : null;
+}
+
 function Plus() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -83,7 +88,10 @@ function CardLook({ model }: { model: WidgetModel }) {
         {model.items.map((item) => (
           <li key={item.id} className={item.done ? "todo-widget-item todo-widget-done" : "todo-widget-item"}>
             <Check model={model} item={item} />
-            <span className="todo-widget-title">{item.title}</span>
+            <span className="todo-widget-title">
+              {item.title}
+              <Place item={item} />
+            </span>
             {item.time && <span className="todo-widget-time">{timeLabel(item.time)}</span>}
           </li>
         ))}
@@ -129,12 +137,14 @@ function SheetLook({ model }: { model: WidgetModel }) {
           <span>A</span>
           <span>B</span>
           <span>C</span>
+          <span>D</span>
         </div>
         <div className="tw-sheet-row tw-sheet-label" role="row">
           <span className="tw-sheet-num">1</span>
           <span>완료</span>
           <span>할 일</span>
           <span>시각</span>
+          <span>장소</span>
         </div>
         {model.items.map((item, index) => (
           <div key={item.id} className={item.done ? "tw-sheet-row tw-done" : "tw-sheet-row"} role="row">
@@ -144,6 +154,7 @@ function SheetLook({ model }: { model: WidgetModel }) {
             </span>
             <span className="tw-sheet-text">{item.title}</span>
             <span className="tw-sheet-time">{item.time ?? ""}</span>
+            <span className="tw-sheet-text">{item.place ?? ""}</span>
           </div>
         ))}
         {model.add && (
@@ -154,11 +165,13 @@ function SheetLook({ model }: { model: WidgetModel }) {
               <input {...model.add} />
             </span>
             <span />
+            <span />
           </div>
         )}
         {Array.from({ length: blanks }, (_, index) => (
           <div key={`blank-${index}`} className="tw-sheet-row" aria-hidden="true">
             <span className="tw-sheet-num">{total + 3 + index}</span>
+            <span />
             <span />
             <span />
             <span />
@@ -205,6 +218,7 @@ function MemoLook({ model }: { model: WidgetModel }) {
           >
             <span className="tw-memo-mark">{item.done ? "[x]" : "[ ]"}</span>
             {item.time ? ` ${item.time}` : ""} {item.title}
+            {item.place ? ` @${item.place}` : ""}
           </button>
         ))}
         {model.note && <div className="tw-memo-line tw-memo-dim">{model.note}</div>}
@@ -251,7 +265,10 @@ function NoteLook({ model }: { model: WidgetModel }) {
           {model.items.map((item) => (
             <li key={item.id} className={item.done ? "tw-note-todo tw-done" : "tw-note-todo"}>
               <Check model={model} item={item} />
-              <span className="tw-note-text">{item.title}</span>
+              <span className="tw-note-text">
+                {item.title}
+                <Place item={item} />
+              </span>
               {item.time && <span className="tw-note-time">{timeLabel(item.time)}</span>}
             </li>
           ))}
@@ -296,6 +313,7 @@ function WordLook({ model }: { model: WidgetModel }) {
                 <span className="tw-word-text">
                   {item.time ? `${timeLabel(item.time)} ` : ""}
                   {item.title}
+                  <Place item={item} />
                 </span>
               </li>
             ))}

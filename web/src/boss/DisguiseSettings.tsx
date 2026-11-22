@@ -342,7 +342,7 @@ export default function DisguiseSettings({ settings, save, onFileChanged }: Prop
                     aria-label="이동할 주소"
                     value={url}
                     maxLength={300}
-                    placeholder="https://로 시작하는 주소(예: 회사 그룹웨어)"
+                    placeholder="https://로 시작하는 주소"
                     onChange={(event) => setUrl(event.target.value)}
                     onBlur={() => {
                       if ((url.trim() || null) !== settings.boss_url) void save({ boss_url: url.trim() || null });

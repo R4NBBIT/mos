@@ -87,7 +87,7 @@ export function AiRequests({ onChanged }: { onChanged: () => void }) {
               <li key={item.id} className="todo-ai-item">
                 <span className="todo-news-title">{item.title}</span>
                 <span className="todo-news-time">
-                  {dateWithWeekday(item.day)}, {item.client ? `${item.client}가 지움` : "직접 지움"}
+                  {dateWithWeekday(item.day)}, {item.client ? `${item.client}가 삭제` : "직접 삭제"}
                 </span>
                 <button type="button" className="todo-small-button" onClick={() => void restore(item.id)}>
                   되돌리기
@@ -176,7 +176,7 @@ export default function TodoAiPanel({ onChanged }: { onChanged: () => void }) {
             데스크톱 앱: 설정 › MCP servers › Add server에서 Streamable HTTP를 고르고 위 주소를 넣은 뒤 Restart, 목록에서 Authenticate를
             누르면 이 사이트에서 승인해요.
           </p>
-          <p className="todo-setting-help">웹: Plugins › + › Add custom MCP server(요금제에 따라 메뉴가 없을 수 있어요).</p>
+          <p className="todo-setting-help">웹: Plugins › + › Add custom MCP server에서 위 주소를 넣고 같은 방법으로 승인해요.</p>
         </div>
       </div>
       <div className="todo-alerts-head todo-alerts-sub">
@@ -184,12 +184,14 @@ export default function TodoAiPanel({ onChanged }: { onChanged: () => void }) {
       </div>
       {data && data.connections.length === 0 && <p className="todo-setting-help">아직 연결된 앱이 없어요.</p>}
       {data && data.connections.length > 0 && (
-        <ul className="todo-news">
+        <ul className="todo-ai-apps">
           {data.connections.map((connection) => (
-            <li key={connection.id} className="todo-ai-item">
-              <span className="todo-news-title">{connection.name}</span>
-              <span className="todo-news-time">
-                {dayLabel(connection.created_at)} 연결, 마지막 사용 {dayLabel(connection.last_used_at)}
+            <li key={connection.id} className="todo-ai-app">
+              <span className="todo-ai-app-text">
+                <strong>{connection.name}</strong>
+                <span>
+                  {dayLabel(connection.created_at)} 연결, 마지막 사용 {dayLabel(connection.last_used_at)}
+                </span>
               </span>
               {confirming === connection.id ? (
                 <span className="todo-ai-confirm">

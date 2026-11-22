@@ -1,4 +1,5 @@
 // 할 일 API(공개 전 기능, 허용된 계정만). 허용되지 않으면 서버가 모든 주소에 404를 준다
+import { announceTodoChange } from "./todoSync";
 import { ApiError } from "../api";
 
 export interface TodoCategory {
@@ -40,8 +41,49 @@ export interface TodoRepeat {
   rule: RepeatRule;
   /** 매주: 고른 요일(일=0 … 토=6) */
   weekdays: number[];
+  start_day: string;
   end_day: string | null;
+  /** 한국 공휴일에는 빼기 */
+  skip_holidays: boolean;
+  series_id: string;
 }
+
+/** 반복 화면의 한 기간(이름, 카테고리, 시각, 장소, 메모 포함) */
+export interface RepeatPeriod extends TodoRepeat {
+  category_id: string;
+  title: string;
+  memo: string;
+  time: string | null;
+  place: string | null;
+}
+
+/** 반복 하나(여러 기간). 기간이 모두 끝났으면 ended */
+export interface RepeatSeries {
+  id: string;
+  current: RepeatPeriod;
+  periods: { id: string; start_day: string; end_day: string | null }[];
+  ended: boolean;
+}
+
+export interface NewRepeat {
+  title: string;
+  category_id: string;
+  rule: RepeatRule;
+  weekdays?: number[];
+  start_day: string;
+  end_day?: string | null;
+  skip_holidays: boolean;
+  time?: string | null;
+  place?: string | null;
+  memo?: string;
+  /** 끝난 반복에 새 기간 더하기 */
+  series_id?: string;
+}
+
+export const fetchRepeats = (today: string) =>
+  call<{ series: RepeatSeries[] }>(`/api/todo/repeats?today=${encodeURIComponent(today)}`);
+export const newRepeat = (input: NewRepeat) => call<RepeatPeriod>("/api/todo/repeats/new", "POST", input);
+export const deleteRepeatSeries = (id: string) => call<void>(`/api/todo/repeats/series/${id}`, "DELETE");
 
 export interface TodoDay {
   day: string;
@@ -68,6 +110,7 @@ async function call<T>(path: string, method = "GET", body?: unknown): Promise<T>
     }
     throw new ApiError(response.status, code);
   }
+  if (method !== "GET" && path.startsWith("/api/todo/")) announceTodoChange(); // 다른 창도 다시 받게
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
@@ -100,6 +143,8 @@ export interface RepeatInput {
   rule: RepeatRule;
   weekdays?: number[];
   end_day?: string | null;
+  start_day?: string;
+  skip_holidays?: boolean;
 }
 
 export const createRepeat = (itemId: string, input: RepeatInput) =>
@@ -150,6 +195,7 @@ export function todoErrorText(error: unknown): string {
     bad_weekdays: "요일을 하나 이상 골라 주세요.",
     bad_end_day: "끝나는 날은 시작한 날보다 뒤여야 해요.",
     too_many_repeats: "반복 할 일은 100개까지예요.",
+    period_overlap: "새 기간은 앞 기간이 끝난 다음 날부터 시작해야 해요.",
     bad_alert_lead: "알림 시각을 다시 골라 주세요.",
     bad_tz: "이 기기의 시간대를 알 수 없어요.",
     bad_morning_via: "아침 요약 방법을 다시 골라 주세요.",

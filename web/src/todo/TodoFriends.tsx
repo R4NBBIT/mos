@@ -43,6 +43,8 @@ export default function TodoFriends({
   const [people, setPeople] = useState<TodoPeople | null>(null);
   const [error, setError] = useState("");
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [search, setSearch] = useState("");
   const load = useCallback(
     () =>
       fetchPeople()
@@ -88,8 +90,15 @@ export default function TodoFriends({
         )}
         <div className="room-title">
           <strong>친구</strong>
-          <span className="room-sub">같은 디스코드 서버의 할 일 사용자</span>
+          <span className="room-sub">할 일에서만 맺는 친구(디스코드 친구와 따로)</span>
         </div>
+        {!showBack && (
+          <div className="header-tools">
+            <button type="button" className="header-tool" onClick={onBack}>
+              <span className="header-tool-label todo-tool-always">할 일로</span>
+            </button>
+          </div>
+        )}
         {menu}
       </header>
       <div className="todo-body">
@@ -123,8 +132,57 @@ export default function TodoFriends({
               </section>
             )}
             <section className="todo-friend-section">
-              <h2 className="todo-friend-title">친구 {people.friends.length}명</h2>
-              {people.friends.length === 0 && <p className="todo-setting-help">아직 친구가 없어요. 아래에서 요청해 보세요.</p>}
+              <div className="todo-friend-head">
+                <h2 className="todo-friend-title">친구 {people.friends.length}명</h2>
+                <button
+                  type="button"
+                  className="todo-small-button todo-primary"
+                  aria-expanded={adding}
+                  onClick={() => setAdding((value) => !value)}
+                >
+                  {adding ? "닫기" : "친구 추가"}
+                </button>
+              </div>
+              <p className="todo-field-help">
+                같은 디스코드 서버에서 할 일을 쓰는 사람에게 요청할 수 있어요. 친구가 되면 서로 '친구' 카테고리까지 보이고 반응을
+                달 수 있어요. 친구가 아니어도 같은 서버 사람은 내 '전체' 카테고리를 볼 수 있어요.
+              </p>
+              {adding && (
+                <div className="todo-friend-add">
+                  <input
+                    className="todo-friend-search"
+                    value={search}
+                    placeholder="이름으로 찾기"
+                    aria-label="요청할 사람 찾기"
+                    autoFocus
+                    onChange={(event) => setSearch(event.target.value)}
+                  />
+                  {people.candidates.length === 0 ? (
+                    <p className="todo-field-help">
+                      요청할 수 있는 사람이 없어요. 같은 디스코드 서버에 있고, 할 일을 쓰고, '친구 요청 받기'를 켜 둔 사람만
+                      나와요.
+                    </p>
+                  ) : (
+                    <ul>
+                      {people.candidates
+                        .filter((person) => person.name.toLowerCase().includes(search.trim().toLowerCase()))
+                        .map((person) =>
+                          row(
+                            person,
+                            <button
+                              type="button"
+                              className="todo-small-button todo-primary"
+                              onClick={() => void run(() => requestFriend(person.id))}
+                            >
+                              요청
+                            </button>,
+                          ),
+                        )}
+                    </ul>
+                  )}
+                </div>
+              )}
+              {people.friends.length === 0 && !adding && <p className="todo-field-help">아직 친구가 없어요. '친구 추가'를 눌러 보세요.</p>}
               <ul>
                 {people.friends.map((person) =>
                   row(
@@ -157,7 +215,6 @@ export default function TodoFriends({
                 )}
               </ul>
             </section>
-            <GroupsSection friends={people.friends} />
             {people.outgoing.length > 0 && (
               <section className="todo-friend-section">
                 <h2 className="todo-friend-title">보낸 요청</h2>
@@ -173,29 +230,7 @@ export default function TodoFriends({
                 </ul>
               </section>
             )}
-            <section className="todo-friend-section">
-              <h2 className="todo-friend-title">같은 서버 사람</h2>
-              <p className="todo-setting-help">
-                이 사람들은 내 '전체' 카테고리를 볼 수 있어요. 친구가 되면 '친구' 카테고리까지 서로 보여요.
-              </p>
-              {people.candidates.length === 0 && <p className="todo-setting-help">요청을 보낼 수 있는 사람이 없어요.</p>}
-              <ul>
-                {people.candidates.map((person) =>
-                  row(
-                    person,
-                    <>
-                      <button type="button" className="todo-small-button" onClick={() => onOpenFriend(person.id)}>
-                        보기
-                      </button>
-                      <button type="button" className="todo-small-button todo-primary" onClick={() => void run(() => requestFriend(person.id))}>
-                        친구 요청
-                      </button>
-                    </>,
-                    true,
-                  ),
-                )}
-              </ul>
-            </section>
+            <GroupsSection friends={people.friends} />
             <section className="todo-friend-section">
               <div className="todo-setting">
                 <span className="todo-setting-name">친구 요청 받기</span>
@@ -210,7 +245,7 @@ export default function TodoFriends({
                     <span className="todo-switch-track" aria-hidden="true" />
                     <span>{people.accept_requests ? "켜짐" : "꺼짐"}</span>
                   </label>
-                  <p className="todo-setting-help">끄면 같은 서버 사람 목록에 내가 안 보이고 새 요청도 못 받아요.</p>
+                  <p className="todo-setting-help">끄면 다른 사람의 친구 추가 목록에 내가 안 보이고 새 요청도 못 받아요.</p>
                 </div>
               </div>
             </section>

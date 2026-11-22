@@ -67,12 +67,12 @@ export default function TodoConnect({ requestId, onLeave }: { requestId: string;
                 <ul>
                   <li>카테고리와 할 일 보기</li>
                   <li>할 일 넣기(넣기 전에 대화에서 확인)</li>
-                  <li>할 일 고치기, 완료 표시</li>
+                  <li>할 일 수정, 완료 표시</li>
                   <li>방금 넣은 것 되돌리기</li>
                 </ul>
                 <strong>확인받고 하는 것</strong>
                 <ul>
-                  <li>할 일 지우기(휴지통에 7일)</li>
+                  <li>할 일 삭제(휴지통에 7일)</li>
                   <li>카테고리 만들기, 바꾸기, 끝내기</li>
                   <li>공개 범위 넓히기는 여기서 한 번 더 승인</li>
                 </ul>
@@ -82,7 +82,7 @@ export default function TodoConnect({ requestId, onLeave }: { requestId: string;
                 <ul>
                   <li>ㅁㅇㅅ 메시지 보기</li>
                   <li>디스코드 정보 보기</li>
-                  <li>카테고리 아주 지우기</li>
+                  <li>카테고리 삭제</li>
                 </ul>
               </div>
             </div>

@@ -11,6 +11,8 @@ from datetime import date, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+import holidays
+
 from mos.db.todo_repo import TodoRepo
 
 MAX_TITLE = 100
@@ -132,8 +134,33 @@ def repeat_to_api(row: dict[str, Any]) -> dict[str, Any]:
         "id": str(row["id"]),
         "rule": row["rule"],
         "weekdays": [day for day in range(7) if row["weekdays"] & (1 << day)],
+        "start_day": row["start_day"],
         "end_day": row["end_day"],
+        "skip_holidays": bool(row.get("skip_holidays")),
+        "series_id": str(row.get("series_id") or row["id"]),
     }
+
+
+def repeat_series_period(row: dict[str, Any]) -> dict[str, Any]:
+    """반복 화면의 한 기간(규칙과 이름, 카테고리, 시각, 장소, 메모까지)."""
+    return {
+        **repeat_to_api(row),
+        "category_id": str(row["category_id"]),
+        "title": row["title"],
+        "memo": row["memo"],
+        "time": row["time"],
+        "place": row["place"],
+    }
+
+
+_KOREAN_HOLIDAYS = holidays.country_holidays(
+    "KR"
+)  # 해마다 필요할 때 계산(음력 명절, 대체 휴일 포함)
+
+
+def is_holiday(day: str) -> bool:
+    """한국 공휴일인지(반복의 '공휴일 빼기')."""
+    return date.fromisoformat(day) in _KOREAN_HOLIDAYS
 
 
 def item_to_api(row: dict[str, Any], repeat: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -157,6 +184,8 @@ def item_to_api(row: dict[str, Any], repeat: dict[str, Any] | None = None) -> di
 def repeat_on(rep: dict[str, Any], day: str) -> bool:
     """그날 반복 회차가 있는지(시작 전, 끝난 뒤는 없음)."""
     if day < rep["start_day"] or (rep["end_day"] and day > rep["end_day"]):
+        return False
+    if rep.get("skip_holidays") and is_holiday(day):
         return False
     value = date.fromisoformat(day)
     sunday_index = (value.weekday() + 1) % 7  # 일=0 … 토=6
@@ -201,6 +230,7 @@ def day_range(start: str, end: str) -> list[str]:
 class TodoService:
     # 지우기를 휴지통으로(계정, 할 일 ID) → 지웠는지. 없으면 바로 지움
     trash: Callable[[int, Any], Awaitable[bool]] | None = None
+    bin: Any = None  # TodoBin(앱이 이어 줌): 카테고리, 반복 앞으로 것 지우기도 휴지통으로
     # 하루 보기에 덧붙이기(친구 기능의 반응). (보는 사람, 주인, 할 일들)
     decorate: Callable[[int, int, list[dict[str, Any]]], Awaitable[None]] | None = None
 
@@ -317,6 +347,9 @@ class TodoService:
             raise TodoError("not_found", 404)
         if row["closed_at"] is None:
             await self._keep_one_open(account_id, category_id)
+        if self.bin is not None:
+            await self.bin.category(account_id, category_id)  # 휴지통에 7일(되살리기)
+            return
         await self.repo.delete_category(account_id, category_id)
 
     # ------------------------------------------------------------ 하루, 요약
@@ -505,6 +538,12 @@ class TodoService:
             await self.repo.delete_item(account_id, row["id"])
             return
         if scope == "future":
+            if self.bin is not None:
+                before = (date.fromisoformat(row["day"]) - timedelta(days=1)).isoformat()
+                await self.bin.repeat_from(
+                    account_id, row["repeat_id"], row["day"], before, row["title"]
+                )
+                return
             await self.stop_repeat(account_id, row["repeat_id"], row["day"], keep_day=False)
             return
         # 오늘 것만: 행은 남기고 건너뜀 표시(그날 회차가 다시 생기지 않게)
@@ -555,6 +594,70 @@ class TodoService:
         rep = await self.repo.repeat(account_id, repeat_id)
         return repeat_to_api(rep) if rep else {}
 
+    async def new_repeat(self, account_id: int, body: dict[str, Any]) -> dict[str, Any]:
+        """반복 화면에서 바로 만들기. series_id가 있으면 그 반복의 새 기간(끝난 반복 다시 쓰기)."""
+        if await self.repo.count_repeats(account_id) >= MAX_REPEATS:
+            raise TodoError("too_many_repeats", 409)
+        start_day = clean_day(body.get("start_day"))
+        series_id = None
+        if body.get("series_id") is not None:
+            series = await self.repo.repeat(account_id, parse_id(body["series_id"]))
+            if series is None:
+                raise TodoError("not_found", 404)
+            series_id = series["series_id"] or series["id"]
+            for period in await self.repo.repeats(account_id):
+                if (period["series_id"] or period["id"]) == series_id and (
+                    period["end_day"] is None or period["end_day"] >= start_day
+                ):
+                    raise TodoError("period_overlap", 409)  # 새 기간은 앞 기간이 끝난 뒤부터
+        skip = body.get("skip_holidays", False)
+        if not isinstance(skip, bool):
+            raise TodoError("bad_body")
+        values = {
+            "category_id": (await self._open_category(account_id, body.get("category_id")))["id"],
+            "title": one_line(body.get("title"), MAX_TITLE, "bad_title"),
+            "memo": clean_memo(body.get("memo", "")),
+            "time": clean_time(body.get("time")),
+            "place": clean_place(body.get("place")),
+            "start_day": start_day,
+            "position": 0,
+            "skip_holidays": skip,
+            "series_id": series_id,
+            **self._rule(body, start_day),
+        }
+        repeat_id = await self.repo.add_repeat(account_id, values, None, self.now())
+        rep = await self.repo.repeat(account_id, repeat_id)
+        return repeat_series_period(rep) if rep else {}
+
+    async def repeat_series(self, account_id: int, raw_today: Any) -> list[dict[str, Any]]:
+        """반복 화면: 같은 반복의 기간들을 묶어서. 기간이 모두 끝났으면 ended."""
+        today = clean_day(raw_today)
+        groups: dict[int, list[dict[str, Any]]] = {}
+        for rep in await self.repo.repeats(account_id):
+            groups.setdefault(rep["series_id"] or rep["id"], []).append(rep)
+        result = []
+        for series_id, periods in groups.items():
+            periods.sort(key=lambda rep: rep["start_day"])
+            last = periods[-1]
+            ended = all(rep["end_day"] is not None and rep["end_day"] < today for rep in periods)
+            result.append(
+                {
+                    "id": str(series_id),
+                    "current": repeat_series_period(last),
+                    "periods": [
+                        {
+                            "id": str(rep["id"]),
+                            "start_day": rep["start_day"],
+                            "end_day": rep["end_day"],
+                        }
+                        for rep in periods
+                    ],
+                    "ended": ended,
+                }
+            )
+        result.sort(key=lambda series: (series["ended"], series["current"]["title"]))
+        return result
+
     async def update_repeat(
         self, account_id: int, repeat_id: int, body: dict[str, Any]
     ) -> dict[str, Any]:
@@ -582,6 +685,21 @@ class TodoService:
             changes["category_id"] = (await self._open_category(account_id, body["category_id"]))[
                 "id"
             ]
+        if "skip_holidays" in body:
+            if not isinstance(body["skip_holidays"], bool):
+                raise TodoError("bad_body")
+            changes["skip_holidays"] = int(body["skip_holidays"])
+        if "start_day" in body:
+            start_day = clean_day(body["start_day"])
+            end_day = changes.get("end_day", rep["end_day"])
+            if end_day is not None and end_day < start_day:
+                raise TodoError("bad_end_day")
+            changes["start_day"] = start_day
+        if "rule" in body and "end_day" in body:
+            end_day = None if body["end_day"] is None else clean_day(body["end_day"])
+            if end_day is not None and end_day < changes.get("start_day", rep["start_day"]):
+                raise TodoError("bad_end_day")
+            changes["end_day"] = end_day
         await self.repo.update_repeat(account_id, repeat_id, changes, self.now())
         updated = await self.repo.repeat(account_id, repeat_id)
         return repeat_to_api(updated or rep)

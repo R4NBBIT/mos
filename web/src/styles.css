@@ -8146,13 +8146,19 @@ body.sorting * {
 /* 설정 맨 위: 이 기기에만 적용된다는 안내 */
 .settings-device-note {
   margin: 4px 2px 12px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: rgba(240, 180, 41, 0.14);
-  color: var(--ink);
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid color-mix(in srgb, var(--sub) 55%, transparent);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--sub);
   font-size: 13px;
   line-height: 1.6;
   word-break: keep-all;
+}
+
+.settings-device-note strong {
+  color: var(--ink);
 }
 
 :root[data-theme="sheet"] .settings-device-note,

@@ -417,3 +417,49 @@ def test_ai_friend_actions_need_app_approval(tmp_path: Path) -> None:
         _ = use
     finally:
         gen.close()
+
+
+def test_every_delete_goes_to_trash(env: Env) -> None:
+    """카테고리, 반복 앞으로 것까지 지우기도 휴지통에서 되살린다(2026-11-22 사용자 결정)."""
+    signed_up(env, "mocha")
+    made = env.client.post(
+        "/api/todo/categories", json={"name": "운동", "color": "#16A34A"}, headers=POST
+    ).json()
+    cat = made["id"]
+    item = env.client.post(
+        "/api/todo/items",
+        json={"title": "달리기", "day": "2026-11-23", "category_id": cat},
+        headers=POST,
+    ).json()["id"]
+    env.client.post(
+        "/api/todo/items",
+        json={"title": "스트레칭", "day": "2026-11-23", "category_id": cat},
+        headers=POST,
+    )
+    env.client.post("/api/todo/repeats", json={"item_id": item, "rule": "daily"}, headers=POST)
+    env.tick(1)
+    # 반복 앞으로 것까지 지우기 → 휴지통 → 되살리면 다시 매일
+    day = env.client.get("/api/todo/day/2026-11-25").json()
+    rid = next(i["id"] for i in day["items"] if i["title"] == "달리기")
+    assert env.client.delete(f"/api/todo/items/{rid}?scope=future", headers=POST).status_code == 204
+    titles = [i["title"] for i in env.client.get("/api/todo/day/2026-11-26").json()["items"]]
+    assert "달리기" not in titles
+    trash = env.client.get("/api/todo/ai").json()["trash"]
+    assert trash[0]["kind"] == "bundle" and "달리기" in trash[0]["title"]
+    env.client.post(f"/api/todo/ai/trash/{trash[0]['id']}/restore", headers=POST)
+    titles = [i["title"] for i in env.client.get("/api/todo/day/2026-11-26").json()["items"]]
+    assert "달리기" in titles
+    # 카테고리 지우기 → 할 일과 반복이 같이 사라졌다가 되살아남
+    assert env.client.delete(f"/api/todo/categories/{cat}", headers=POST).status_code == 204
+    names = [c["name"] for c in env.client.get("/api/todo/categories").json()["categories"]]
+    assert "운동" not in names
+    trash = env.client.get("/api/todo/ai").json()["trash"]
+    assert trash[0]["title"].startswith("'운동' 카테고리")
+    env.client.post(f"/api/todo/ai/trash/{trash[0]['id']}/restore", headers=POST)
+    names = [c["name"] for c in env.client.get("/api/todo/categories").json()["categories"]]
+    assert "운동" in names
+    titles = [i["title"] for i in env.client.get("/api/todo/day/2026-11-23").json()["items"]]
+    assert {"달리기", "스트레칭"} <= set(titles)
+    assert "달리기" in [
+        i["title"] for i in env.client.get("/api/todo/day/2026-11-27").json()["items"]
+    ]

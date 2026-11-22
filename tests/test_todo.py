@@ -530,3 +530,70 @@ def test_morning_by_dm_and_news(env: Env) -> None:
     env.tick(1)
     assert env.client.post("/api/todo/news/seen", headers=POST).status_code == 204
     assert env.client.get("/api/todo/news").json()["unread"] == 0
+
+
+def test_repeat_screen_periods_and_holidays(env: Env) -> None:
+    """반복 화면: 바로 만들기, 공휴일 빼기, 끝난 반복에 새 기간 더하기(2026-11-22 사용자 요청)."""
+    signed_up(env, "mocha")
+    cat = first_category(env)
+    made = env.client.post(
+        "/api/todo/repeats/new",
+        json={
+            "title": "출근",
+            "category_id": cat,
+            "rule": "weekdays",
+            "start_day": "2026-12-21",
+            "end_day": "2026-12-31",
+            "skip_holidays": True,
+            "time": "09:00",
+            "place": "회사",
+        },
+        headers=POST,
+    )
+    assert made.status_code == 200, made.text
+
+    def titles(day: str) -> list[str]:
+        return [i["title"] for i in env.client.get(f"/api/todo/day/{day}").json()["items"]]
+
+    assert titles("2026-12-24") == ["출근"]
+    assert titles("2026-12-25") == []  # 성탄절은 빠짐
+    assert titles("2026-12-26") == []  # 토요일
+    series = env.client.get("/api/todo/repeats?today=2027-01-05").json()["series"]
+    assert series[0]["ended"] is True and series[0]["current"]["place"] == "회사"
+    # 겹치는 새 기간은 안 되고, 끝난 뒤부터는 된다
+    bad = env.client.post(
+        "/api/todo/repeats/new",
+        json={
+            **made.json(),
+            "series_id": series[0]["id"],
+            "category_id": cat,
+            "start_day": "2026-12-30",
+            "end_day": None,
+        },
+        headers=POST,
+    )
+    assert bad.status_code == 409
+    again = env.client.post(
+        "/api/todo/repeats/new",
+        json={
+            "title": "출근",
+            "category_id": cat,
+            "rule": "weekdays",
+            "series_id": series[0]["id"],
+            "start_day": "2027-01-04",
+            "skip_holidays": True,
+        },
+        headers=POST,
+    )
+    assert again.status_code == 200, again.text
+    series = env.client.get("/api/todo/repeats?today=2027-01-05").json()["series"]
+    assert series[0]["ended"] is False
+    assert [p["start_day"] for p in series[0]["periods"]] == ["2026-12-21", "2027-01-04"]
+    assert titles("2027-01-05") == ["출근"]
+    # 반복 지우기는 휴지통으로
+    assert (
+        env.client.delete(f"/api/todo/repeats/series/{series[0]['id']}", headers=POST).status_code
+        == 204
+    )
+    assert env.client.get("/api/todo/repeats?today=2027-01-05").json()["series"] == []
+    assert titles("2027-01-05") == []
