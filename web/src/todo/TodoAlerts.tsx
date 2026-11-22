@@ -118,7 +118,7 @@ function Setting({ name, help, children }: { name: string; help?: string; childr
   );
 }
 
-export default function TodoAlertPanel({ onClose, onSeen }: { onClose: () => void; onSeen: () => void }) {
+export default function TodoAlertPanel({ onSeen }: { onSeen: () => void }) {
   const [prefs, setPrefs] = useState<TodoAlertPrefs | null>(null);
   const [morningText, setMorningText] = useState("08:00");
   const [error, setError] = useState("");
@@ -151,12 +151,9 @@ export default function TodoAlertPanel({ onClose, onSeen }: { onClose: () => voi
   const boss = BOSS.find((item) => item.value === prefs?.boss_mode) ?? BOSS[0];
 
   return (
-    <section className="todo-alerts" aria-label="소식과 알림">
+    <section className="todo-alerts todo-alerts-page" aria-label="소식과 알림">
       <div className="todo-alerts-head">
         <strong>소식</strong>
-        <button type="button" className="todo-link-button" onClick={onClose}>
-          닫기
-        </button>
       </div>
       <TodoNewsList onSeen={onSeen} />
       <div className="todo-alerts-head todo-alerts-sub">

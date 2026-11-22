@@ -106,7 +106,7 @@ export function AiRequests({ onChanged }: { onChanged: () => void }) {
   );
 }
 
-export default function TodoAiPanel({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
+export default function TodoAiPanel({ onChanged }: { onChanged: () => void }) {
   const [data, setData] = useState<{ connections: TodoConnection[]; mcp_url: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -142,13 +142,7 @@ export default function TodoAiPanel({ onClose, onChanged }: { onClose: () => voi
   };
 
   return (
-    <section className="todo-alerts" aria-label="AI 연결">
-      <div className="todo-alerts-head">
-        <strong>AI 연결</strong>
-        <button type="button" className="todo-link-button" onClick={onClose}>
-          닫기
-        </button>
-      </div>
+    <section className="todo-alerts todo-alerts-page" aria-label="AI 연결">
       <AiRequests
         onChanged={() => {
           onChanged();

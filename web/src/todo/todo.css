@@ -188,12 +188,12 @@
 
 .todo-check {
   flex: none;
-  width: 24px;
-  height: 24px;
-  margin-top: 2px;
-  border-radius: 12px;
-  border: 1.8px solid var(--sub);
-  background: transparent;
+  width: 22px;
+  height: 22px;
+  margin-top: 3px;
+  border-radius: 50%;
+  border: 0;
+  background: color-mix(in srgb, var(--cat, var(--sub)) 20%, transparent);
   padding: 0;
   cursor: pointer;
   display: flex;
@@ -201,29 +201,68 @@
   justify-content: center;
   color: transparent;
   position: relative;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.12s ease;
 }
 
 /* 손가락으로 누르기 쉽게 실제 누르는 자리는 44px */
 .todo-check::after {
   content: "";
   position: absolute;
-  inset: -10px;
+  inset: -11px;
 }
 
 .todo-check svg {
-  width: 15px;
-  height: 15px;
+  width: 13px;
+  height: 13px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 2.8;
+  stroke-width: 3.2;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
+@media (hover: hover) {
+  .todo-check:not(.todo-check-on):not(.todo-check-readonly):not(.todo-check-ghost):hover {
+    background: color-mix(in srgb, var(--cat, var(--sub)) 34%, transparent);
+    color: color-mix(in srgb, var(--cat, var(--sub)) 70%, var(--ink));
+  }
+}
+
+.todo-check:active:not(.todo-check-readonly) {
+  transform: scale(0.9);
+}
+
 .todo-check-on {
-  background: var(--honey);
-  border-color: var(--honey);
-  color: var(--mine-fg);
+  background: var(--cat, var(--honey));
+  color: var(--cat-ink, var(--mine-fg));
+  animation: todo-check-pop 0.24s ease-out;
+}
+
+.todo-check-readonly.todo-check-on {
+  animation: none;
+}
+
+@keyframes todo-check-pop {
+  0% {
+    transform: scale(0.78);
+  }
+  60% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .todo-check,
+  .todo-check-on {
+    transition: none;
+    animation: none;
+  }
 }
 
 .todo-check-ghost {
@@ -1207,6 +1246,8 @@
 }
 
 :root[data-theme="sheet"] .todo-check {
+  background: transparent;
+  animation: none;
   width: 15px;
   height: 15px;
   margin: 0;
@@ -1374,6 +1415,8 @@
 }
 
 :root[data-theme="note"] .todo-check {
+  background: transparent;
+  animation: none;
   width: 16px;
   height: 16px;
   margin-top: 4px;
@@ -1440,6 +1483,8 @@
 }
 
 :root[data-theme="word"] .todo-check {
+  background: transparent;
+  animation: none;
   width: 14px;
   height: 14px;
   margin-top: 4px;
@@ -2454,52 +2499,121 @@
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--font, inherit);
 }
 
 .todo-widget {
-  min-height: 100vh;
-  padding: 12px 14px 16px;
+  height: 100vh;
+  padding: 16px 16px 12px;
   background: var(--bg);
   color: var(--ink);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
   font-size: 14px;
+  overflow: hidden;
 }
 
 .todo-widget-head {
   display: flex;
-  align-items: baseline;
+  align-items: flex-end;
   justify-content: space-between;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--line);
+  gap: 8px;
 }
 
-.todo-widget-head span {
+.todo-widget-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.todo-widget-brand {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
   color: var(--sub);
+}
+
+.todo-widget-heading strong {
+  font-size: 17px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.todo-widget-count {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.todo-widget-count small {
   font-size: 13px;
+  font-weight: 600;
+  color: var(--sub);
+}
+
+.todo-widget-bar {
+  height: 5px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--sub) 16%, transparent);
+  overflow: hidden;
+  flex: none;
+}
+
+.todo-widget-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--honey);
+  transition: width 0.3s ease;
 }
 
 .todo-widget-list {
   list-style: none;
-  margin: 0;
+  margin: 0 -6px;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .todo-widget-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 32px;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 6px;
+  border-radius: 9px;
 }
 
-.todo-widget-item .todo-title-text {
+@media (hover: hover) {
+  .todo-widget-item:hover {
+    background: color-mix(in srgb, var(--sub) 8%, transparent);
+  }
+}
+
+.todo-widget-item .todo-check {
+  margin-top: 0;
+  width: 20px;
+  height: 20px;
+  background: color-mix(in srgb, var(--cat, var(--sub)) 22%, transparent);
+}
+
+.todo-widget-item .todo-check-on {
+  background: var(--cat, var(--honey));
+}
+
+.todo-widget-item .todo-check svg {
+  width: 12px;
+  height: 12px;
+}
+
+.todo-widget-title {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -2507,19 +2621,69 @@
   white-space: nowrap;
 }
 
-.todo-widget-item .todo-check {
-  margin-top: 0;
-  width: 20px;
-  height: 20px;
+.todo-widget-time {
+  flex: none;
+  font-size: 12px;
+  color: var(--sub);
+  font-variant-numeric: tabular-nums;
 }
 
-.todo-widget-item.todo-row-done .todo-title-text {
+.todo-widget-done .todo-widget-title {
   color: var(--sub);
   text-decoration: line-through;
 }
 
+.todo-widget-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--sub);
+}
+
+.todo-widget-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .todo-widget-add {
-  margin-top: 4px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--sub) 10%, transparent);
+}
+
+.todo-widget-add:focus-within {
+  box-shadow: 0 0 0 2px var(--honey);
+}
+
+.todo-widget-plus {
+  display: flex;
+  color: var(--sub);
+}
+
+.todo-widget-plus svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.todo-widget-add input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
 }
 
 /* ---------- 일부 공개 대상, 친구 그룹 */
@@ -2590,6 +2754,13 @@
 
 .todo-trash:empty {
   display: none;
+}
+
+.todo-alerts.todo-alerts-page {
+  max-width: none;
+  margin: 0;
+  padding: 14px 16px;
+  gap: 8px;
 }
 
 .todo-alerts.todo-trash {

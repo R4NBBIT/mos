@@ -5,12 +5,12 @@ import BackIcon from "../BackIcon";
 import SplitToggle from "../SplitToggle";
 import { viaServer } from "../format";
 import { addDays, longLabel, timeLabel, today } from "./dates";
-import { CategoryDot, CHECK_PATH, MemoText, repeatLabel } from "./TodoItems";
+import { CategoryDot, CHECK_PATH, checkStyle, MemoText, repeatLabel } from "./TodoItems";
 import { TodoReactions } from "./TodoReactions";
 import { type FriendDay, fetchFriendDay, type TodoItem, type TodoReaction } from "./todoApi";
 import "./todo.css";
 
-function FriendRow({ owner, item }: { owner: string; item: TodoItem }) {
+function FriendRow({ owner, item, color }: { owner: string; item: TodoItem; color: string }) {
   const [reactions, setReactions] = useState<TodoReaction[]>(item.reactions ?? []);
   const [memoOpen, setMemoOpen] = useState(false);
   const meta = [item.time ? timeLabel(item.time) : "", item.place ?? "", item.repeat ? repeatLabel(item.repeat) : ""]
@@ -19,7 +19,11 @@ function FriendRow({ owner, item }: { owner: string; item: TodoItem }) {
   return (
     <li className={item.done ? "todo-row todo-row-done" : "todo-row"}>
       <div className="todo-row-line">
-        <span className={item.done ? "todo-check todo-check-on todo-check-readonly" : "todo-check todo-check-readonly"} aria-label={item.done ? "했어요" : "아직"}>
+        <span
+          className={item.done ? "todo-check todo-check-on todo-check-readonly" : "todo-check todo-check-readonly"}
+          style={checkStyle(color)}
+          aria-label={item.done ? "했어요" : "아직"}
+        >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d={CHECK_PATH} />
           </svg>
@@ -129,7 +133,7 @@ export default function TodoFriendDay({
               </h2>
               <ul className="todo-list">
                 {mine.map((item) => (
-                  <FriendRow key={item.id} owner={friendId} item={item} />
+                  <FriendRow key={item.id} owner={friendId} item={item} color={category.color} />
                 ))}
               </ul>
             </section>

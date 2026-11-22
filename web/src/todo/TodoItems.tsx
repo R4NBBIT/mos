@@ -1,5 +1,5 @@
 // 할 일 한 줄과 할 일 메뉴(SCR-03), 카테고리 묶음의 입력칸(날짜 알아보기, TODO-13~15)
-import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, dateWithWeekday, longLabel, timeLabel, today, WEEKDAY_NAMES } from "./dates";
 import { useEnterKey } from "./enterKey";
 import { TodoReactions } from "./TodoReactions";
@@ -19,13 +19,28 @@ import {
 
 export const CHECK_PATH = "M5 12.5l4.5 4.5L19 7.5";
 
-function needsRing(color: string): boolean {
+function luminance(color: string): number {
   const value = Number.parseInt(color.slice(1), 16);
   const channel = (shift: number) => {
     const c = ((value >> shift) & 255) / 255;
     return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
   };
-  return 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0) > 0.6;
+  return 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0);
+}
+
+function needsRing(color: string): boolean {
+  return luminance(color) > 0.6;
+}
+
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+
+/** 체크 원 색: 완료하면 카테고리 색으로 채우고, 체크 표시는 그 색에서 잘 보이는 색으로 */
+export function checkStyle(color: string | undefined): CSSProperties | undefined {
+  if (!color || !HEX_COLOR.test(color)) return undefined;
+  return {
+    "--cat": color,
+    "--cat-ink": luminance(color) > 0.42 ? "#1d232b" : "#ffffff",
+  } as CSSProperties;
 }
 
 export function CategoryDot({ color }: { color: string }) {
@@ -447,6 +462,7 @@ export function TodoRow({
         <button
           type="button"
           className={item.done ? "todo-check todo-check-on" : "todo-check"}
+          style={checkStyle(categories.find((category) => category.id === item.category_id)?.color)}
           aria-pressed={item.done}
           aria-label={item.done ? `${item.title} 완료 취소` : `${item.title} 완료`}
           onClick={onToggle}

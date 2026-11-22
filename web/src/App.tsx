@@ -62,6 +62,7 @@ const TodoFriendDay = lazy(() => import("./todo/TodoFriendDay"));
 const TodoWidget = lazy(() => import("./todo/TodoWidget"));
 const TodoSide = lazy(() => import("./todo/TodoScreen").then((module) => ({ default: module.TodoSide })));
 const TodoCategories = lazy(() => import("./todo/TodoCategories"));
+const TodoPanelPage = lazy(() => import("./todo/TodoPanelPage"));
 const TODO_FEATURE = "todo";
 
 // 서버의 자동 잠금(계정 설정, 기본 30분)과 같게. 조작이 없으면 화면도 잠금으로 간다
@@ -83,6 +84,8 @@ type Route =
   | { view: "todo"; day: string }
   | { view: "todoCategories" }
   | { view: "todoFriends" }
+  | { view: "todoAlerts" }
+  | { view: "todoAi" }
   | { view: "todoFriend"; friendId: string; day: string }
   | { view: "channels"; groupId: string }
   | { view: "chat"; groupId: string; channelId: string }
@@ -108,6 +111,8 @@ function parseRoute(hash: string): Route {
   if (hash === "#/todo") return { view: "todo", day: today() };
   if (hash === "#/todo/categories") return { view: "todoCategories" };
   if (hash === "#/todo/friends") return { view: "todoFriends" };
+  if (hash === "#/todo/alerts") return { view: "todoAlerts" };
+  if (hash === "#/todo/ai") return { view: "todoAi" };
   const friend = /^#\/todo\/f\/(\d{1,18})(?:\/(\d{4}-\d{2}-\d{2}))?$/.exec(hash);
   if (friend?.[1]) {
     const friendDay = friend[2] && isDayKey(friend[2]) ? friend[2] : today();
@@ -131,10 +136,18 @@ function parseRoute(hash: string): Route {
 }
 
 /** 할 일 화면들(오늘, 카테고리, 친구 관리, 친구 할 일) */
-type TodoRoute = Extract<Route, { view: "todo" | "todoCategories" | "todoFriends" | "todoFriend" }>;
+type TodoRoute = Extract<
+  Route,
+  { view: "todo" | "todoCategories" | "todoFriends" | "todoFriend" | "todoAlerts" | "todoAi" }
+>;
 function isTodoRoute(route: Route): route is TodoRoute {
   return (
-    route.view === "todo" || route.view === "todoCategories" || route.view === "todoFriends" || route.view === "todoFriend"
+    route.view === "todo" ||
+    route.view === "todoCategories" ||
+    route.view === "todoFriends" ||
+    route.view === "todoFriend" ||
+    route.view === "todoAlerts" ||
+    route.view === "todoAi"
   );
 }
 
@@ -142,7 +155,14 @@ function isTodoRoute(route: Route): route is TodoRoute {
 function routeLevel(route: Route): number {
   if (route.view === "groups" || route.view === "settings") return 0;
   if (route.view === "channels" || route.view === "todo") return 1;
-  if (route.view === "todoCategories" || route.view === "todoFriends" || route.view === "todoFriend") return 2;
+  if (
+    route.view === "todoCategories" ||
+    route.view === "todoFriends" ||
+    route.view === "todoFriend" ||
+    route.view === "todoAlerts" ||
+    route.view === "todoAi"
+  )
+    return 2;
   return 2;
 }
 
@@ -489,6 +509,8 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           version={todoVersion}
           onCategories={() => go("#/todo/categories")}
           onFriends={inSplit ? undefined : () => go("#/todo/friends")}
+          onAlerts={() => go("#/todo/alerts")}
+          onAi={() => go("#/todo/ai")}
         />
       </Suspense>
     );
@@ -496,6 +518,18 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
       <Suspense fallback={<div className="center-note">불러오는 중…</div>}>
         <TodoCategories
           key={active.id}
+          showBack={!inSplit}
+          onBack={() => go("#/todo")}
+          menu={common.menu}
+          onChanged={bumpTodo}
+        />
+      </Suspense>
+    );
+    const todoPanel = (kind: "alerts" | "ai", inSplit: boolean) => (
+      <Suspense fallback={<div className="center-note">불러오는 중…</div>}>
+        <TodoPanelPage
+          key={`${active.id}:${kind}`}
+          kind={kind}
           showBack={!inSplit}
           onBack={() => go("#/todo")}
           menu={common.menu}
@@ -653,6 +687,8 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
       if (at.view === "todo") return todoAllowed ? todoScreen(false) : groupList();
       if (at.view === "todoCategories") return todoAllowed ? todoCategories(false) : groupList();
       if (at.view === "todoFriends") return todoAllowed ? todoFriends(false) : groupList();
+      if (at.view === "todoAlerts") return todoAllowed ? todoPanel("alerts", false) : groupList();
+      if (at.view === "todoAi") return todoAllowed ? todoPanel("ai", false) : groupList();
       if (at.view === "todoFriend") return todoAllowed ? todoFriend(at.friendId, at.day, false) : groupList();
       if (at.view === "chat") return chatRoom(at.groupId, at.channelId, false);
       if (at.view === "voice") return voiceRoom(at.groupId, at.channelId, false);
@@ -737,6 +773,10 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
               todoCategories(true)
             ) : route.view === "todoFriends" && todoAllowed ? (
               todoFriends(true)
+            ) : route.view === "todoAlerts" && todoAllowed ? (
+              todoPanel("alerts", true)
+            ) : route.view === "todoAi" && todoAllowed ? (
+              todoPanel("ai", true)
             ) : route.view === "todoFriend" && todoAllowed ? (
               todoFriend(route.friendId, route.day, true)
             ) : route.view === "chat" ? (

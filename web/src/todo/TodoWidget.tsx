@@ -4,9 +4,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { isDisguised, onDisguiseChange } from "../boss/bossState";
-import { dateWithWeekday, timeLabel, today } from "./dates";
+import { longLabel, timeLabel, today } from "./dates";
 import { useEnterKey } from "./enterKey";
-import { CategoryDot, CHECK_PATH } from "./TodoItems";
+import { CHECK_PATH, checkStyle } from "./TodoItems";
 import { addTodo, fetchTodoDay, type TodoDay, type TodoItem, updateTodo } from "./todoApi";
 import "./todo.css";
 
@@ -31,6 +31,9 @@ export default function TodoWidget({ compact = false }: { compact?: boolean }) {
       .catch(() => setFailed(true));
   }, []);
   useEffect(() => {
+    if (!compact) document.title = "TODO";
+  }, [compact]);
+  useEffect(() => {
     load();
     const timer = window.setInterval(load, REFRESH_MS);
     return () => window.clearInterval(timer);
@@ -53,25 +56,36 @@ export default function TodoWidget({ compact = false }: { compact?: boolean }) {
     void addTodo({ title, day, category_id: first.id }).finally(load);
   });
 
-  const items = data?.items ?? [];
+  const items = [...(data?.items ?? [])].sort(
+    (a, b) => Number(a.done) - Number(b.done) || (a.time ?? "99").localeCompare(b.time ?? "99"),
+  );
   const done = items.filter((item) => item.done).length;
+  const percent = items.length === 0 ? 0 : Math.round((done / items.length) * 100);
   return (
     <div className={compact ? "todo-widget todo-widget-compact" : "todo-widget"}>
       <header className="todo-widget-head">
-        <strong>{dateWithWeekday(day)}</strong>
-        <span>
-          {done}/{items.length}
+        <div className="todo-widget-heading">
+          <span className="todo-widget-brand">TODO</span>
+          <strong>{longLabel(day)}</strong>
+        </div>
+        <span className="todo-widget-count" aria-label={`${items.length}개 중 ${done}개 했어요`}>
+          {done}
+          <small>/{items.length}</small>
         </span>
       </header>
-      {failed && <p className="todo-setting-help">불러오지 못했어요. ㅁㅇㅅ가 잠겼으면 잠금을 풀어 주세요.</p>}
+      <div className="todo-widget-bar" aria-hidden="true">
+        <span style={{ width: `${percent}%` }} />
+      </div>
+      {failed && <p className="todo-widget-note">불러오지 못했어요. ㅁㅇㅅ가 잠겼으면 잠금을 풀어 주세요.</p>}
       <ul className="todo-widget-list">
         {items.map((item) => {
           const category = data?.categories.find((c) => c.id === item.category_id);
           return (
-            <li key={item.id} className={item.done ? "todo-widget-item todo-row-done" : "todo-widget-item"}>
+            <li key={item.id} className={item.done ? "todo-widget-item todo-widget-done" : "todo-widget-item"}>
               <button
                 type="button"
                 className={item.done ? "todo-check todo-check-on" : "todo-check"}
+                style={checkStyle(category?.color)}
                 aria-pressed={item.done}
                 aria-label={`${item.title} ${item.done ? "완료 취소" : "완료"}`}
                 onClick={() => void toggle(item)}
@@ -80,23 +94,21 @@ export default function TodoWidget({ compact = false }: { compact?: boolean }) {
                   <path d={CHECK_PATH} />
                 </svg>
               </button>
-              {category && <CategoryDot color={category.color} />}
-              <span className="todo-title-text">{item.title}</span>
-              {item.time && <span className="todo-meta">{timeLabel(item.time)}</span>}
+              <span className="todo-widget-title">{item.title}</span>
+              {item.time && <span className="todo-widget-time">{timeLabel(item.time)}</span>}
             </li>
           );
         })}
       </ul>
-      {data && items.length === 0 && <p className="todo-setting-help">오늘 할 일이 없어요.</p>}
+      {data && items.length === 0 && <p className="todo-widget-note todo-widget-empty">오늘 할 일이 없어요.</p>}
       {first && (
-        <div className="todo-add todo-widget-add">
-          <span className="todo-check todo-check-ghost todo-add-plus" aria-hidden="true">
+        <div className="todo-widget-add">
+          <span className="todo-widget-plus" aria-hidden="true">
             <svg viewBox="0 0 24 24">
               <path d="M12 5v14M5 12h14" />
             </svg>
           </span>
           <input
-            className="todo-add-input"
             value={text}
             maxLength={100}
             aria-label={`${first.name}에 할 일 넣기`}
@@ -139,30 +151,33 @@ export async function openTodoWidget(): Promise<void> {
     return;
   }
   const pip = await api.requestWindow({ width: 320, height: 460 });
-  // 지금 화면의 스타일과 테마를 그대로 옮긴다
+  // 지금 화면의 스타일과 테마를 그대로 옮긴다. 배포 서버는 CSP(style-src 'self')라 글자로 넣은
+  // <style>은 막히므로, 파일로 된 스타일은 같은 주소의 <link>로 붙인다(개발 서버만 글자로).
   for (const sheet of Array.from(document.styleSheets)) {
+    if (sheet.href) {
+      const link = pip.document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = sheet.href;
+      pip.document.head.appendChild(link);
+      continue;
+    }
     try {
-      const css = Array.from(sheet.cssRules)
+      const style = pip.document.createElement("style");
+      style.textContent = Array.from(sheet.cssRules)
         .map((rule) => rule.cssText)
         .join("\n");
-      const style = pip.document.createElement("style");
-      style.textContent = css;
       pip.document.head.appendChild(style);
     } catch {
-      if (sheet.href) {
-        const link = pip.document.createElement("link");
-        link.rel = "stylesheet";
-        link.href = sheet.href;
-        pip.document.head.appendChild(link);
-      }
+      // 읽을 수 없는 스타일은 건너뜀
     }
   }
   for (const attribute of Array.from(document.documentElement.attributes)) {
-    if (attribute.name.startsWith("data-") || attribute.name === "style") {
+    if (attribute.name.startsWith("data-")) {
       pip.document.documentElement.setAttribute(attribute.name, attribute.value);
     }
   }
-  pip.document.title = "할 일";
+  pip.document.documentElement.style.cssText = document.documentElement.style.cssText;
+  pip.document.title = "TODO";
   pip.document.body.className = "todo-widget-body";
   // 위젯 창에서 누른 보스키도 본 창이 받게
   pip.document.addEventListener("keydown", (event) => {
