@@ -5827,9 +5827,9 @@ a.attachment-image.attachment-image-small img {
   transition: transform 0.15s ease;
 }
 
-/* 접혀 있으면 오른쪽을 가리키게 */
-.member-toggle[aria-expanded="false"] .member-chevron {
-  transform: rotate(-90deg);
+/* 서버 바꾸기와 같게: 접혀 있으면 아래, 펼치면 위 */
+.member-toggle[aria-expanded="true"] .member-chevron {
+  transform: rotate(180deg);
 }
 
 @media (prefers-reduced-motion: reduce) {
