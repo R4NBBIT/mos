@@ -1,7 +1,7 @@
 import { type CSSProperties, memo, useState } from "react";
 import { useLook } from "./lookContext";
 import MessageContent, { isEmojiOnly } from "./MessageContent";
-import { formatSize, formatTime, isDiscordMediaUrl, thumbnailUrl } from "./format";
+import { formatSize, formatTime, isDiscordMediaUrl, thumbnailUrl, viaServer } from "./format";
 import type { Attachment, Message, Sticker } from "./types";
 import Reactions, { ReactionPickerButton } from "./Reactions";
 import { isEmptyMessage, isSystemMessage, systemText } from "./systemMessage";
@@ -76,7 +76,7 @@ function stickerUrl(sticker: Sticker): string | null {
   if (!/^\d{15,21}$/.test(sticker.id) || sticker.format === LOTTIE_STICKER) return null;
   // PNG·APNG는 .png(APNG면 그대로 움직인다), GIF 스티커는 .gif
   const extension = sticker.format === GIF_STICKER ? "gif" : "png";
-  return `https://media.discordapp.net/stickers/${sticker.id}.${extension}?size=160`;
+  return viaServer(`https://media.discordapp.net/stickers/${sticker.id}.${extension}?size=160`);
 }
 
 /** 스티커: 그림으로, 그림이 없는 형식이면 이름만 */
@@ -100,7 +100,7 @@ export function StickerView({ sticker }: { sticker: Sticker }) {
 export function AttachmentText({ attachment }: { attachment: Attachment }) {
   const type = attachment.content_type ?? "";
   const label = type.startsWith("image/") ? "사진" : type.startsWith("video/") ? "동영상" : "파일";
-  const href = isDiscordMediaUrl(attachment.url) ? attachment.url : undefined;
+  const href = isDiscordMediaUrl(attachment.url) ? viaServer(attachment.url) : undefined;
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" className="attachment-text">
       [{label}] {attachment.filename}
@@ -151,7 +151,7 @@ const PLAYABLE_VIDEO = /^video\/(mp4|webm|quicktime|ogg)$/;
  * 작게 보기면 작은 첫 장면만 보이고, 누르면 재생기가 열린다 */
 function VideoView({ attachment, small }: { attachment: Attachment; small: boolean }) {
   const [revealed, setRevealed] = useState(!attachment.spoiler && !small);
-  const poster = isDiscordMediaUrl(attachment.proxy_url) ? `${attachment.proxy_url}?format=jpeg` : undefined;
+  const poster = isDiscordMediaUrl(attachment.proxy_url) ? thumbnailUrl(attachment.proxy_url, 480) : undefined;
   if (!revealed && small && !attachment.spoiler) {
     return (
       <button
@@ -179,7 +179,7 @@ function VideoView({ attachment, small }: { attachment: Attachment; small: boole
   return (
     <video
       className="attachment-video"
-      src={attachment.url}
+      src={viaServer(attachment.url)}
       poster={poster}
       autoPlay={small}
       controls
@@ -204,7 +204,7 @@ export function AttachmentView({ attachment }: { attachment: Attachment }) {
   if (isImage && isDiscordMediaUrl(attachment.proxy_url) && isDiscordMediaUrl(attachment.url)) {
     return (
       <a
-        href={attachment.url}
+        href={viaServer(attachment.url)}
         target="_blank"
         rel="noopener noreferrer"
         className={view === "small" ? "attachment-image attachment-image-small" : "attachment-image"}
@@ -221,7 +221,8 @@ export function AttachmentView({ attachment }: { attachment: Attachment }) {
       </a>
     );
   }
-  const href = isDiscordMediaUrl(attachment.url) ? attachment.url : undefined;
+  // 파일은 우리 주소에서 열리지 않고 내려받기로만(dl=1)
+  const href = isDiscordMediaUrl(attachment.url) ? viaServer(attachment.url, true) : undefined;
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" className="attachment-file">
       <span className="file-name">{attachment.filename}</span>
@@ -253,8 +254,18 @@ export function paraColor(id: string): string {
 }
 
 export function Avatar({ url, name }: { url: string | null; name: string }) {
-  if (isDiscordMediaUrl(url)) {
-    return <img className="avatar author-avatar" src={url} alt="" loading="lazy" referrerPolicy="no-referrer" />;
+  const [broken, setBroken] = useState(false);
+  if (isDiscordMediaUrl(url) && !broken) {
+    return (
+      <img
+        className="avatar author-avatar"
+        src={viaServer(url)}
+        alt=""
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setBroken(true)}
+      />
+    );
   }
   return <div className="avatar avatar-fallback author-avatar">{name.slice(0, 1)}</div>;
 }

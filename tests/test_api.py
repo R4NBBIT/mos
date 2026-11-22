@@ -2065,3 +2065,73 @@ def test_expired_attachment_urls_are_refreshed(env: Env) -> None:
     assert len(env.bot.refreshed) == 1
     stored = env.client.portal.call(env.repo.get, old["id"])
     assert "ex=7fffffff" in stored["attachments_json"]
+
+
+class FakeFetcher:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str | None]] = []
+        self.status = 200
+        self.content_type = "image/png"
+        self.body = b"\x89PNG-fake"
+
+    async def fetch(self, url: str, range_header: str | None) -> Any:
+        from mos.services.media_proxy import Fetched
+
+        self.calls.append((url, range_header))
+        body = self.body
+
+        async def chunks() -> Any:
+            yield body
+
+        headers = {"content-type": self.content_type, "content-length": str(len(body))}
+        return Fetched(self.status, headers, chunks())
+
+    async def close(self) -> None:
+        return None
+
+
+def test_media_proxy_only_discord_media_for_readers(env: Env) -> None:
+    fake = FakeFetcher()
+    env.app.state.media_fetcher = fake
+    emoji = "https://cdn.discordapp.com/emojis/1046568093355327519.webp?size=48"
+
+    def get(url: str, **params: Any) -> Any:
+        return env.client.get("/api/media", params={"u": url, **params})
+
+    assert get(emoji).status_code == 401  # 로그인 전
+    signed_up(env, "latte")  # 43: 비밀 채널은 못 봄
+    first = get(emoji)
+    assert first.status_code == 200 and first.content == b"\x89PNG-fake"
+    assert first.headers["content-type"] == "image/png"
+    assert first.headers["cache-control"] == "private, max-age=86400"
+    assert "sandbox" in first.headers["content-security-policy"]
+    get(emoji)
+    assert len(fake.calls) == 1  # 작은 그림은 서버가 기억
+
+    # 디스코드 미디어가 아닌 곳, 모양이 다른 경로는 받지 않는다(SSRF)
+    for bad in (
+        "https://example.com/a.png",
+        "http://cdn.discordapp.com/emojis/1046568093355327519.webp",
+        "https://cdn.discordapp.com:8443/emojis/1046568093355327519.webp",
+        "https://cdn.discordapp.com/api/v10/users/@me",
+        "https://cdn.discordapp.com.evil.com/emojis/1046568093355327519.webp",
+    ):
+        assert get(bad).status_code == 400, bad
+
+    # 첨부는 그 채널을 볼 수 있어야
+    secret_file = f"https://cdn.discordapp.com/attachments/{SECRET}/1573319705849102999/a.png?ex=1"
+    assert get(secret_file).status_code == 404
+    page = f"https://cdn.discordapp.com/attachments/{CHANNEL}/1573319705849102999/x.html?ex=1"
+    fake.content_type = "text/html"
+    html = get(page)
+    # 띄울 수 없는 종류는 내려받기로만(우리 주소에서 남의 HTML이 열리지 않게)
+    assert html.headers["content-type"] == "application/octet-stream"
+    assert html.headers["content-disposition"].startswith("attachment;")
+    fake.content_type = "image/png"
+    assert (
+        get(page.replace("x.html", "p.png"), dl=1)
+        .headers["content-disposition"]
+        .startswith("attachment;")
+    )
+    fake.status = 404
+    assert get(page.replace("x.html", "gone.png")).status_code == 404

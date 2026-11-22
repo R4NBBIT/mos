@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type ChannelEmoji, type ChannelSticker, fetchEmojis, fetchStickers } from "./api";
+import { viaServer } from "./format";
 
 // 기본(유니코드) 이모지 전체. 처음 열 때만 따로 받아 온다(약 60KB)
 interface UnicodeGroup {
@@ -24,7 +25,7 @@ const CUSTOM_CODE = /^<(a?):([A-Za-z0-9_]{1,32}):(\d{15,21})>$/;
 
 function emojiImage(id: string, animated: boolean): string {
   // ID는 숫자만 온다(서버가 만든 값)
-  return `https://cdn.discordapp.com/emojis/${id}.webp?size=48${animated ? "&animated=true" : ""}`;
+  return viaServer(`https://cdn.discordapp.com/emojis/${id}.webp?size=48${animated ? "&animated=true" : ""}`);
 }
 
 export function emojiCode(emoji: ChannelEmoji): string {
@@ -72,7 +73,9 @@ interface Props {
 }
 
 function stickerImage(sticker: ChannelSticker): string {
-  return `https://media.discordapp.net/stickers/${sticker.id}.${sticker.format === 4 ? "gif" : "png"}?size=160`;
+  return viaServer(
+    `https://media.discordapp.net/stickers/${sticker.id}.${sticker.format === 4 ? "gif" : "png"}?size=160`,
+  );
 }
 
 export default function EmojiPicker({ channelId, onPick, onClose, onPickSticker }: Props) {

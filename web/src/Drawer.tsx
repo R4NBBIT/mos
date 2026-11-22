@@ -2,7 +2,7 @@
 // PC는 오른쪽 작업 창, 휴대폰은 화면 전체. 항목을 누르면 대화에서 그 메시지로 간다.
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, fetchFileMessages, fetchGroupMembers, fetchPinnedMessages, searchMessages } from "./api";
-import { isDiscordMediaUrl, formatSize, thumbnailUrl } from "./format";
+import { isDiscordMediaUrl, formatSize, thumbnailUrl, viaServer } from "./format";
 import { useLook } from "./lookContext";
 import { Avatar } from "./MessageItem";
 import { plainText } from "./SheetView";
@@ -351,7 +351,7 @@ function FilesTab({ files, onJump }: { files: Files; onJump: (id: string) => voi
               {isDiscordMediaUrl(attachment.url) && (
                 <a
                   className="drawer-download"
-                  href={attachment.url}
+                  href={viaServer(attachment.url, true)}
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={`${attachment.filename} 받기`}

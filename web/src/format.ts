@@ -34,15 +34,24 @@ export function compareIds(a: string, b: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-/** 디스코드가 주는 media 프록시 주소에 크기를 붙여 작은 썸네일로 받는다(검증 완료) */
+/**
+ * 디스코드 그림, 동영상, 파일은 ㅁㅇㅅ 서버를 거쳐 받는다(회사 망 기록에 디스코드 주소가 남지 않게).
+ * 디스코드 주소가 아니면 그대로(이 화면은 디스코드 주소만 그림으로 쓴다)
+ */
+export function viaServer(url: string, download = false): string {
+  if (!isDiscordMediaUrl(url)) return url;
+  return `/api/media?u=${encodeURIComponent(url)}${download ? "&dl=1" : ""}`;
+}
+
+/** 디스코드가 주는 media 주소에 크기를 붙여 작은 썸네일로 받는다(서버를 거쳐) */
 export function thumbnailUrl(proxyUrl: string, width: number): string {
   try {
     const url = new URL(proxyUrl);
     url.searchParams.set("width", String(width));
     url.searchParams.set("format", "webp");
-    return url.toString();
+    return viaServer(url.toString());
   } catch {
-    return proxyUrl;
+    return viaServer(proxyUrl);
   }
 }
 

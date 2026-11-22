@@ -23,7 +23,7 @@ from fastapi import (
     UploadFile,
     WebSocket,
 )
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from starlette.websockets import WebSocketDisconnect
 
@@ -50,6 +50,13 @@ from mos.services.directory import (
 from mos.services.discord_oauth import DiscordOAuth, OAuthClient
 from mos.services.egress import EgressMeter
 from mos.services.emojis import EmojiService
+from mos.services.media_proxy import (
+    DiscordFetcher,
+    Fetched,
+    MediaCache,
+    parse_media_url,
+    response_headers,
+)
 from mos.services.media_urls import AttachmentRefresher
 from mos.services.messages import row_to_api
 from mos.services.permissions import ADD_REACTIONS, ChannelAccess, PermissionService, is_private
@@ -98,6 +105,7 @@ SNOWFLAKE_PATTERN = r"^[0-9]{15,21}$"
 UPLOAD_CHUNK = 64 * 1024
 THREAD_PAGE = 25
 SEARCH_PAGE = 25
+RANGE_RE = re.compile(r"bytes=[0-9]{0,15}-[0-9]{0,15}")
 SEARCH_MAX_WORDS = 5
 SEARCH_MAX_LEN = 100
 FILES_PAGE = 40
@@ -323,6 +331,7 @@ def create_app(
     messenger: Messenger | None = None,
     notify_operator: Callable[[str], Awaitable[None]] | None = None,
     push_service: PushService | None = None,
+    media_fetcher: Any = None,
 ) -> FastAPI:
     perms = permissions or PermissionService(directory)
     hub.set_access_check(perms.can_read)
@@ -452,6 +461,10 @@ def create_app(
     reaction_limiter = RateLimiter(limit=4, window_sec=2, clock=clock)  # 디스코드 반응 한도에 맞춰
     search_limiter = RateLimiter(limit=20, window_sec=10, clock=clock)  # 찾기, 서랍(계정당)
     unlock_limiter = RateLimiter(limit=10, window_sec=60)
+    # 그림 넘겨주기: 화면 하나에 이모지, 프로필 사진이 많아 넉넉히(계정당)
+    media_limiter = RateLimiter(limit=600, window_sec=60, clock=clock)
+    fetcher = media_fetcher or DiscordFetcher()
+    media_cache = MediaCache()
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -460,6 +473,8 @@ def create_app(
         try:
             yield
         finally:
+            with contextlib.suppress(Exception):
+                await _app.state.media_fetcher.close()
             if opened_here:
                 await db.close()
 
@@ -467,6 +482,7 @@ def create_app(
     app.state.sender = sender  # 디스코드 앱 메시지 명령(봇)도 같은 서비스를 쓴다
     app.state.sessions = sessions  # 봇이 니트로 증거를 보면 알려 준다
     app.state.push = push
+    app.state.media_fetcher = fetcher  # 테스트가 가짜로 바꿀 수 있게
 
     # ------------------------------------------------------------ 공통 보호
 
@@ -483,7 +499,7 @@ def create_app(
                 await egress.record(int(length))  # 월 송신량(가끔 모아서 기록)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
-        if request.url.path.startswith("/api/"):
+        if request.url.path.startswith("/api/") and request.url.path != "/api/media":
             response.headers["Cache-Control"] = "no-store"
         return response
 
@@ -980,6 +996,54 @@ def create_app(
                 rows = await repo.list_page(channel_id, before_id=before, limit=limit)
         await attachments.fresh(rows)
         return {"messages": [row_to_api(row) for row in rows], "has_more": len(rows) == limit}
+
+    # ------------------------------------------------------------ 디스코드 그림 넘겨주기
+
+    @app.get("/api/media")
+    async def media(
+        request: Request,
+        u: str = Query(min_length=1, max_length=2000),
+        dl: int = Query(default=0, ge=0, le=1),
+    ) -> Response:
+        """디스코드 그림, 동영상, 파일을 대신 받아 준다(회사 망에 디스코드 주소가 남지 않게)."""
+        target = parse_media_url(u)
+        if target is None:
+            raise HTTPException(status_code=400, detail="bad_media_url")
+        device = await current_device(request)
+        if target.kind == "avatar" and device is not None and device.active_account_id:
+            pass  # 잠금 화면의 프로필 사진: 이 기기에 계정이 있으면(잠겨 있어도)
+        else:
+            # 그림을 받는 것만으로 자동 잠금 시간이 늘어나지 않게(touch=False)
+            account = await sessions.require_active(device, touch=False)
+            if not media_limiter.allow(f"account:{account.account_id}"):
+                raise HTTPException(status_code=429, detail="too_fast")
+            if target.channel_id is not None and not await perms.can_read(
+                account.discord_user_id, target.channel_id
+            ):
+                raise HTTPException(status_code=404, detail="not found")
+        range_header = request.headers.get("range")
+        if range_header is not None and not RANGE_RE.fullmatch(range_header):
+            range_header = None
+        cached = None if range_header else media_cache.get(target.url)
+        if cached is not None:
+            headers, body = cached
+            return Response(body, headers=response_headers(headers, target.filename, bool(dl)))
+        try:
+            fetched: Fetched = await app.state.media_fetcher.fetch(target.url, range_header)
+        except Exception as error:
+            raise HTTPException(status_code=502, detail="media_unavailable") from error
+        if fetched.status not in (200, 206):
+            async for _ in fetched.chunks:  # 연결을 돌려준다
+                break
+            status = 404 if fetched.status in (403, 404, 410) else 502
+            raise HTTPException(status_code=status, detail="media_unavailable")
+        headers = response_headers(fetched.headers, target.filename, bool(dl))
+        length = int(fetched.headers.get("content-length") or 0)
+        if target.kind != "attachment" and fetched.status == 200 and 0 < length <= 512 * 1024:
+            body = b"".join([chunk async for chunk in fetched.chunks])
+            media_cache.put(target.url, fetched.headers, body)
+            return Response(body, headers=headers)
+        return StreamingResponse(fetched.chunks, status_code=fetched.status, headers=headers)
 
     async def drawer_channel(request: Request, channel_id: int) -> ChannelAccess:
         """찾기와 서랍: 볼 수 있는 채널(포럼 목록 제외)인지, 너무 자주 묻지 않는지."""

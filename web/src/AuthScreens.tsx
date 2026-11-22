@@ -1,7 +1,7 @@
 import { type FormEvent, type ReactNode, useState } from "react";
 import { ApiError, removeAccount, setPassword, startConnect, switchAccount, unlock } from "./api";
 import { authText } from "./authText";
-import { isDiscordMediaUrl } from "./format";
+import { isDiscordMediaUrl, viaServer } from "./format";
 import { externalOpenUrl, inAppBrowser, platform } from "./appInstall";
 import { lookTitle } from "./theme";
 import type { SessionAccount, SessionState } from "./types";
@@ -17,7 +17,7 @@ function errorText(caught: unknown): string {
 function AccountFace({ account, size = 40 }: { account: SessionAccount; size?: number }) {
   const style = { width: size, height: size };
   if (isDiscordMediaUrl(account.avatar_url)) {
-    return <img className="avatar" style={style} src={account.avatar_url} alt="" referrerPolicy="no-referrer" />;
+    return <img className="avatar" style={style} src={viaServer(account.avatar_url)} alt="" referrerPolicy="no-referrer" />;
   }
   return (
     <div className="avatar avatar-fallback" style={style}>
