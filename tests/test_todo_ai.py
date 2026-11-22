@@ -342,3 +342,14 @@ def test_other_connection_cannot_confirm(env: Env) -> None:
         env, other, "confirm_action", {"confirm_id": asked["structuredContent"]["confirm_id"]}
     )
     assert result["isError"] is True
+
+
+def test_android_app_redirect(env: Env) -> None:
+    ok = env.client.post(
+        "/oauth/register",
+        json={"client_name": "ㅁㅇㅅ 위젯", "redirect_uris": ["com.teamsheetnote.mos.todo:/oauth"]},
+    )
+    assert ok.status_code == 201
+    for bad in ("javascript:/x", "file:/etc/passwd", "com:/x", "data:/x"):
+        response = env.client.post("/oauth/register", json={"redirect_uris": [bad]})
+        assert response.status_code == 400, bad

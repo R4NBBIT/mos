@@ -2448,3 +2448,76 @@
   text-align: left;
   cursor: pointer;
 }
+
+/* ============================================================ 위젯(T5) */
+.todo-widget-body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font, inherit);
+}
+
+.todo-widget {
+  min-height: 100vh;
+  padding: 12px 14px 16px;
+  background: var(--bg);
+  color: var(--ink);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.todo-widget-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.todo-widget-head span {
+  color: var(--sub);
+  font-size: 13px;
+}
+
+.todo-widget-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.todo-widget-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.todo-widget-item .todo-title-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.todo-widget-item .todo-check {
+  margin-top: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.todo-widget-item.todo-row-done .todo-title-text {
+  color: var(--sub);
+  text-decoration: line-through;
+}
+
+.todo-widget-add {
+  margin-top: 4px;
+}

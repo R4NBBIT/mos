@@ -1,0 +1,46 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "com.teamsheetnote.mos.todo"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.teamsheetnote.mos.todo"
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName "1.0"
+    }
+
+    // 서명 열쇠는 GitHub 비밀 값으로만(없으면 디버그 서명). 같은 열쇠여야 새 버전을 덮어 설치할 수 있다
+    signingConfigs {
+        release {
+            def keystore = System.getenv("MOS_ANDROID_KEYSTORE")
+            if (keystore != null && !keystore.isEmpty()) {
+                storeFile file(keystore)
+                storePassword System.getenv("MOS_ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("MOS_ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("MOS_ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            def keystore = System.getenv("MOS_ANDROID_KEYSTORE")
+            signingConfig (keystore != null && !keystore.isEmpty()) ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation "androidx.security:security-crypto:1.0.0"
+}

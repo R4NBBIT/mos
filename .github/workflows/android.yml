@@ -1,0 +1,53 @@
+# 할 일 안드로이드 위젯(android/) APK 만들기. 배포(deploy.yml)와 따로라 실패해도 서버 배포는 그대로.
+# 서명 열쇠는 저장소 비밀 값(없으면 디버그 서명, 새 버전 덮어 설치가 안 될 수 있음):
+#   MOS_ANDROID_KEYSTORE_B64(keystore 파일 base64), MOS_ANDROID_KEYSTORE_PASSWORD, MOS_ANDROID_KEY_ALIAS, MOS_ANDROID_KEY_PASSWORD
+name: android
+
+on:
+  push:
+    branches: [main]
+    paths: ["android/**", ".github/workflows/android.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          gradle-version: "8.11.1"
+
+      - name: 서명 열쇠 준비
+        env:
+          KEYSTORE_B64: ${{ secrets.MOS_ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/mos.keystore"
+            echo "MOS_ANDROID_KEYSTORE=$RUNNER_TEMP/mos.keystore" >> "$GITHUB_ENV"
+          fi
+
+      - name: APK 만들기
+        env:
+          MOS_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.MOS_ANDROID_KEYSTORE_PASSWORD }}
+          MOS_ANDROID_KEY_ALIAS: ${{ secrets.MOS_ANDROID_KEY_ALIAS }}
+          MOS_ANDROID_KEY_PASSWORD: ${{ secrets.MOS_ANDROID_KEY_PASSWORD }}
+        run: gradle -p android :app:assembleRelease --no-daemon
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mos-todo-widget
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 30

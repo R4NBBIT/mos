@@ -42,3 +42,9 @@ tools/verify/state.json
 
 # 내 PC 실행 데이터
 data/
+
+# 안드로이드 위젯 빌드 결과
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties

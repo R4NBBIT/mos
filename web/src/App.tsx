@@ -59,6 +59,7 @@ const TodoBoss = lazy(() => import("./todo/TodoBoss"));
 const TodoConnect = lazy(() => import("./todo/TodoConnect"));
 const TodoFriends = lazy(() => import("./todo/TodoFriends"));
 const TodoFriendDay = lazy(() => import("./todo/TodoFriendDay"));
+const TodoWidget = lazy(() => import("./todo/TodoWidget"));
 const TodoSide = lazy(() => import("./todo/TodoScreen").then((module) => ({ default: module.TodoSide })));
 const TodoCategories = lazy(() => import("./todo/TodoCategories"));
 const TODO_FEATURE = "todo";
@@ -410,6 +411,14 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
   }
   if (active.locked) {
     return <UnlockScreen session={session} account={active} notice={notice} onChanged={changed} />;
+  }
+  // 할 일 위젯 창(T5): 다른 것 없이 오늘 할 일만(항상 위 창을 못 쓰는 브라우저의 작은 팝업 창)
+  if (window.location.hash === "#/todo/widget" && active.features?.includes(TODO_FEATURE)) {
+    return (
+      <Suspense fallback={<div className="center-note">불러오는 중…</div>}>
+        <TodoWidget />
+      </Suspense>
+    );
   }
   // AI 연결 승인(로그인, 잠금 해제 뒤). 다른 화면보다 먼저
   const connectId = connectFromHash(window.location.hash) ?? pendingConnect();

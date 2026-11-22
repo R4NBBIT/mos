@@ -1,6 +1,7 @@
 // 할 일(공개 전): 하루 화면(SCR-02, 넓은 화면 오른쪽)과 넓은 화면 왼쪽 달력(SCR-04)
 // 허용된 계정에서만 이 파일을 내려받는다(App에서 lazy). 테마 색은 ㅁㅇㅅ CSS 변수를 그대로 쓴다
 import TodoAiPanel from "./TodoAi";
+import { canFloat, openTodoWidget } from "./TodoWidget";
 import TodoAlertPanel from "./TodoAlerts";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BackIcon from "../BackIcon";
@@ -267,6 +268,21 @@ export default function TodoScreen({
                 <path d="M13 4.5a2.8 2.8 0 0 1 0 5M15 12.8c1.6.6 2.6 2 3 4.2" strokeLinecap="round" />
               </svg>
               <span className="header-tool-label">친구</span>
+            </button>
+          )}
+          {!onFriends && (
+            <button
+              type="button"
+              className="header-tool"
+              aria-label={canFloat() ? "위젯 창(항상 위)" : "위젯 창"}
+              title="오늘 할 일만 작은 창으로(보스키를 누르면 같이 닫혀요)"
+              onClick={() => void openTodoWidget()}
+            >
+              <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <rect x="2.5" y="3.5" width="15" height="13" rx="2" />
+                <rect x="9.5" y="9" width="6" height="5.5" rx="1" />
+              </svg>
+              <span className="header-tool-label">위젯</span>
             </button>
           )}
           <button type="button" className="header-tool" aria-label="카테고리 관리" onClick={onCategories}>

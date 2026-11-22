@@ -75,10 +75,17 @@ def _clean_name(value: Any) -> str:
     return text or "AI 앱"
 
 
+# 휴대폰 앱(안드로이드 위젯)의 되돌아올 주소: 거꾸로 쓴 도메인 모양의 앱 전용 스킴(RFC 8252 7.1)
+APP_SCHEME_RE = re.compile(r"^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*){2,}:/[A-Za-z0-9/_-]{1,60}$")
+
+
 def check_redirect_uri(uri: Any) -> str:
-    """https만(로컬 개발 도구는 http://localhost, 127.0.0.1). 조각(#)과 사용자 정보는 안 됨."""
+    """https만(로컬 개발 도구는 http://localhost, 127.0.0.1, 휴대폰 앱은 com.예.앱:/경로).
+    조각(#)과 사용자 정보는 안 됨. 앱 스킴은 다른 앱이 가로챌 수 있지만 PKCE가 막는다."""
     if not isinstance(uri, str) or not uri or len(uri) > MAX_URI_LEN:
         raise OAuthError("invalid_redirect_uri", "redirect_uri가 올바르지 않아요")
+    if APP_SCHEME_RE.match(uri) and not uri.startswith(("http:", "https:")):
+        return uri
     parts = urlsplit(uri)
     host = (parts.hostname or "").lower()
     local = host in ("localhost", "127.0.0.1", "[::1]", "::1")
@@ -220,9 +227,11 @@ class TodoOAuth:
         found = await self._request(request_id)
         if found is None:
             return None
+        parts = urlsplit(found["redirect_uri"])
         return {
             "client_name": found["client_name"],
-            "redirect_host": urlsplit(found["redirect_uri"]).hostname or "",
+            # 휴대폰 앱(com.예.앱:/경로)은 주소가 없어서 앱 이름표로 보인다
+            "redirect_host": parts.hostname or f"{parts.scheme} 앱",
         }
 
     async def decide(self, request_id: Any, account_id: int, allow: bool) -> str | None:
