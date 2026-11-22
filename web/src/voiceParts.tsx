@@ -59,14 +59,15 @@ export function voiceStatus(member: VoiceMember): string {
   return parts.join(", ");
 }
 
-/** 상태 아이콘 묶음. 칸 너비가 정해져 있어서 줄마다 오른쪽 끝이 맞는다 */
+/** 상태 아이콘 묶음. 순서는 상태 글씨(voiceStatus)와 같게: 마이크, 소리, 화면 공유, 카메라.
+ * 칸 너비가 정해져 있어서 줄마다 오른쪽 끝이 맞는다 */
 export function VoiceIcons({ member }: { member: VoiceMember }) {
   return (
     <span className="voice-icons">
-      {member.video && cameraOn}
-      {member.streaming && screenOn}
       {member.muted && micOff}
       {member.deafened && soundOff}
+      {member.streaming && screenOn}
+      {member.video && cameraOn}
     </span>
   );
 }
