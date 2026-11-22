@@ -160,96 +160,115 @@ function TodoMenu({
 
   return (
     <div className="todo-menu" role="group" aria-label={`${item.title} 고치기`}>
-      <div className="todo-menu-quick">
-        <button type="button" className="todo-small-button" disabled={busy} onClick={() => void moveTo(isPast ? today() : addDays(item.day, 1))}>
-          {isPast ? "오늘 하기" : "내일 하기"}
-        </button>
-        {item.repeat && <span className="todo-chip">{repeatLabel(item.repeat)} 반복</span>}
-        {item.source === "ai" && <span className="todo-chip">AI가 넣음</span>}
-      </div>
-      <label className="todo-field todo-field-wide">
-        이름
-        <input value={title} maxLength={100} onChange={(event) => setTitle(event.target.value)} {...enter} />
-      </label>
-      <div className="todo-menu-grid">
-        <label className="todo-field">
-          날짜
-          <input type="date" value={day} required onChange={(event) => event.target.value && setDay(event.target.value)} />
+      <input
+        className="todo-menu-title"
+        aria-label="이름"
+        value={title}
+        maxLength={100}
+        onChange={(event) => setTitle(event.target.value)}
+        {...enter}
+      />
+      {(item.repeat || item.source === "ai") && (
+        <div className="todo-menu-quick">
+          {item.repeat && <span className="todo-chip">{repeatLabel(item.repeat)} 반복</span>}
+          {item.source === "ai" && <span className="todo-chip">AI가 넣음</span>}
+        </div>
+      )}
+      <div className="todo-props">
+        <label className="todo-prop">
+          <span className="todo-prop-key">날짜</span>
+          <span className="todo-prop-value">
+            <input type="date" value={day} required onChange={(event) => event.target.value && setDay(event.target.value)} />
+            <button type="button" className="todo-link-button" disabled={busy} onClick={() => void moveTo(isPast ? today() : addDays(item.day, 1))}>
+              {isPast ? "오늘 하기" : "내일 하기"}
+            </button>
+          </span>
         </label>
-        <label className="todo-field">
-          시각
-          <span className="todo-field-row">
+        <label className="todo-prop">
+          <span className="todo-prop-key">시각</span>
+          <span className="todo-prop-value">
             <input type="time" value={time} onChange={(event) => setTime(event.target.value)} />
             {time && (
-              <button type="button" className="todo-small-button" onClick={() => setTime("")} aria-label="시각 지우기">
+              <button type="button" className="todo-link-button" onClick={() => setTime("")} aria-label="시각 지우기">
                 지우기
               </button>
             )}
           </span>
         </label>
-        <label className="todo-field">
-          장소
-          <input value={place} maxLength={40} placeholder="없음" onChange={(event) => setPlace(event.target.value)} {...enter} />
+        <label className="todo-prop">
+          <span className="todo-prop-key">장소</span>
+          <span className="todo-prop-value">
+            <input value={place} maxLength={40} placeholder="비어 있음" onChange={(event) => setPlace(event.target.value)} {...enter} />
+          </span>
         </label>
-        <label className="todo-field">
-          카테고리
-          <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
-            {openCategories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
+        <label className="todo-prop">
+          <span className="todo-prop-key">카테고리</span>
+          <span className="todo-prop-value">
+            <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+              {openCategories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </span>
         </label>
-      </div>
-      <label className="todo-field todo-field-wide">
-        메모
-        <textarea value={memo} maxLength={1000} rows={3} placeholder="나만 보여요(카테고리에서 보여 주기를 켜지 않으면)" onChange={(event) => setMemo(event.target.value)} />
-      </label>
-      <div className="todo-field todo-field-wide">
-        반복
-        <select
-          aria-label="반복"
-          value={rule}
-          onChange={(event) => setRule(event.target.value as RuleChoice)}
-        >
-          <option value="none">안 함</option>
-          <option value="daily">매일</option>
-          <option value="weekdays">평일마다</option>
-          <option value="weekly">매주 고른 요일</option>
-          <option value="monthly">매달 같은 날</option>
-        </select>
+        <div className="todo-prop">
+          <span className="todo-prop-key">반복</span>
+          <span className="todo-prop-value">
+            <select aria-label="반복" value={rule} onChange={(event) => setRule(event.target.value as RuleChoice)}>
+              <option value="none">안 함</option>
+              <option value="daily">매일</option>
+              <option value="weekdays">평일마다</option>
+              <option value="weekly">매주 고른 요일</option>
+              <option value="monthly">매달 같은 날</option>
+            </select>
+          </span>
+        </div>
         {rule === "weekly" && (
-          <div className="todo-weekdays" role="group" aria-label="반복할 요일">
-            {WEEKDAY_NAMES.map((name, index) => (
-              <button
-                key={name}
-                type="button"
-                aria-pressed={weekdays.includes(index)}
-                className={weekdays.includes(index) ? "todo-weekday todo-weekday-on" : "todo-weekday"}
-                onClick={() => toggleDay(index)}
-              >
-                {name}
-              </button>
-            ))}
+          <div className="todo-prop">
+            <span className="todo-prop-key" />
+            <div className="todo-weekdays" role="group" aria-label="반복할 요일">
+              {WEEKDAY_NAMES.map((name, index) => (
+                <button
+                  key={name}
+                  type="button"
+                  aria-pressed={weekdays.includes(index)}
+                  className={weekdays.includes(index) ? "todo-weekday todo-weekday-on" : "todo-weekday"}
+                  onClick={() => toggleDay(index)}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {rule !== "none" && (
-          <label className="todo-field">
-            끝나는 날(비우면 계속)
-            <input type="date" value={endDay} min={item.repeat ? undefined : item.day} onChange={(event) => setEndDay(event.target.value)} />
-          </label>
-        )}
-        {rule === "none" && item.repeat && (
-          <span className="todo-hint">저장하면 이날부터 반복을 그만해요. 이 할 일은 남아요.</span>
-        )}
-        {item.repeat && (
-          <label className="todo-check-line">
-            <input type="checkbox" checked={forFuture} onChange={(event) => setForFuture(event.target.checked)} />
-            이름, 시각, 장소, 메모, 카테고리를 앞으로의 반복에도 적용
+          <label className="todo-prop">
+            <span className="todo-prop-key">끝나는 날</span>
+            <span className="todo-prop-value">
+              <input type="date" value={endDay} min={item.repeat ? undefined : item.day} onChange={(event) => setEndDay(event.target.value)} />
+              {!endDay && <span className="todo-hint">비우면 계속</span>}
+            </span>
           </label>
         )}
       </div>
+      {rule === "none" && item.repeat && <span className="todo-hint">저장하면 이날부터 반복을 그만해요. 이 할 일은 남아요.</span>}
+      {item.repeat && (
+        <label className="todo-check-line">
+          <input type="checkbox" checked={forFuture} onChange={(event) => setForFuture(event.target.checked)} />
+          이름, 시각, 장소, 메모, 카테고리를 앞으로의 반복에도 적용
+        </label>
+      )}
+      <textarea
+        className="todo-menu-memo"
+        aria-label="메모"
+        value={memo}
+        maxLength={1000}
+        rows={2}
+        placeholder="메모 (나만 보여요)"
+        onChange={(event) => setMemo(event.target.value)}
+      />
       {error && <p className="todo-error">{error}</p>}
       <div className="todo-edit-actions">
         <button type="button" className="todo-small-button todo-primary" disabled={busy} onClick={() => void save()}>

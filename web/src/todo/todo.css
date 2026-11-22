@@ -94,13 +94,24 @@
   color: var(--sub);
 }
 
-/* 다 한 날: 꿀색 바탕(한 수/전체) */
+/* 다 한 날: 강조색 바탕(한 수/전체). 글자색은 바탕색과 짝을 맞춘다(파랑 바탕이면 흰 글자) */
 .todo-mark-all {
   padding: 0 4px;
   border-radius: 7px;
-  background: var(--honey);
-  color: var(--mine-fg);
+  background: var(--todo-done-bg, var(--honey));
+  color: var(--todo-done-fg, var(--mine-fg));
   font-weight: 700;
+}
+
+:root[data-theme="note"],
+:root[data-theme="word"],
+:root[data-theme="sheet"] {
+  --todo-done-fg: #ffffff;
+}
+
+:root[data-theme="memo"] {
+  --todo-done-bg: #111111;
+  --todo-done-fg: #ffffff;
 }
 
 .todo-body {
@@ -114,31 +125,13 @@
 }
 
 @media (min-width: 641px) {
-  /* 넓은 화면: 카테고리 카드 여러 열(카드 최소 300px) */
+  /* 넓은 화면: 투두메이트처럼 가운데 한 줄 목록(너무 넓게 퍼지지 않게) */
   .todo-body {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    align-content: start;
-    gap: 14px;
-    padding: 18px 20px 40px;
+    padding: 22px max(24px, calc(50% - 340px)) 48px;
   }
 
-  .todo-block {
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    padding: 12px 14px;
-  }
-
-  .todo-body > .todo-error,
-  .todo-body > .list-note,
-  .todo-body > .todo-new-cat,
-  .todo-body > .todo-new-cat-form {
-    grid-column: 1 / -1;
-  }
-
-  .todo-body > .todo-new-cat {
-    justify-self: start;
+  .todo-block + .todo-block {
+    margin-top: 14px;
   }
 }
 
@@ -493,6 +486,12 @@
   color: inherit;
 }
 
+/* 고른 날 칸(버튼색 바탕) 안에서는 뒤집어서 바탕과 섞이지 않게 */
+.todo-month-day-on .todo-mark-all {
+  background: var(--btn-fg);
+  color: var(--btn-bg);
+}
+
 .todo-person {
   cursor: default;
 }
@@ -764,15 +763,138 @@
   color: var(--link);
 }
 
+/* 고치기: 큰 양식 대신 이름 한 줄 + 속성 줄(왼쪽 이름, 오른쪽 값) */
 .todo-menu {
-  margin: 8px 0 4px 34px;
-  padding: 12px;
+  margin: 6px 0 8px 34px;
+  padding: 10px 12px 10px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
+  max-width: 520px;
+  font-size: 14px;
+}
+
+.todo-menu-title {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 4px 2px 8px;
+  outline: 0;
+  min-width: 0;
+}
+
+.todo-menu-title:focus {
+  border-bottom-color: var(--honey);
+}
+
+.todo-props {
+  display: flex;
+  flex-direction: column;
+}
+
+.todo-prop {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  align-items: center;
+  min-height: 34px;
+  gap: 8px;
+}
+
+.todo-prop-key {
+  font-size: 12.5px;
+  color: var(--sub);
+}
+
+.todo-prop-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.todo-prop-value input,
+.todo-prop-value select {
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  padding: 0 6px;
+  min-width: 0;
+  flex: 1;
+  max-width: 220px;
+}
+
+.todo-prop-value input:hover,
+.todo-prop-value select:hover {
+  background: var(--tint);
+}
+
+.todo-prop-value input:focus,
+.todo-prop-value select:focus {
+  outline: 0;
+  border-color: var(--honey);
+  background: var(--bg);
+}
+
+.todo-link-button {
+  flex: none;
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  color: var(--sub);
+  font: inherit;
+  font-size: 12.5px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.todo-link-button:hover {
+  color: var(--ink);
+}
+
+.todo-menu-memo {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 7px 9px;
+  resize: vertical;
+  min-height: 40px;
+}
+
+.todo-menu-memo:focus {
+  outline: 0;
+  border-color: var(--honey);
+}
+
+.todo-menu .todo-edit-actions {
+  padding-top: 4px;
+}
+
+.todo-menu .todo-weekdays {
+  margin: 2px 0 4px;
+}
+
+.todo-menu .todo-weekday {
+  width: 30px;
+  height: 30px;
+  border-radius: 15px;
+  font-size: 12.5px;
 }
 
 @media (max-width: 520px) {
@@ -976,4 +1098,648 @@
   width: 24px;
   height: 24px;
   border-radius: 12px;
+}
+
+/* ============================================================ 테마별 모양(T-01)
+   같은 구조를 CSS로만 바꾼다. 스프레드시트는 행, 메모장은 [x] 글줄, 노션은 할 일 블록, Word는 종이 위 체크리스트 */
+
+/* ---------- 공통: 업무 프로그램 테마는 카드, 알약 대신 평평하게 */
+:root[data-theme="sheet"] .todo-body,
+:root[data-theme="memo"] .todo-body,
+:root[data-theme="note"] .todo-body,
+:root[data-theme="word"] .todo-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+:root[data-theme="sheet"] .todo-block,
+:root[data-theme="memo"] .todo-block,
+:root[data-theme="note"] .todo-block,
+:root[data-theme="word"] .todo-block {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+
+/* ---------- 스프레드시트: 행 번호 + 칸 */
+:root[data-theme="sheet"] .todo-room {
+  background: #ffffff;
+}
+
+:root[data-theme="sheet"] .todo-week {
+  border-bottom: 1px solid #d4d4d4;
+  background: #f3f3f3;
+  padding: 2px 4px;
+}
+
+:root[data-theme="sheet"] .todo-week-day {
+  border-radius: 0;
+  min-height: 48px;
+}
+
+:root[data-theme="sheet"] .todo-week-day-on .todo-week-num {
+  background: #217346;
+  color: #ffffff;
+  border-radius: 2px;
+}
+
+:root[data-theme="sheet"] .todo-mark-all {
+  background: #e2efda;
+  color: #1f6e43;
+}
+
+:root[data-theme="sheet"] .todo-body {
+  padding: 0 0 40px;
+  counter-reset: sheet-row;
+  font-size: 13px;
+}
+
+:root[data-theme="sheet"] .todo-cat,
+:root[data-theme="sheet"] .todo-row-line,
+:root[data-theme="sheet"] .todo-add {
+  counter-increment: sheet-row;
+  position: relative;
+  min-height: 26px;
+  margin: 0;
+  padding: 0 8px 0 52px;
+  border-bottom: 1px solid #e1e1e1;
+  border-radius: 0;
+}
+
+:root[data-theme="sheet"] .todo-cat::before,
+:root[data-theme="sheet"] .todo-row-line::before,
+:root[data-theme="sheet"] .todo-add::before {
+  content: counter(sheet-row);
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 40px;
+  background: #f3f3f3;
+  border-right: 1px solid #d4d4d4;
+  color: #444444;
+  font-size: 12px;
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:root[data-theme="sheet"] .todo-cat {
+  display: flex;
+  align-self: stretch;
+  height: auto;
+  background: #e2efda;
+  border-left: 0;
+  border-top: 0;
+  border-right: 0;
+  font-size: 13px;
+}
+
+:root[data-theme="sheet"] .todo-row {
+  padding: 0;
+}
+
+:root[data-theme="sheet"] .todo-row-line {
+  align-items: center;
+}
+
+:root[data-theme="sheet"] .todo-check {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  border-radius: 2px;
+  border: 1.5px solid #6b6b6b;
+}
+
+:root[data-theme="sheet"] .todo-check-on {
+  background: #217346;
+  border-color: #217346;
+  color: #ffffff;
+}
+
+:root[data-theme="sheet"] .todo-check svg {
+  width: 11px;
+  height: 11px;
+}
+
+:root[data-theme="sheet"] .todo-title {
+  font-size: 13px;
+  padding: 2px 0;
+}
+
+:root[data-theme="sheet"] .todo-row-done .todo-title-text {
+  text-decoration: none;
+  color: #6b6b6b;
+}
+
+:root[data-theme="sheet"] .todo-add-input {
+  font-size: 13px;
+  height: 26px;
+}
+
+:root[data-theme="sheet"] .todo-menu,
+:root[data-theme="sheet"] .todo-memo,
+:root[data-theme="sheet"] .todo-preview {
+  margin: 6px 8px 6px 52px;
+  border-radius: 2px;
+}
+
+/* ---------- 메모장: 고정폭 글꼴, [x] [ ] 줄 */
+:root[data-theme="memo"] .todo-room,
+:root[data-theme="memo"] .todo-body {
+  background: #ffffff;
+  font-family: var(--mono);
+}
+
+:root[data-theme="memo"] .todo-week {
+  background: #ffffff;
+  font-family: var(--mono);
+}
+
+:root[data-theme="memo"] .todo-week-day-on .todo-week-num {
+  background: #0078d7;
+  color: #ffffff;
+  border-radius: 0;
+}
+
+:root[data-theme="memo"] .todo-mark-all {
+  background: none;
+  color: inherit;
+  text-decoration: underline;
+}
+
+:root[data-theme="memo"] .todo-body {
+  padding: 12px 16px 40px;
+  font-size: 14px;
+}
+
+:root[data-theme="memo"] .todo-cat {
+  border: 0;
+  background: none;
+  padding: 0;
+  height: auto;
+  margin: 10px 0 2px;
+  font-family: var(--mono);
+  font-size: 14px;
+}
+
+:root[data-theme="memo"] .todo-cat .todo-dot {
+  display: none;
+}
+
+:root[data-theme="memo"] .todo-cat::before {
+  content: "== ";
+}
+
+:root[data-theme="memo"] .todo-cat::after {
+  content: " ==";
+}
+
+:root[data-theme="memo"] .todo-row {
+  padding: 1px 0;
+}
+
+:root[data-theme="memo"] .todo-check {
+  width: auto;
+  height: auto;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+:root[data-theme="memo"] .todo-check svg {
+  display: none;
+}
+
+:root[data-theme="memo"] .todo-check::before {
+  content: "[ ]";
+}
+
+:root[data-theme="memo"] .todo-check-on::before {
+  content: "[x]";
+}
+
+:root[data-theme="memo"] .todo-check-ghost::before {
+  content: "[ ]";
+  opacity: 0.4;
+}
+
+:root[data-theme="memo"] .todo-title,
+:root[data-theme="memo"] .todo-add-input,
+:root[data-theme="memo"] .todo-meta {
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 0;
+}
+
+:root[data-theme="memo"] .todo-row-done .todo-title-text {
+  text-decoration: none;
+  color: inherit;
+}
+
+:root[data-theme="memo"] .todo-memo,
+:root[data-theme="memo"] .todo-menu,
+:root[data-theme="memo"] .todo-preview {
+  border-radius: 0;
+  font-family: var(--mono);
+}
+
+/* ---------- 노션: 할 일 블록 */
+:root[data-theme="note"] .todo-room,
+:root[data-theme="note"] .todo-body {
+  background: #ffffff;
+}
+
+:root[data-theme="note"] .todo-body {
+  padding: 24px max(24px, calc(50% - 360px)) 60px;
+}
+
+:root[data-theme="note"] .todo-cat {
+  border: 0;
+  background: none;
+  padding: 0;
+  height: auto;
+  margin: 18px 0 4px;
+  font-size: 17px;
+  color: #37352f;
+}
+
+:root[data-theme="note"] .todo-check {
+  width: 16px;
+  height: 16px;
+  margin-top: 4px;
+  border-radius: 3px;
+  border: 1.5px solid #9b9a97;
+}
+
+:root[data-theme="note"] .todo-check-on {
+  background: #2383e2;
+  border-color: #2383e2;
+  color: #ffffff;
+}
+
+:root[data-theme="note"] .todo-check svg {
+  width: 12px;
+  height: 12px;
+}
+
+:root[data-theme="note"] .todo-row {
+  padding: 2px 0;
+}
+
+:root[data-theme="note"] .todo-row-done .todo-title-text {
+  color: #9b9a97;
+}
+
+:root[data-theme="note"] .todo-week-day-on .todo-week-num {
+  background: #37352f;
+  color: #ffffff;
+}
+
+/* ---------- Word: 회색 바탕 가운데 흰 종이 */
+:root[data-theme="word"] .todo-room {
+  background: #e9e9e9;
+}
+
+:root[data-theme="word"] .todo-body {
+  width: min(816px, calc(100% - 24px));
+  margin: 16px auto 40px;
+  flex: none;
+  min-height: 600px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  padding: 48px clamp(20px, 8%, 72px);
+  overflow: visible;
+}
+
+:root[data-theme="word"] .todo-room > .todo-body {
+  overflow-y: visible;
+}
+
+:root[data-theme="word"] .todo-room {
+  overflow-y: auto;
+}
+
+:root[data-theme="word"] .todo-cat {
+  border: 0;
+  background: none;
+  padding: 0;
+  height: auto;
+  margin: 16px 0 4px;
+  font-size: 16px;
+  color: #185abd;
+}
+
+:root[data-theme="word"] .todo-check {
+  width: 14px;
+  height: 14px;
+  margin-top: 4px;
+  border-radius: 1px;
+  border: 1.3px solid #444444;
+}
+
+:root[data-theme="word"] .todo-check-on {
+  background: #185abd;
+  border-color: #185abd;
+  color: #ffffff;
+}
+
+:root[data-theme="word"] .todo-check svg {
+  width: 11px;
+  height: 11px;
+}
+
+:root[data-theme="word"] .todo-week-day-on .todo-week-num {
+  background: #185abd;
+  color: #ffffff;
+}
+
+/* 업무 프로그램 테마: 카테고리 색 점은 작게 남기되 알약 바탕 없음, 넓은 화면도 한 줄로 */
+@media (min-width: 641px) {
+  :root[data-theme="sheet"] .todo-body,
+  :root[data-theme="memo"] .todo-body,
+  :root[data-theme="note"] .todo-body,
+  :root[data-theme="word"] .todo-body {
+    display: flex;
+  }
+
+  :root[data-theme="sheet"] .todo-block,
+  :root[data-theme="memo"] .todo-block,
+  :root[data-theme="note"] .todo-block,
+  :root[data-theme="word"] .todo-block {
+    background: none;
+    border: 0;
+    padding: 0;
+  }
+}
+
+/* ============================================================ 위장 화면 '내 할 일'(SCR-11)
+   카테고리 색, 친구, 반응은 없다. 진짜 프로그램처럼 보이게 프로그램 테두리만 흉내 낸다 */
+.boss-todo {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  color: #222222;
+  overflow: hidden;
+  font-size: 14px;
+}
+
+.boss-todo button:disabled,
+.boss-todo input:disabled {
+  cursor: default;
+}
+
+.boss-todo-box {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border: 1.5px solid #6b6b6b;
+  border-radius: 2px;
+  background: #ffffff;
+  cursor: pointer;
+  position: relative;
+}
+
+.boss-todo-box-on {
+  background: var(--boss-todo-accent, #217346);
+  border-color: var(--boss-todo-accent, #217346);
+}
+
+.boss-todo-box-on::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.boss-todo-box-ghost {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* 스프레드시트 */
+.boss-todo-sheet {
+  --boss-todo-accent: #217346;
+  font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+  font-size: 13px;
+}
+
+.boss-todo-sheetbar {
+  background: #217346;
+  color: #ffffff;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+.boss-todo-sheetmenu,
+.boss-todo-memomenu {
+  display: flex;
+  gap: 16px;
+  padding: 6px 14px;
+  background: #f3f3f3;
+  border-bottom: 1px solid #d4d4d4;
+  font-size: 12.5px;
+}
+
+.boss-todo-grid {
+  flex: 1;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: 40px 56px minmax(180px, 2fr) minmax(80px, 1fr) 72px minmax(80px, 1fr);
+  grid-auto-rows: 24px;
+  align-content: start;
+}
+
+.boss-todo-row {
+  display: contents;
+}
+
+.boss-todo-cell {
+  border-right: 1px solid #e1e1e1;
+  border-bottom: 1px solid #e1e1e1;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.boss-todo-head,
+.boss-todo-num {
+  background: #f3f3f3;
+  color: #444444;
+  justify-content: center;
+  font-size: 12px;
+  border-color: #d4d4d4;
+}
+
+.boss-todo-title {
+  font-weight: 700;
+  background: #e2efda;
+}
+
+.boss-todo-center {
+  justify-content: center;
+}
+
+.boss-todo-input,
+.boss-todo-memoinput,
+.boss-todo-docinput {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  padding: 0;
+}
+
+.boss-todo-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 10px;
+  background: #f3f3f3;
+  border-top: 1px solid #d4d4d4;
+  font-size: 12px;
+}
+
+.boss-todo-tabs span {
+  padding: 5px 14px;
+}
+
+.boss-todo-tab-on {
+  background: #ffffff;
+  color: #217346;
+  font-weight: 700;
+  border-bottom: 2px solid #217346;
+}
+
+/* 메모장 */
+.boss-todo-memo {
+  font-family: Consolas, "D2Coding", monospace;
+}
+
+.boss-todo-memobar {
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+}
+
+.boss-todo-memomenu {
+  background: #ffffff;
+  font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+}
+
+.boss-todo-memobody {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.boss-todo-memocheck {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* 노션, Word 공통 목록 */
+.boss-todo-section h2 {
+  font-size: 17px;
+  margin: 20px 0 6px;
+}
+
+.boss-todo-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+}
+
+.boss-todo-item small {
+  color: #8a8a8a;
+  font-size: 12px;
+}
+
+.boss-todo-item-done > span {
+  color: #9b9a97;
+  text-decoration: line-through;
+}
+
+.boss-todo-note {
+  --boss-todo-accent: #2383e2;
+  color: #37352f;
+  overflow-y: auto;
+}
+
+.boss-todo-page {
+  width: min(720px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 56px 0 80px;
+}
+
+.boss-todo-page h1 {
+  font-size: 32px;
+  margin: 8px 0 12px;
+}
+
+.boss-todo-crumb {
+  color: #9b9a97;
+  font-size: 13px;
+  margin: 0;
+}
+
+.boss-todo-word {
+  --boss-todo-accent: #185abd;
+}
+
+.boss-todo-paperwrap {
+  flex: 1;
+  overflow-y: auto;
+  background: #e9e9e9;
+  padding: 16px 0 40px;
+}
+
+.boss-todo-paper {
+  width: min(816px, calc(100% - 24px));
+  min-height: 900px;
+  margin: 0 auto;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  padding: 72px clamp(20px, 9%, 96px);
+  font-family: "Malgun Gothic", sans-serif;
+}
+
+.boss-todo-paper h1 {
+  font-size: 22px;
+  color: #185abd;
+  margin: 0 0 12px;
+}
+
+.boss-todo-paper .boss-todo-section h2 {
+  color: #185abd;
+  font-size: 15px;
 }

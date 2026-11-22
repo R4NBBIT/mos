@@ -36,6 +36,7 @@ import SettingsScreen from "./SettingsScreen";
 import SwipeDeck from "./SwipeDeck";
 import WordChrome from "./WordChrome";
 import { LookContext, type LookValue } from "./lookContext";
+import { setTodoAllowed, todoBossTitle, useTodoAllowed } from "./todo/feature";
 import { applyDisguise, applyLook, type BossTemplate, cachedLook, type Settings } from "./theme";
 import type { ChannelInfo, SessionAccount, SessionState, VoiceChannel } from "./types";
 import VoiceRoom from "./VoiceRoom";
@@ -47,6 +48,7 @@ import { isDayKey, today } from "./todo/dates";
 
 // 할 일(공개 전): 허용된 계정에서만 내려받는다
 const TodoScreen = lazy(() => import("./todo/TodoScreen"));
+const TodoBoss = lazy(() => import("./todo/TodoBoss"));
 const TodoSide = lazy(() => import("./todo/TodoScreen").then((module) => ({ default: module.TodoSide })));
 const TodoCategories = lazy(() => import("./todo/TodoCategories"));
 const TODO_FEATURE = "todo";
@@ -399,6 +401,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     const browseTo = (groupId: string | null) => setBrowse({ from: route, groupId });
     // 할 일(공개 전): 서버가 허용한 계정에만 features가 온다
     const todoAllowed = Boolean(active.features?.includes(TODO_FEATURE));
+    queueMicrotask(() => setTodoAllowed(todoAllowed)); // 위장 화면, 설정이 읽는다(렌더 중 다른 컴포넌트 갱신 피함)
     const todoEntry = (side: boolean) =>
       todoAllowed ? (
         <TodoEntry
@@ -780,7 +783,9 @@ export default function App() {
   const [accountKey, setAccountKey] = useState<string | undefined>(undefined);
   const [files, setFiles] = useState<BossFilesState>(EMPTY_FILES);
   const day = new Date().toDateString();
-  const mode = look.boss_template;
+  const todoOk = useTodoAllowed();
+  // '내 할 일'은 허용된 계정에만. 아니면 기본 표(주간 업무 보고)로 보인다
+  const mode = look.boss_template === "todo" && !todoOk ? "weekly" : look.boss_template;
 
   // 위장 파일: 처음, 계정이 열리거나 바뀔 때, 설정에서 새로 올렸을 때
   useEffect(() => {
@@ -823,7 +828,10 @@ export default function App() {
   useEffect(() => {
     setDisguised(bossOn);
     if (!bossOn) applyLook(look);
-    else if (mode === "memo" || mode === "text") applyDisguise(`${doc?.name ?? "제목 없음"} - 메모장`, "memo");
+    else if (mode === "todo") {
+      const title = todoBossTitle(look.theme);
+      applyDisguise(title.name, title.icon);
+    } else if (mode === "memo" || mode === "text") applyDisguise(`${doc?.name ?? "제목 없음"} - 메모장`, "memo");
     else if (mode === "note" || mode === "notefile") applyDisguise(doc?.name ?? "업무 정리", "note");
     else if (mode === "word" || mode === "wordfile") applyDisguise(doc?.name ?? "문서.docx", "word");
     else if (mode === "image") applyLook(look); // 사진은 평소 탭 제목 그대로(그 화면을 찍은 것이므로)
@@ -925,7 +933,11 @@ export default function App() {
         />
       </div>
       <div className="boss-layer" hidden={!bossOn}>
-        {mode === "image" ? (
+        {mode === "todo" ? (
+          <Suspense fallback={null}>
+            <TodoBoss theme={look.theme} active={bossOn} />
+          </Suspense>
+        ) : mode === "image" ? (
           <ImageDisguise url={files.image?.url ?? null} fit={look.boss_fit} />
         ) : (mode === "memo" || mode === "text") && doc ? (
           <TextDisguise key={`${mode}:${fileVersion}`} original={doc.body} active={bossOn} editKey={EDIT_KEYS[mode]} />

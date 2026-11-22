@@ -14,6 +14,7 @@ import {
 } from "./bossStore";
 import { clearMyFile, FileImportError, importMyFile, readDocx } from "./myFile";
 import { EDIT_KEYS } from "./OtherDisguise";
+import { useTodoAllowed } from "../todo/feature";
 
 /** 내 파일 종류: 올리는 곳, 고른 화면, 지웠을 때 돌아갈 예시 */
 const FILE_SLOTS: {
@@ -125,7 +126,8 @@ export default function DisguiseSettings({ settings, save, onFileChanged }: Prop
   const [url, setUrl] = useState(settings.boss_url ?? "");
   const [askRemove, setAskRemove] = useState<AssetKind | null>(null);
   const [resetState, setResetState] = useState<"idle" | "confirm" | "busy" | "done">("idle");
-  const current = shownTemplate(settings.boss_template);
+  const todoOk = useTodoAllowed();
+  const current = settings.boss_template === "todo" && !todoOk ? "weekly" : shownTemplate(settings.boss_template);
 
   useEffect(() => {
     fetchBossInfo()
@@ -256,6 +258,7 @@ export default function DisguiseSettings({ settings, save, onFileChanged }: Prop
         <div className="boss-group" role="radiogroup" aria-label="위장 화면">
           <p className="boss-group-title">예시</p>
           {EXAMPLES.map((item) => choice(item.template, item.label))}
+          {todoOk && choice("todo", "내 할 일: 오늘 체크리스트(지금 테마 모양, 체크하면 저장됨)")}
 
           <p className="boss-group-title">내 파일</p>
           {FILE_SLOTS.map((slot) => {

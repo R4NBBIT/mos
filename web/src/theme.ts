@@ -10,6 +10,7 @@ export type Theme = "moon" | "night" | "sheet" | "memo" | "note" | "word";
  * sales, schedule, budget은 예전 표 예시(스프레드시트 예시로 보여 줌)
  */
 export type BossTemplate =
+  | "todo"
   | "weekly"
   | "memo"
   | "note"
