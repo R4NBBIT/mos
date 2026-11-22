@@ -46,8 +46,8 @@ class TodoAlert:
     push: dict[str, Any] | None
     # 봇 DM으로 보낼 글(아침 요약을 DM으로 고른 경우). 없으면 None
     dm: str | None
-    # 위장 화면일 때도 알림 창을 띄울지(할 일 알림 설정)
-    boss: bool
+    # 위장 화면일 때: off 안 띄움, silent 내용과 소리 없이, full 그대로(할 일 알림 설정)
+    boss: str
 
 
 class TodoAlerts:
@@ -153,7 +153,7 @@ class TodoAlerts:
             }
         if push is None and dm is None:
             return None
-        return TodoAlert(account_id, push, dm, settings["boss_alerts"])
+        return TodoAlert(account_id, push, dm, settings["boss_mode"])
 
 
 def _at(day: date, hhmm: str, zone: ZoneInfo) -> datetime:

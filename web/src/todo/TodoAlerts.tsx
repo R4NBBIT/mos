@@ -1,8 +1,9 @@
 // 할 일 알림 설정(SCR-10 일부, NOTI-01, NOTI-03): 시각 알림을 몇 분 미리, 아침 요약 시각.
 // 실제 알림은 ㅁㅇㅅ 웹 푸시로 온다(기기 알림은 ㅁㅇㅅ 설정 > 알림에서 켬)
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import {
   type AlertLead,
+  type BossMode,
   browserTz,
   fetchAlertPrefs,
   fetchTodoNews,
@@ -69,6 +70,54 @@ function notificationsOff(): boolean {
   return typeof Notification === "undefined" || Notification.permission !== "granted";
 }
 
+function Segment<T extends string | number | null>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="todo-segment" role="radiogroup" aria-label={label}>
+      {options.map((option) => (
+        <button
+          key={String(option.value)}
+          type="button"
+          role="radio"
+          aria-checked={value === option.value}
+          className={value === option.value ? "todo-segment-on" : undefined}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const BOSS: { value: BossMode; label: string; help: string }[] = [
+  { value: "off", label: "안 받기", help: "위장 화면일 때는 알림을 띄우지 않아요." },
+  { value: "silent", label: "조용히", help: "내용과 소리 없이 알림 창만 떠요." },
+  { value: "full", label: "그대로", help: "평소처럼 할 일 내용과 소리까지 알려요." },
+];
+
+/** 설정 한 줄: 왼쪽 이름, 오른쪽 고르기와 그 아래 짧은 설명 */
+function Setting({ name, help, children }: { name: string; help?: string; children: ReactNode }) {
+  return (
+    <div className="todo-setting">
+      <span className="todo-setting-name">{name}</span>
+      <div className="todo-setting-body">
+        {children}
+        {help && <p className="todo-setting-help">{help}</p>}
+      </div>
+    </div>
+  );
+}
+
 export default function TodoAlertPanel({ onClose, onSeen }: { onClose: () => void; onSeen: () => void }) {
   const [prefs, setPrefs] = useState<TodoAlertPrefs | null>(null);
   const [morningText, setMorningText] = useState("08:00");
@@ -83,10 +132,14 @@ export default function TodoAlertPanel({ onClose, onSeen }: { onClose: () => voi
       })
       .catch(() => setError("불러오지 못했어요."));
   }, []);
+  useEffect(() => {
+    if (!saved) return;
+    const timer = window.setTimeout(() => setSaved(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [saved]);
 
   const save = async (changes: Partial<TodoAlertPrefs>) => {
     setError("");
-    setSaved(false);
     try {
       const tz = browserTz();
       setPrefs(await saveAlertPrefs(tz ? { ...changes, tz } : changes));
@@ -95,9 +148,10 @@ export default function TodoAlertPanel({ onClose, onSeen }: { onClose: () => voi
       setError(todoErrorText(failure));
     }
   };
+  const boss = BOSS.find((item) => item.value === prefs?.boss_mode) ?? BOSS[0];
 
   return (
-    <section className="todo-alerts" aria-label="할 일 알림">
+    <section className="todo-alerts" aria-label="소식과 알림">
       <div className="todo-alerts-head">
         <strong>소식</strong>
         <button type="button" className="todo-link-button" onClick={onClose}>
@@ -107,96 +161,79 @@ export default function TodoAlertPanel({ onClose, onSeen }: { onClose: () => voi
       <TodoNewsList onSeen={onSeen} />
       <div className="todo-alerts-head todo-alerts-sub">
         <strong>알림 설정</strong>
+        <span className={saved ? "todo-saved todo-saved-on" : "todo-saved"} role="status">
+          {saved ? "저장됨" : ""}
+        </span>
       </div>
       {prefs === null ? (
-        <p className="todo-hint">{error || "불러오는 중…"}</p>
+        <p className="todo-setting-help">{error || "불러오는 중…"}</p>
       ) : (
         <>
-          <div className="todo-prop">
-            <span className="todo-prop-key">시각 알림</span>
-            <div className="todo-segment" role="radiogroup" aria-label="시각 알림">
-              {LEADS.map((lead) => (
-                <button
-                  key={String(lead.value)}
-                  type="button"
-                  role="radio"
-                  aria-checked={prefs.alert_lead === lead.value}
-                  className={prefs.alert_lead === lead.value ? "todo-segment-on" : undefined}
-                  onClick={() => void save({ alert_lead: lead.value })}
-                >
-                  {lead.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="todo-prop">
-            <span className="todo-prop-key">아침 요약</span>
-            <span className="todo-prop-value">
-              <label className="todo-check-line">
+          {notificationsOff() && (
+            <p className="todo-callout">
+              이 기기는 알림이 꺼져 있어요. <b>ㅁㅇㅅ 설정 › 알림</b>에서 켜 주세요.
+            </p>
+          )}
+          <Setting name="시각 알림" help="시각을 정한 할 일 중 아직 안 한 것만 알려요.">
+            <Segment
+              label="시각 알림"
+              options={LEADS}
+              value={prefs.alert_lead}
+              onChange={(value) => void save({ alert_lead: value })}
+            />
+          </Setting>
+          <Setting name="아침 요약" help="오늘 남은 할 일 수와 앞의 3개를 알려요.">
+            <div className="todo-setting-row">
+              <label className="todo-switch">
                 <input
                   type="checkbox"
+                  role="switch"
                   checked={prefs.morning !== null}
                   onChange={(event) => void save({ morning: event.target.checked ? morningText : null })}
                 />
-                켜기
+                <span className="todo-switch-track" aria-hidden="true" />
+                <span>{prefs.morning !== null ? "켜짐" : "꺼짐"}</span>
               </label>
-              <input
-                type="time"
-                aria-label="아침 요약 시각"
-                value={morningText}
-                disabled={prefs.morning === null}
-                onChange={(event) => {
-                  setMorningText(event.target.value);
-                  if (event.target.value) void save({ morning: event.target.value });
-                }}
-              />
-            </span>
-          </div>
-          {prefs.morning !== null && (
-            <div className="todo-prop">
-              <span className="todo-prop-key">요약 받기</span>
-              <div className="todo-segment" role="radiogroup" aria-label="아침 요약 받는 방법">
-                {VIAS.map((via) => (
-                  <button
-                    key={via.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={prefs.morning_via === via.value}
-                    className={prefs.morning_via === via.value ? "todo-segment-on" : undefined}
-                    onClick={() => void save({ morning_via: via.value })}
-                  >
-                    {via.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="todo-prop">
-            <span className="todo-prop-key">위장 중</span>
-            <span className="todo-prop-value">
-              <label className="todo-check-line">
+              {prefs.morning !== null && (
                 <input
-                  type="checkbox"
-                  checked={prefs.boss_alerts}
-                  onChange={(event) => void save({ boss_alerts: event.target.checked })}
+                  className="todo-setting-time"
+                  type="time"
+                  aria-label="아침 요약 시각"
+                  value={morningText}
+                  onChange={(event) => {
+                    setMorningText(event.target.value);
+                    if (event.target.value) void save({ morning: event.target.value });
+                  }}
                 />
-                위장 화면일 때도 할 일 알림 창 띄우기(내용 없이, 소리 없이)
-              </label>
-            </span>
-          </div>
-          {prefs.morning !== null && prefs.morning_via !== "push" && (
-            <p className="todo-hint">봇 DM은 ㅁㅇㅅ 봇과 같은 서버에 있고 서버 멤버의 DM을 허용해야 와요. 못 보내면 소식에 남겨요.</p>
+              )}
+            </div>
+          </Setting>
+          {prefs.morning !== null && (
+            <Setting
+              name="요약 받는 곳"
+              help={
+                prefs.morning_via === "push"
+                  ? undefined
+                  : "봇 DM은 ㅁㅇㅅ 봇과 같은 서버에 있고 서버 멤버의 DM을 허용해야 와요. 못 보내면 소식에 남겨요."
+              }
+            >
+              <Segment
+                label="요약 받는 곳"
+                options={VIAS}
+                value={prefs.morning_via}
+                onChange={(value) => void save({ morning_via: value })}
+              />
+            </Setting>
           )}
-          <p className="todo-hint">
-            시각을 정한, 아직 안 한 할 일만 알려요. 아침 요약은 오늘 남은 할 일 수와 앞 3개예요.
-            {notificationsOff() && " 이 기기는 알림이 꺼져 있어요. ㅁㅇㅅ 설정 > 알림에서 켜 주세요."}
-          </p>
+          <Setting name="위장 중" help={boss?.help}>
+            <Segment
+              label="위장 화면일 때 알림"
+              options={BOSS}
+              value={prefs.boss_mode}
+              onChange={(value) => void save({ boss_mode: value })}
+            />
+          </Setting>
           {error && <p className="todo-error">{error}</p>}
-          {saved && !error && (
-            <p className="todo-hint" role="status">
-              저장했어요.
-            </p>
-          )}
         </>
       )}
     </section>

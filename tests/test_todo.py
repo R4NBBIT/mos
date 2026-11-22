@@ -423,7 +423,7 @@ def test_alert_prefs(env: Env) -> None:
         "morning": None,
         "tz": "Asia/Seoul",
         "morning_via": "push",
-        "boss_alerts": False,
+        "boss_mode": "off",
     }
     env.client.post("/api/todo/categories", json={"name": "a", "color": "#123456"}, headers=POST)
     env.tick(1)
@@ -435,7 +435,7 @@ def test_alert_prefs(env: Env) -> None:
         "morning": "08:00",
         "tz": "UTC",
         "morning_via": "push",
-        "boss_alerts": False,
+        "boss_mode": "off",
     }
     # 최근 색 같은 다른 설정은 그대로
     assert env.client.get("/api/todo/categories").json()["recent_colors"] == ["#123456"]
@@ -447,7 +447,7 @@ def test_alert_prefs(env: Env) -> None:
         {"tz": "../etc/passwd"},
         {"tz": "Mars/Base"},
         {"morning_via": "email"},
-        {"boss_alerts": "yes"},
+        {"boss_mode": "loud"},
         {"other": 1},
     ):
         env.tick(1)
@@ -474,7 +474,7 @@ def test_time_alert_and_morning_summary(env: Env) -> None:
     due = asyncio.run(alerts.due())
     assert len(due) == 1
     account_id, payload = due[0].account_id, due[0].push
-    assert due[0].dm is None and due[0].boss is False
+    assert due[0].dm is None and due[0].boss == "off"
     assert payload is not None
     assert payload["kind"] == "todo" and payload["url"] == "/#/todo"
     assert "10분 뒤" in payload["title"]
@@ -516,14 +516,14 @@ def test_morning_by_dm_and_news(env: Env) -> None:
         headers=POST,
     )
     env.tick(1)
-    body = {"morning": "17:00", "morning_via": "dm", "boss_alerts": True}
+    body = {"morning": "17:00", "morning_via": "dm", "boss_mode": "full"}
     env.client.patch("/api/todo/prefs", json=body, headers=POST)
     env.clock[0] = 1_800_000_000.0 + 30
     due = asyncio.run(alerts.due())
     assert len(due) == 1
     assert due[0].push is None  # DM만 고르면 기기 알림은 없음
     assert due[0].dm is not None and "빨래" in due[0].dm
-    assert due[0].boss is True
+    assert due[0].boss == "full"
     news = env.client.get("/api/todo/news").json()
     assert news["unread"] == 1
     assert news["items"][0]["title"] == "오늘 할 일 1개"

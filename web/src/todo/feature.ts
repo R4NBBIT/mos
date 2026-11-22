@@ -31,3 +31,38 @@ export function todoBossTitle(theme: string): { name: string; icon: "sheet" | "m
   if (theme === "word") return { name: "업무 체크리스트.docx", icon: "word" };
   return { name: "업무 체크리스트", icon: "note" };
 }
+
+// ------------------------------------------------------------ AI 연결 승인 요청(#/connect/<ID>)
+const PENDING_KEY = "mos.todo.connect";
+
+/** 로그인하러 다녀와도 이어서 승인할 수 있게 이 탭에만 잠깐 남긴다(10분) */
+export function rememberConnect(id: string): void {
+  try {
+    sessionStorage.setItem(PENDING_KEY, JSON.stringify({ id, at: Date.now() }));
+  } catch {
+    // 저장소를 못 쓰면 주소로만
+  }
+}
+
+export function pendingConnect(): string | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { id?: unknown; at?: unknown };
+    if (typeof parsed.id !== "string" || typeof parsed.at !== "number" || Date.now() - parsed.at > 10 * 60_000) {
+      sessionStorage.removeItem(PENDING_KEY);
+      return null;
+    }
+    return parsed.id;
+  } catch {
+    return null;
+  }
+}
+
+export function forgetConnect(): void {
+  try {
+    sessionStorage.removeItem(PENDING_KEY);
+  } catch {
+    // 괜찮음
+  }
+}

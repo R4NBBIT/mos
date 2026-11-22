@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field
 from starlette.websockets import WebSocketDisconnect
 
 from mos.api.rate_limit import RateLimiter
+from mos.api.todo_ai_routes import register_todo_ai_routes
 from mos.api.todo_routes import register_todo_routes
 from mos.config import Settings
 from mos.db.auth_repo import AuthRepo
@@ -81,6 +82,8 @@ from mos.services.todo import TodoService
 from mos.services.todo_access import FEATURE_NAME as TODO_FEATURE
 from mos.services.todo_access import TodoAccess
 from mos.services.todo_alerts import TodoAlerts
+from mos.services.todo_mcp import TodoMcp
+from mos.services.todo_oauth import TodoOAuth
 from mos.version import current_version
 
 log = logging.getLogger(__name__)
@@ -607,7 +610,25 @@ def create_app(
     todo_access = TodoAccess(settings)
     todo_repo = TodoRepo(db)
     todo_service = TodoService(todo_repo, clock)
-    register_todo_routes(app, require_account, todo_access, todo_service, clock)
+    todo_account = register_todo_routes(app, require_account, todo_access, todo_service, clock)
+
+    async def active_user(account_id: int) -> int | None:
+        account = await sessions.repo.account(account_id)
+        if account is None or account.get("status") != "active":
+            return None
+        return int(account["discord_user_id"])
+
+    register_todo_ai_routes(
+        app,
+        origin=settings.public_origin.rstrip("/"),
+        todo_account=todo_account,
+        account_status=active_user,
+        access=todo_access,
+        oauth=TodoOAuth(db, clock),
+        mcp=TodoMcp(todo_service, todo_repo, clock),
+        todo=todo_service,
+        clock=clock,
+    )
     todo_alerts = TodoAlerts(todo_service, todo_repo, clock)
 
     async def send_todo_alerts() -> None:
@@ -641,7 +662,7 @@ def create_app(
                     )
             if alert.push is None:
                 continue
-            event = {"type": "todo_alert", "data": {**alert.push, "boss": alert.boss}}
+            event = {"type": "todo_alert", "data": {**alert.push, "boss_mode": alert.boss}}
             in_tabs = await hub.send_to_account(alert.account_id, event)
             for device_id, target_account in targets:
                 if target_account != alert.account_id or device_id in in_tabs:

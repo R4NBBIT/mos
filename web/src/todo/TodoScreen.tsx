@@ -1,5 +1,6 @@
 // 할 일(공개 전): 하루 화면(SCR-02, 넓은 화면 오른쪽)과 넓은 화면 왼쪽 달력(SCR-04)
 // 허용된 계정에서만 이 파일을 내려받는다(App에서 lazy). 테마 색은 ㅁㅇㅅ CSS 변수를 그대로 쓴다
+import TodoAiPanel from "./TodoAi";
 import TodoAlertPanel from "./TodoAlerts";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BackIcon from "../BackIcon";
@@ -97,6 +98,7 @@ export default function TodoScreen({
   const [info, setInfo] = useState<{ text: string; day?: string } | null>(null);
   const [bump, setBump] = useState(0);
   const [alertsOpen, setAlertsOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const [newsVersion, setNewsVersion] = useState(0);
   useEffect(() => {
@@ -224,7 +226,10 @@ export default function TodoScreen({
             className="header-tool"
             aria-label={unread > 0 ? `소식과 알림, 새 소식 ${unread}개` : "소식과 알림"}
             aria-expanded={alertsOpen}
-            onClick={() => setAlertsOpen((open) => !open)}
+            onClick={() => {
+              setAiOpen(false);
+              setAlertsOpen((open) => !open);
+            }}
           >
             <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
               <path d="M5 8.5a5 5 0 0 1 10 0v3.5l1.5 2.5h-13L5 12z" strokeLinejoin="round" />
@@ -232,6 +237,22 @@ export default function TodoScreen({
             </svg>
             <span className="header-tool-label">알림</span>
             {unread > 0 && <span className="todo-unread-dot" aria-hidden="true" />}
+          </button>
+          <button
+            type="button"
+            className="header-tool"
+            aria-label="AI 연결"
+            aria-expanded={aiOpen}
+            onClick={() => {
+              setAlertsOpen(false);
+              setAiOpen((open) => !open);
+            }}
+          >
+            <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <path d="M10 2.5l1.6 4.4 4.4 1.6-4.4 1.6L10 14.5l-1.6-4.4L4 8.5l4.4-1.6z" strokeLinejoin="round" />
+              <path d="M15.5 13.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" strokeLinejoin="round" />
+            </svg>
+            <span className="header-tool-label">AI</span>
           </button>
           <button type="button" className="header-tool" aria-label="카테고리 관리" onClick={onCategories}>
             <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -283,6 +304,7 @@ export default function TodoScreen({
         </button>
       </nav>
       <div className="todo-body">
+        {aiOpen && <TodoAiPanel onClose={() => setAiOpen(false)} />}
         {alertsOpen && <TodoAlertPanel onClose={() => setAlertsOpen(false)} onSeen={newsSeen} />}
         {error && (
           <p className="todo-error" role="alert">

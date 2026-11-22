@@ -36,7 +36,14 @@ import SettingsScreen from "./SettingsScreen";
 import SwipeDeck from "./SwipeDeck";
 import WordChrome from "./WordChrome";
 import { LookContext, type LookValue } from "./lookContext";
-import { setTodoAllowed, todoBossTitle, useTodoAllowed } from "./todo/feature";
+import {
+  forgetConnect,
+  pendingConnect,
+  rememberConnect,
+  setTodoAllowed,
+  todoBossTitle,
+  useTodoAllowed,
+} from "./todo/feature";
 import { applyDisguise, applyLook, type BossTemplate, cachedLook, type Settings } from "./theme";
 import type { ChannelInfo, SessionAccount, SessionState, VoiceChannel } from "./types";
 import VoiceRoom from "./VoiceRoom";
@@ -49,6 +56,7 @@ import { isDayKey, today } from "./todo/dates";
 // 할 일(공개 전): 허용된 계정에서만 내려받는다
 const TodoScreen = lazy(() => import("./todo/TodoScreen"));
 const TodoBoss = lazy(() => import("./todo/TodoBoss"));
+const TodoConnect = lazy(() => import("./todo/TodoConnect"));
 const TodoSide = lazy(() => import("./todo/TodoScreen").then((module) => ({ default: module.TodoSide })));
 const TodoCategories = lazy(() => import("./todo/TodoCategories"));
 const TODO_FEATURE = "todo";
@@ -82,6 +90,14 @@ type Route =
  * #/g/모임/p/채널 포럼 글, 스레드 목록, #/g/모임/p/채널/t/글 글(스레드) 채팅,
  * #/g/모임/v/채널 음성 채널(누가 있는지). ID는 숫자만 받는다
  */
+/** #/connect/<ID>: AI 연결 승인 요청(로그인하러 다녀와도 이어서 하도록 탭에 남긴다) */
+function connectFromHash(hash: string): string | null {
+  const found = /^#\/connect\/([A-Za-z0-9_-]{16,64})$/.exec(hash);
+  if (!found?.[1]) return null;
+  rememberConnect(found[1]);
+  return found[1];
+}
+
 function parseRoute(hash: string): Route {
   if (hash === "#/settings") return { view: "settings" };
   if (hash === "#/todo") return { view: "todo", day: today() };
@@ -376,6 +392,21 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
   }
   if (active.locked) {
     return <UnlockScreen session={session} account={active} notice={notice} onChanged={changed} />;
+  }
+  // AI 연결 승인(로그인, 잠금 해제 뒤). 다른 화면보다 먼저
+  const connectId = connectFromHash(window.location.hash) ?? pendingConnect();
+  if (connectId) {
+    return (
+      <Suspense fallback={<div className="center-note">불러오는 중…</div>}>
+        <TodoConnect
+          requestId={connectId}
+          onLeave={() => {
+            forgetConnect();
+            go("#/todo");
+          }}
+        />
+      </Suspense>
+    );
   }
   const screen = (): ReactNode => {
     const common = {

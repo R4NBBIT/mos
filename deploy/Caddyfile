@@ -23,6 +23,15 @@
 		reverse_proxy 127.0.0.1:8000
 	}
 
+	# 할 일 AI 연결: Claude, ChatGPT 커넥터(OAuth 2.1, MCP). 요청은 작다
+	@todo_ai path /mcp /oauth/* /.well-known/oauth-protected-resource /.well-known/oauth-protected-resource/* /.well-known/oauth-authorization-server
+	request_body @todo_ai {
+		max_size 256KB
+	}
+	handle @todo_ai {
+		reverse_proxy 127.0.0.1:8000
+	}
+
 	# current는 자동 배포가 바꾸는 링크
 	handle {
 		root * /srv/mos-web/current

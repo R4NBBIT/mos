@@ -24,7 +24,8 @@ def register_todo_routes(
     access: TodoAccess,
     todo: TodoService,
     clock: Callable[[], float],
-) -> None:
+) -> Callable[[Request], Awaitable[ActiveAccount]]:
+    """할 일 API를 붙이고, 다른 할 일 주소(AI 연결)가 쓸 계정 확인 함수를 돌려준다."""
     write_limiter = RateLimiter(limit=5, window_sec=1, clock=clock)
 
     async def allowed_request(request: Request) -> bool:
@@ -191,3 +192,5 @@ def register_todo_routes(
     async def todo_category_delete(category_id: str, request: Request) -> None:
         account = await writer(request)
         await todo.delete_category(account.account_id, parse_id(category_id))
+
+    return todo_account

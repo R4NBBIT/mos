@@ -612,12 +612,16 @@ export function CategoryBlock({
             void submit();
           }}
         >
-          <span className="todo-check todo-check-ghost" aria-hidden="true" />
+          <span className="todo-check todo-check-ghost todo-add-plus" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </span>
           <input
             className="todo-add-input"
             value={text}
             maxLength={200}
-            placeholder="할 일 입력"
+            placeholder=""
             title="예: 내일 오후 3시 치과 @강남역 // 메모"
             aria-label={`${category.name}에 할 일 입력`}
             enterKeyHint="done"

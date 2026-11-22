@@ -141,6 +141,7 @@ export function todoErrorText(error: unknown): string {
     bad_alert_lead: "알림 시각을 다시 골라 주세요.",
     bad_tz: "이 기기의 시간대를 알 수 없어요.",
     bad_morning_via: "아침 요약 방법을 다시 골라 주세요.",
+    bad_boss_mode: "위장 중 알림을 다시 골라 주세요.",
   };
   return words[code] ?? "저장하지 못했어요. 다시 해 주세요.";
 }
@@ -151,13 +152,15 @@ export type AlertLead = 0 | 10 | 30 | 60;
 
 export type MorningVia = "push" | "dm" | "both";
 
+export type BossMode = "off" | "silent" | "full";
+
 export interface TodoAlertPrefs {
   alert_lead: AlertLead | null;
   morning: string | null;
   tz: string;
   morning_via: MorningVia;
-  /** 위장 화면일 때도 할 일 알림 창(내용 없이) */
-  boss_alerts: boolean;
+  /** 위장 화면일 때: off 안 띄움, silent 내용과 소리 없이, full 그대로 */
+  boss_mode: BossMode;
 }
 
 export interface TodoNewsItem {
@@ -187,3 +190,22 @@ export function browserTz(): string | undefined {
     return undefined;
   }
 }
+
+// ------------------------------------------------------------ AI 연결(T3)
+
+export interface TodoConnection {
+  id: string;
+  name: string;
+  created_at: number;
+  last_used_at: number | null;
+}
+
+export const fetchConnectRequest = (id: string) =>
+  call<{ client_name: string; redirect_host: string }>(`/api/todo/oauth/request/${encodeURIComponent(id)}`);
+
+export const decideConnectRequest = (id: string, allow: boolean) =>
+  call<{ redirect: string }>(`/api/todo/oauth/request/${encodeURIComponent(id)}`, "POST", { allow });
+
+export const fetchConnections = () => call<{ connections: TodoConnection[]; mcp_url: string }>("/api/todo/connections");
+
+export const disconnectAi = (id: string) => call<void>(`/api/todo/connections/${encodeURIComponent(id)}`, "DELETE");

@@ -49,8 +49,8 @@ export async function askPopupPermission(): Promise<PopupSupport> {
 interface TodoAlertEvent {
   title: string;
   body: string;
-  /** 위장 중에도 알림 창(할 일 알림 설정) */
-  boss?: boolean;
+  /** 위장 화면일 때(할 일 알림 설정): off 안 띄움, silent 내용과 소리 없이, full 그대로 */
+  boss_mode?: "off" | "silent" | "full";
 }
 
 export interface NotifyToast {
@@ -198,10 +198,13 @@ export function useNotifications({
     if (!event || typeof event.title !== "string" || typeof event.body !== "string") return;
     window.dispatchEvent(new Event("mos-todo-news")); // 소식 점, '할 일' 줄 다시 받기
     const disguised = isDisguised();
-    if (disguised && event.boss !== true) return;
-    const showContent = optionsRef.current.preview && !disguised;
+    const mode = event.boss_mode ?? "off";
+    if (disguised && mode === "off") return;
+    // 위장 중 '그대로'면 평소처럼(내용 보이기 설정은 따름), '조용히'면 내용과 소리 없이
+    const quiet = disguised && mode !== "full";
+    const showContent = optionsRef.current.preview && !quiet;
+    if (!quiet) playSound();
     if (!disguised) {
-      playSound();
       if (document.visibilityState === "visible" && document.hasFocus()) {
         setToast({
           key: Date.now(),
@@ -219,7 +222,7 @@ export function useNotifications({
     const body = showContent ? event.body : "새 알림이 있어요";
     try {
       popupRef.current?.close();
-      const popup = new Notification(title, { body, icon: currentIcon(), tag: "mos-notify", silent: disguised });
+      const popup = new Notification(title, { body, icon: currentIcon(), tag: "mos-notify", silent: quiet });
       popup.onclick = () => {
         window.focus();
         if (!isDisguised()) optionsRef.current.onOpen("#/todo");

@@ -370,7 +370,12 @@ class TodoService:
     # ------------------------------------------------------------ 할 일
 
     async def add_item(
-        self, account_id: int, body: dict[str, Any], source: str = "app"
+        self,
+        account_id: int,
+        body: dict[str, Any],
+        source: str = "app",
+        source_client: str | None = None,
+        batch_id: str | None = None,
     ) -> dict[str, Any]:
         await self.categories(account_id)
         category = await self._open_category(account_id, body.get("category_id"))
@@ -382,6 +387,8 @@ class TodoService:
             "time": clean_time(body.get("time")),
             "place": clean_place(body.get("place")),
             "source": source,
+            "source_client": source_client,
+            "batch_id": batch_id,
         }
         on_day, total = await self.repo.counts(account_id, values["day"])
         if on_day >= MAX_PER_DAY or total >= MAX_TOTAL:
@@ -642,9 +649,9 @@ class TodoService:
                 if value not in MORNING_VIA:
                     raise TodoError("bad_morning_via")
                 changes[key] = value
-            elif key == "boss_alerts":
-                if not isinstance(value, bool):
-                    raise TodoError("bad_body")
+            elif key == "boss_mode":
+                if value not in BOSS_MODES:
+                    raise TodoError("bad_boss_mode")
                 changes[key] = value
             else:
                 raise TodoError("bad_body")
@@ -667,7 +674,9 @@ class TodoService:
 
 
 ALERT_LEADS = (0, 10, 30, 60)  # 몇 분 미리(NOTI-01)
-MORNING_VIA = ("push", "dm", "both")  # 아침 요약 방법(NOTI-03): 기기 알림, 봇 DM, 둘 다
+MORNING_VIA = ("push", "dm", "both")
+# 위장 화면일 때 할 일 알림(NOTI-05): 안 받기, 조용히(내용, 소리 없이 창만), 그대로(내용, 소리)
+BOSS_MODES = ("off", "silent", "full")  # 아침 요약 방법(NOTI-03): 기기 알림, 봇 DM, 둘 다
 NEWS_DAYS = 30
 DEFAULT_TZ = "Asia/Seoul"
 
@@ -681,6 +690,13 @@ def clean_tz(value: Any) -> str:
     except (ZoneInfoNotFoundError, ValueError) as error:
         raise TodoError("bad_tz") from error
     return value
+
+
+def _boss_mode(prefs: dict[str, Any]) -> str:
+    mode = prefs.get("boss_mode")
+    if mode in BOSS_MODES:
+        return str(mode)
+    return "silent" if prefs.get("boss_alerts") is True else "off"  # 예전 켜기/끄기 값
 
 
 def alert_prefs_from(prefs: dict[str, Any]) -> dict[str, Any]:
@@ -699,6 +715,5 @@ def alert_prefs_from(prefs: dict[str, Any]) -> dict[str, Any]:
         "morning_via": prefs.get("morning_via")
         if prefs.get("morning_via") in MORNING_VIA
         else "push",
-        # 위장 화면일 때도 할 일 알림 창(내용 없이). 기본은 받지 않음(NOTI-05)
-        "boss_alerts": prefs.get("boss_alerts") is True,
+        "boss_mode": _boss_mode(prefs),
     }

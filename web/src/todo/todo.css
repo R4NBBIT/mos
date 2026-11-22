@@ -1976,3 +1976,284 @@
   align-items: center;
   justify-content: center;
 }
+
+/* ---------- 알림 설정(정리한 모양): 이름 | 고르기 + 그 아래 짧은 설명 */
+.todo-setting {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 4px 12px;
+  align-items: start;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.todo-alerts-sub + .todo-setting,
+.todo-alerts-sub + .todo-callout + .todo-setting {
+  border-top: 0;
+}
+
+.todo-setting-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 32px;
+}
+
+.todo-setting-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.todo-setting-help {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--sub);
+  word-break: keep-all;
+}
+
+.todo-setting-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+}
+
+.todo-setting-time {
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  padding: 0 8px;
+}
+
+.todo-alerts .todo-segment button {
+  height: 32px;
+  padding: 0 12px;
+}
+
+.todo-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+  position: relative;
+}
+
+.todo-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.todo-switch-track {
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--line);
+  position: relative;
+  transition: background 150ms ease;
+}
+
+.todo-switch-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 150ms ease;
+}
+
+.todo-switch input:checked + .todo-switch-track {
+  background: var(--btn-bg);
+}
+
+.todo-switch input:checked + .todo-switch-track::after {
+  transform: translateX(16px);
+}
+
+.todo-switch input:focus-visible + .todo-switch-track {
+  outline: 2px solid var(--honey);
+  outline-offset: 2px;
+}
+
+.todo-callout {
+  margin: 4px 0 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--tint);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.todo-saved {
+  font-size: 12px;
+  color: var(--sub);
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.todo-saved-on {
+  opacity: 1;
+}
+
+@media (max-width: 480px) {
+  .todo-setting {
+    grid-template-columns: 1fr;
+  }
+
+  .todo-setting-name {
+    line-height: 1.4;
+  }
+}
+
+/* 할 일 입력: 글씨 없이 + 표시만(누르면 바로 입력) */
+.todo-add-plus {
+  border: 0;
+  color: var(--sub);
+}
+
+.todo-add-plus svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2;
+}
+
+.todo-add:focus-within .todo-add-plus {
+  color: var(--ink);
+}
+
+.todo-add-input {
+  cursor: text;
+}
+
+:root[data-theme="memo"] .todo-add-plus::before {
+  content: "[+]";
+}
+
+:root .todo-add .todo-check.todo-add-plus {
+  border: 0;
+  background: none;
+  color: var(--sub);
+}
+
+:root .todo-add .todo-add-plus svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2;
+}
+
+:root[data-theme="sheet"] .todo-add .todo-add-plus svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* ---------- AI 연결 */
+.todo-ai-url {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.todo-ai-url code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.todo-ai-item {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+.todo-ai-item > .todo-small-button,
+.todo-ai-confirm {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.todo-connect {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: var(--bg);
+}
+
+.todo-connect-card {
+  width: min(480px, 100%);
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.todo-connect-card h1 {
+  margin: 0;
+  font-size: 18px;
+  word-break: keep-all;
+}
+
+.todo-connect-card p {
+  margin: 0;
+}
+
+.todo-connect-host {
+  color: var(--sub);
+  font-size: 13px;
+}
+
+.todo-connect-lists {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.todo-connect-lists ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.todo-connect-actions {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 480px) {
+  .todo-connect-lists {
+    grid-template-columns: 1fr;
+  }
+}

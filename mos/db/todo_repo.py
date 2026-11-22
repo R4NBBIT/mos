@@ -132,8 +132,9 @@ class TodoRepo:
             position = values.get("position") or last + 1
             cursor = await conn.execute(
                 "INSERT INTO todo_item (account_id, category_id, title, memo, day, time, place,"
-                " position, source, repeat_id, skipped, done_at, created_at, updated_at)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " position, source, source_client, batch_id, repeat_id, skipped, done_at,"
+                " created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     account_id,
                     values["category_id"],
@@ -144,6 +145,8 @@ class TodoRepo:
                     values["place"],
                     position,
                     values["source"],
+                    values.get("source_client"),
+                    values.get("batch_id"),
                     values.get("repeat_id"),
                     int(values.get("skipped", 0)),
                     values.get("done_at"),
@@ -348,3 +351,20 @@ class TodoRepo:
     async def forget_news_before(self, before: int) -> None:
         async with self.db.writing() as conn:
             await conn.execute("DELETE FROM todo_news WHERE created_at < ?", (before,))
+
+    # ------------------------------------------------------------ AI가 넣은 묶음(AI 연결)
+
+    async def last_batch(self, account_id: int, client_id: str) -> tuple[str, int] | None:
+        row = await self.db.fetch_one(
+            "SELECT batch_id, created_at FROM todo_item WHERE account_id = ? AND source = 'ai'"
+            " AND source_client = ? AND batch_id IS NOT NULL ORDER BY id DESC LIMIT 1",
+            (account_id, client_id),
+        )
+        return (str(row[0]), int(row[1])) if row else None
+
+    async def batch_item_ids(self, account_id: int, batch_id: str) -> list[int]:
+        rows = await self.db.fetch_all(
+            "SELECT id FROM todo_item WHERE account_id = ? AND batch_id = ? AND skipped = 0",
+            (account_id, batch_id),
+        )
+        return [int(row[0]) for row in rows]
