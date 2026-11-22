@@ -20,7 +20,8 @@ import { useLook } from "./lookContext";
 import { compareIds, dayKey, formatDay, formatTime } from "./format";
 import MessageItem, { Avatar, MessageBody, paraColor, personId, type ReplyPreview } from "./MessageItem";
 import SheetView, { plainText } from "./SheetView";
-import Drawer, { drawerTitle, type DrawerTab } from "./Drawer";
+import Drawer, { type DrawerTab } from "./Drawer";
+import HeaderTools from "./HeaderTools";
 import type { Theme } from "./theme";
 import type { ChannelInfo, Message, RealtimeEvent } from "./types";
 import PostEditor from "./PostEditor";
@@ -614,6 +615,7 @@ export default function ChatRoom({
           onBack={onBack}
           onOpenThreads={onOpenThreads}
           onOpenDrawer={channel ? toggleDrawer : undefined}
+        drawerOpen={Boolean(drawerTab)}
         jumpedId={jumpedId}
           onOpenTab={onOpenChannel}
           menu={menu}
@@ -645,19 +647,12 @@ export default function ChatRoom({
           </span>
         </div>
         {channel && (
-          <button
-            type="button"
-            className="text-button header-link"
-            aria-expanded={Boolean(drawerTab)}
-            onClick={toggleDrawer}
-          >
-            {drawerTitle(theme)}
-          </button>
-        )}
-        {onOpenThreads && channel && channel.kind !== "thread" && (
-          <button type="button" className="text-button header-link" onClick={onOpenThreads}>
-            스레드
-          </button>
+          <HeaderTools
+            theme={theme}
+            drawerOpen={Boolean(drawerTab)}
+            onDrawer={toggleDrawer}
+            onThreads={onOpenThreads && channel.kind !== "thread" ? onOpenThreads : undefined}
+          />
         )}
         {theme === "word" && <Coauthors messages={shownMessages} myUserId={myUserId} />}
         {menu}

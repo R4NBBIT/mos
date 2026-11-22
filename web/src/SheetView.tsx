@@ -4,6 +4,7 @@ import SplitToggle from "./SplitToggle";
 import EditableText from "./EditableText";
 import { useLook } from "./lookContext";
 import { orderedChannels } from "./listOrder";
+import HeaderTools from "./HeaderTools";
 import { useTextSize } from "./textSize";
 import { defaultTitle } from "./theme";
 import { type CSSProperties, type ReactNode, type RefObject, useEffect, useMemo, useState } from "react";
@@ -90,6 +91,7 @@ interface Props {
   jumpedId?: string | null;
   /** 메뉴 줄 오른쪽 '찾기'(서랍 열기) */
   onOpenDrawer?: () => void;
+  drawerOpen?: boolean;
   /** 새 메시지(이 ID보다 뒤, 남이 쓴 것)의 행 번호를 연한 초록으로(시안 A) */
   isNewMessage?: (message: Message) => boolean;
   /** 글 제목, 태그를 고친 뒤 */
@@ -374,18 +376,15 @@ export default function SheetView(props: Props) {
 
       menu={props.menu}
       menuExtra={
-        <>
-          {props.onOpenDrawer && (
-            <button type="button" className="sheet-menu sheet-menu-link" onClick={props.onOpenDrawer}>
-              찾기
-            </button>
-          )}
-          {props.onOpenThreads && channel && channel.kind !== "thread" && (
-            <button type="button" className="sheet-menu sheet-menu-link" onClick={props.onOpenThreads}>
-              스레드
-            </button>
-          )}
-        </>
+        props.onOpenDrawer || (props.onOpenThreads && channel && channel.kind !== "thread") ? (
+          <HeaderTools
+            theme="sheet"
+            className="header-tools sheet-menu-tools"
+            drawerOpen={Boolean(props.drawerOpen)}
+            onDrawer={props.onOpenDrawer}
+            onThreads={props.onOpenThreads && channel && channel.kind !== "thread" ? props.onOpenThreads : undefined}
+          />
+        ) : null
       }
       nameBox={nameBox}
       formula={
