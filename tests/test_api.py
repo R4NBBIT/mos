@@ -1966,18 +1966,18 @@ def test_settings_per_account(env: Env) -> None:
 def test_app_manifest_uses_checked_name_and_icon(env: Env) -> None:
     body = env.client.get("/api/app/manifest").json()
     assert (body["name"], body["short_name"], body["display"]) == ("ㅁㅇㅅ", "ㅁㅇㅅ", "standalone")
-    assert body["icons"][0]["src"] == "/app-icons/h-192.png"  # 기본 아이콘 H
+    assert body["icons"][0]["src"] == "/app-icons/h-192.png?v=2"  # 기본 아이콘 H
     assert body["id"] == "/" and body["start_url"] == "/"
 
     custom = env.client.get("/api/app/manifest", params={"name": "  업무\n  노트 ", "icon": "a"})
     assert custom.headers["content-type"].startswith("application/manifest+json")
     data = custom.json()
-    assert (data["name"], data["icons"][1]["src"]) == ("업무 노트", "/app-icons/a-512.png")
+    assert (data["name"], data["icons"][1]["src"]) == ("업무 노트", "/app-icons/a-512.png?v=2")
     assert data["icons"][2]["purpose"] == "maskable"
 
     odd = env.client.get("/api/app/manifest", params={"name": "가" * 50, "icon": "../x"}).json()
     assert odd["name"] == "가" * 20  # 20자까지
-    assert odd["icons"][0]["src"] == "/app-icons/h-192.png"  # 모르는 아이콘은 기본
+    assert odd["icons"][0]["src"] == "/app-icons/h-192.png?v=2"  # 모르는 아이콘은 기본
     assert env.client.get("/api/app/manifest", params={"name": "   "}).json()["name"] == "ㅁㅇㅅ"
 
 

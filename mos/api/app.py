@@ -171,6 +171,8 @@ def channel_to_api(
     return data
 
 
+# 아이콘 그림을 바꾸면 올린다(설치한 앱과 브라우저가 옛 그림을 붙잡지 않게)
+APP_ICON_VERSION = "2"
 # 홈 화면 앱(설치형 웹앱) 아이콘: 키 → 바탕색. 그림은 web/public/app-icons/
 APP_ICONS = {
     "a": "#f3f1ea",
@@ -199,6 +201,7 @@ def app_manifest_data(name: str | None, icon: str | None) -> dict[str, Any]:
     key = icon if icon in APP_ICONS else APP_DEFAULT_ICON
     label = clean_app_name(name)
     color = APP_ICONS[key]
+    v = APP_ICON_VERSION
     return {
         "id": "/",
         "name": label,
@@ -210,10 +213,10 @@ def app_manifest_data(name: str | None, icon: str | None) -> dict[str, Any]:
         "background_color": color,
         "theme_color": color,
         "icons": [
-            {"src": f"/app-icons/{key}-192.png", "sizes": "192x192", "type": "image/png"},
-            {"src": f"/app-icons/{key}-512.png", "sizes": "512x512", "type": "image/png"},
+            {"src": f"/app-icons/{key}-192.png?v={v}", "sizes": "192x192", "type": "image/png"},
+            {"src": f"/app-icons/{key}-512.png?v={v}", "sizes": "512x512", "type": "image/png"},
             {
-                "src": f"/app-icons/{key}-maskable.png",
+                "src": f"/app-icons/{key}-maskable.png?v={v}",
                 "sizes": "512x512",
                 "type": "image/png",
                 "purpose": "maskable",

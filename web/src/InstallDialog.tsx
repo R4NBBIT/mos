@@ -5,6 +5,7 @@ import {
   APP_ICONS,
   APP_NAME_MAX,
   canPromptInstall,
+  APP_ICON_VERSION,
   cleanAppName,
   DEFAULT_APP_NAME,
   externalOpenUrl,
@@ -127,7 +128,7 @@ export default function InstallDialog({ onClose, closing }: { onClose: () => voi
                       className={icon === item.key ? "install-icon install-icon-on" : "install-icon"}
                       onClick={() => setIcon(item.key)}
                     >
-                      <img src={`/app-icons/${item.key}.svg`} alt="" width="44" height="44" />
+                      <img src={`/app-icons/${item.key}-192.png?v=${APP_ICON_VERSION}`} alt="" width="44" height="44" />
                     </button>
                   ))}
                 </div>

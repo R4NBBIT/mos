@@ -1,6 +1,9 @@
 // 홈 화면 앱(설치형 웹앱). 이름과 아이콘은 설치할 때 고르고, 이 브라우저에 기억해 둔다.
 // 설치 정보(manifest)는 서버가 고른 값으로 만들어 주고(/api/app/manifest), 화면은 그 주소만 바꾼다.
 
+/** 아이콘 그림을 바꾸면 서버(APP_ICON_VERSION)와 같이 올린다 */
+export const APP_ICON_VERSION = "2";
+
 export interface AppIcon {
   key: string;
   label: string;
@@ -72,7 +75,7 @@ function setMeta(name: string, content: string): void {
 export function applyAppChoice(choice: AppChoice = readAppChoice()): void {
   const params = new URLSearchParams({ name: choice.name, icon: choice.icon });
   setLink("manifest", `/api/app/manifest?${params.toString()}`);
-  setLink("apple-touch-icon", `/app-icons/${choice.icon}-apple.png`);
+  setLink("apple-touch-icon", `/app-icons/${choice.icon}-apple.png?v=${APP_ICON_VERSION}`);
   setMeta("apple-mobile-web-app-title", choice.name);
   setMeta("apple-mobile-web-app-capable", "yes");
   setMeta("mobile-web-app-capable", "yes");
