@@ -67,7 +67,7 @@ INSTRUCTIONS = """ㅁㅇㅅ TODO에 사용자의 TODO를 넣고 고치는 도구
   add_repeat_period(끝난 반복을 새 기간으로), update_repeat, end_repeat, delete_repeat도
   같은 두 단계예요.
   매주 반복의 요일은 여러 개, 공휴일 빼기(skip_holidays)를 고를 수 있어요.
-  끝 날을 말하지 않으면 비워 두세요.
+  마지막 날을 말하지 않으면 비워 두세요.
 - ㅁㅇㅅ 메시지, 디스코드 정보는 볼 수 없어요. 친구의 TODO도 볼 수 없어요.
 """
 
@@ -1066,7 +1066,7 @@ class TodoMcp:
         for item in series:
             current = item["current"]
             periods = ", ".join(
-                f"{p['start_day']}~{p['end_day'] or '(끝 날 없음)'}" for p in item["periods"]
+                f"{p['start_day']}~{p['end_day'] or '(마지막 날 없음)'}" for p in item["periods"]
             )
             state = " (끝남)" if item["ended"] else ""
             lines.append(
@@ -1115,7 +1115,7 @@ class TodoMcp:
                 payload["weekdays"] = weekdays
             shown = {**payload, "weekdays": weekdays or []}
             period = f"{payload['start_day']}부터 " + (
-                f"{payload['end_day']}까지" if payload["end_day"] else "끝 날 없이"
+                f"{payload['end_day']}까지" if payload["end_day"] else "마지막 날 없이"
             )
             kind = "repeat_create"
             summary = (
@@ -1149,7 +1149,7 @@ class TodoMcp:
             )
             kind = "repeat_period"
             summary = f"'{current['title']}' 반복에 새 기간: {args.get('start_day')}부터 " + (
-                f"{args.get('end_day')}까지" if args.get("end_day") else "끝 날 없이"
+                f"{args.get('end_day')}까지" if args.get("end_day") else "마지막 날 없이"
             )
         elif name == "update_repeat":
             item = await self._series(account_id, args.get("repeat"), today)
@@ -1181,7 +1181,7 @@ class TodoMcp:
                 changes["end_day"] = args["end_day"] if "end_day" in args else current["end_day"]
                 shown = {**current, **changes}
                 parts.append(f"규칙 → {self._rule_text(shown)}")
-                parts.append(f"끝 날 → {changes['end_day'] or '없음'}")
+                parts.append(f"마지막 날 → {changes['end_day'] or '없음'}")
             if not changes:
                 raise ToolError("바꿀 것이 없어요")
             kind = "repeat_update"

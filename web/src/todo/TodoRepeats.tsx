@@ -137,7 +137,7 @@ function RepeatEditor({
       return;
     }
     if (draft.end_day && draft.end_day < draft.start_day) {
-      setError("끝 날은 시작 날보다 뒤여야 해요.");
+      setError("마지막 날은 시작 날보다 뒤여야 해요.");
       return;
     }
     setBusy(true);
@@ -233,19 +233,19 @@ function RepeatEditor({
           <span>~</span>
           <PickField
             type="date"
-            label="끝 날"
+            label="마지막 날"
             value={draft.end_day}
             min={draft.start_day}
-            empty="끝 날 없음"
+            empty="마지막 날 없음"
             onChange={(value) => set({ end_day: value })}
           />
           {draft.end_day && (
             <button type="button" className="todo-text-button" onClick={() => set({ end_day: "" })}>
-              끝 날 없음
+              마지막 날 없음
             </button>
           )}
         </div>
-        {!draft.end_day && <p className="todo-field-help">끝 날을 정하지 않으면 계속 반복해요.</p>}
+        {!draft.end_day && <p className="todo-field-help">마지막 날을 정하지 않으면 계속 반복돼요.</p>}
       </Field>
       {!adding && (
         <>

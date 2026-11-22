@@ -389,7 +389,7 @@ def _todo_error(error: TodoError) -> str:
         "period_overlap": "새 기간은 앞 기간이 끝난 다음 날부터 시작해야 해요",
         "bad_rule": "반복 규칙은 daily, weekdays, weekends, weekly 중 하나예요",
         "bad_weekdays": "매주 반복은 요일을 하나 이상 골라야 해요",
-        "bad_end_day": "끝 날은 시작 날보다 뒤여야 해요",
+        "bad_end_day": "마지막 날은 시작 날보다 뒤여야 해요",
         "bad_day": "날짜는 YYYY-MM-DD여야 해요",
         "bad_time": "시각은 HH:MM(24시간)이어야 해요",
         "bad_title": "이름은 1~100자 한 줄이어야 해요",

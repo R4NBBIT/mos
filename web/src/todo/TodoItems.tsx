@@ -426,11 +426,11 @@ function TodoMenu({
         )}
         {rule !== "none" && (
           <label className="todo-prop">
-            <span className="todo-prop-key">끝나는 날</span>
+            <span className="todo-prop-key">마지막 날</span>
             <span className="todo-prop-value">
               <PickField
                 type="date"
-                label="끝나는 날"
+                label="마지막 날"
                 value={endDay}
                 empty="없음"
                 min={item.repeat ? undefined : item.day}
