@@ -92,12 +92,12 @@ export default function InstallDialog({ onClose, closing }: { onClose: () => voi
           {inApp ? (
             <div className="install-warn">
               <p>
-                {inApp.name} 안의 브라우저에서는 설치할 수 없어요. {device === "ios" ? "사파리" : "크롬"}로 열어서 다시 눌러
+                {inApp.name} 안의 브라우저에서는 설치할 수 없어요. {device === "ios" ? "사파리로" : "크롬으로"} 열어서 다시 눌러
                 주세요.
               </p>
               {external ? (
                 <a className="pill-button pill-button-strong install-open" href={external}>
-                  {device === "ios" ? "사파리" : "크롬"}로 열기
+                  {device === "ios" ? "사파리로" : "크롬으로"} 열기
                 </a>
               ) : (
                 <>
@@ -144,7 +144,7 @@ export default function InstallDialog({ onClose, closing }: { onClose: () => voi
                 </div>
               </fieldset>
 
-              {result === "accepted" && <p className="install-ok">설치했어요. 홈 화면(앱 목록)에서 '{cleanName}'로 열 수 있어요.</p>}
+              {result === "accepted" && <p className="install-ok">설치했어요. 홈 화면(앱 목록)의 '{cleanName}' 아이콘을 누르면 열려요.</p>}
               {result === "dismissed" && <p className="install-note">설치를 취소했어요. 다시 누르면 돼요.</p>}
               {result === "manual" && (
                 <div className="install-steps">
@@ -154,7 +154,7 @@ export default function InstallDialog({ onClose, closing }: { onClose: () => voi
                         사파리 아래쪽(아이패드는 위쪽)의 공유 단추 <ShareIcon />를 눌러요.
                       </li>
                       <li>목록을 내려 '홈 화면에 추가'를 눌러요.</li>
-                      <li>이름 칸에 '{cleanName}'이 들어가 있는지 보고 '추가'를 눌러요.</li>
+                      <li>이름 칸이 '{cleanName}'인지 보고 '추가'를 눌러요.</li>
                     </ol>
                   ) : device === "android" ? (
                     <ol>

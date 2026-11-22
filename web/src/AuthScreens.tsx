@@ -45,16 +45,17 @@ function InAppNotice() {
   const app = inAppBrowser();
   if (!app || closed) return null;
   const url = externalOpenUrl(app);
-  const browser = platform() === "ios" ? "사파리" : "크롬";
+  // 받침에 따라 '로'와 '으로'가 달라서 통째로
+  const toBrowser = platform() === "ios" ? "사파리로" : "크롬으로";
   return (
     <div className="inapp-notice" role="status">
       <span>
-        {app.name} 안에서는 로그인이 잘 안 될 수 있어요. {browser}로 열어 주세요.
+        {app.name} 안에서는 로그인이 잘 안 될 수 있어요. {toBrowser} 열어 주세요.
         {!url && " (메뉴 › 다른 브라우저로 열기)"}
       </span>
       {url && (
         <a className="inapp-open" href={url}>
-          {browser}로 열기
+          {toBrowser} 열기
         </a>
       )}
       <button type="button" className="text-button" onClick={() => setClosed(true)} aria-label="안내 닫기">
