@@ -623,10 +623,9 @@ export function GroupList({
         <p className="list-note">이 계정으로 볼 수 있는 서버가 없어요.</p>
       )}
       {load.state === "ok" && current && (
-        // 노션에서 서버를 연 때: 지금 서버만 펼치고, 다른 서버는 '다른 서버' 묶음에 접어 둔다
+        // 노션에서 서버를 연 때: 맨 위 '다른 서버' 묶음은 접어 두고, 그 아래 지금 서버만 펼친다(다른 테마도 서버 바꾸기가 위)
         <section className="list-section">
           {skin.allTitle && <h2 className="list-section-title">{skin.allTitle}</h2>}
-          {treeGroup(current, null)}
           {others.length > 0 && (
             <>
               <div
@@ -668,6 +667,7 @@ export function GroupList({
               </Collapse>
             </>
           )}
+          {treeGroup(current, null)}
         </section>
       )}
       {load.state === "ok" && !current && load.value.groups.length > 0 && (

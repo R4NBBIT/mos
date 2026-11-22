@@ -6643,9 +6643,9 @@ body.sorting * {
   }
 }
 
-/* 노션: 지금 서버 아래 '다른 서버' 묶음(누르면 펼침, 서버를 고르면 그 서버로) */
+/* 노션: 맨 위 '다른 서버' 묶음(누르면 펼침, 서버를 고르면 그 서버로), 아래에 지금 서버 */
 .tree-others {
-  margin-top: 6px;
+  margin-bottom: 4px;
   color: var(--sub);
 }
 
