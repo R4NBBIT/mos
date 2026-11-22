@@ -540,7 +540,7 @@ export function TodoRow({
   const [memoOpen, setMemoOpen] = useState(false);
   const meta = [
     item.time ? timeLabel(item.time) : "",
-    item.place ? `@${item.place}` : "",
+    item.place ?? "",
     item.repeat ? repeatLabel(item.repeat) : "",
   ]
     .filter(Boolean)
@@ -686,7 +686,7 @@ export function CategoryBlock({
     const bits = [
       shown.day && shown.day !== viewDay ? longLabel(shown.day) : "",
       shown.time ? timeLabel(shown.time) : "",
-      shown.place ? `@${shown.place}` : "",
+      shown.place ?? "",
       shown.memo ? "메모 있음" : "",
     ].filter(Boolean);
     preview = (

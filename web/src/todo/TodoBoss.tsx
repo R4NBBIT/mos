@@ -209,7 +209,7 @@ export default function TodoBoss({ theme, active }: { theme: Theme; active: bool
               <div key={item.id} className={item.done ? "boss-todo-item boss-todo-item-done" : "boss-todo-item"}>
                 {check(item)}
                 <span>{item.title}</span>
-                {(item.time || item.place) && <small>{[item.time, item.place ? `@${item.place}` : ""].filter(Boolean).join(" | ")}</small>}
+                {(item.time || item.place) && <small>{[item.time, item.place ?? ""].filter(Boolean).join(" | ")}</small>}
               </div>
             ))}
           </section>

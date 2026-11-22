@@ -479,7 +479,7 @@ def test_time_alert_and_morning_summary(env: Env) -> None:
     assert payload["kind"] == "todo" and payload["url"] == "/#/todo"
     assert "10분 뒤" in payload["title"]
     # 아침 요약(16:50, 30분 안)도 같이 하나로
-    assert payload["body"].startswith("17:10 치과 외 1개")
+    assert payload["body"].startswith("17:10 | 치과 외 1개")
     assert "빨래" in payload["body"]
     # 같은 것을 두 번 보내지 않는다
     assert asyncio.run(alerts.due()) == []

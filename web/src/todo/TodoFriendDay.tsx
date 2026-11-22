@@ -15,7 +15,7 @@ function FriendRow({ owner, item, color }: { owner: string; item: TodoItem; colo
   const [memoOpen, setMemoOpen] = useState(false);
   const meta = [
     item.time ? timeLabel(item.time) : "",
-    item.place ? `@${item.place}` : "",
+    item.place ?? "",
     item.repeat ? repeatLabel(item.repeat) : "",
   ]
     .filter(Boolean)

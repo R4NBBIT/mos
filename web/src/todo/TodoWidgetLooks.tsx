@@ -46,7 +46,7 @@ function Check({ model, item }: { model: WidgetModel; item: TodoItem }) {
 
 /** 장소(시각과 함께 위젯에 보임, 메모는 안 보임) */
 function Place({ item }: { item: TodoItem }) {
-  return item.place ? <span className="tw-place">@{item.place}</span> : null;
+  return item.place ? <span className="tw-place">| {item.place}</span> : null;
 }
 
 // ------------------------------------------------------------ 기본, 다크: 카드

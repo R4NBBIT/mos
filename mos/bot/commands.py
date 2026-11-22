@@ -49,7 +49,7 @@ class ChoiceView(discord.ui.View):
         super().__init__(timeout=300)
         self.bot = bot
         self.user_id = user_id
-        for label, text in choices[:5]:
+        for label, text in choices[:20]:
             button: discord.ui.Button[ChoiceView] = discord.ui.Button(
                 label=label[:80], style=discord.ButtonStyle.secondary
             )
@@ -63,7 +63,9 @@ class ChoiceView(discord.ui.View):
                 return
             said = text.removeprefix("/todo").strip()
             result = await self.bot.commands.todo_text(interaction.user.id, said)
-            await interaction.response.edit_message(content=result.text, view=None)
+            # 또 물어보면(오전/오후 다음 카테고리) 새 단추로
+            view = ChoiceView(self.bot, self.user_id, result.choices) if result.choices else None
+            await interaction.response.edit_message(content=result.text, view=view)
 
         return run
 
@@ -133,9 +135,7 @@ def register_commands(bot: MosBot) -> None:
             return
         await interaction.response.send_message(result.text, ephemeral=True)
 
-    @tree.command(
-        name="todo", description="ㅁㅇㅅ TODO를 말로: 넣기, 보기, 완료, 미루기(나만 보여요)"
-    )
+    @tree.command(name="todo", description="ㅁㅇㅅ TODO를 말로")
     @app_commands.rename(said="할말")
     @app_commands.describe(said="하고 싶은 말(비우면 오늘 TODO)")
     async def todo_command(interaction: discord.Interaction, said: str = "") -> None:

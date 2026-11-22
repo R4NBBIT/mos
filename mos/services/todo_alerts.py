@@ -29,8 +29,9 @@ URL = "/#/todo"
 
 
 def _title_line(item: dict[str, Any]) -> str:
-    place = f" @{item['place']}" if item.get("place") else ""
-    return f"{item['time']} {item['title']}{place}"
+    # 시각 | 이름 | 장소(장소에 @ 없이, 2026-11-23 사용자 요청)
+    parts = [item.get("time") or "", item["title"], item.get("place") or ""]
+    return " | ".join(part for part in parts if part)
 
 
 def _joined(lines: list[str]) -> str:
@@ -129,10 +130,7 @@ class TodoAlerts:
                 if left and await self.repo.mark_alert(account_id, key, int(now)):
                     left.sort(key=lambda item: (item["time"] is None, item["time"] or ""))
                     # 남은 TODO 전부(2026-11-22 사용자 요청: 앞의 몇 개만이 아니라)
-                    names = [
-                        f"{item['time']} {item['title']}" if item["time"] else item["title"]
-                        for item in left
-                    ]
+                    names = [_title_line(item) for item in left]
                     title = f"오늘 TODO {len(left)}개"
                     body = ", ".join(names)
                     await self.repo.add_news(account_id, "morning", title, body, int(now))

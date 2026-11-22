@@ -49,7 +49,7 @@ COMMANDS = [
     {
         "name": "todo",
         "usage": "/todo <하고 싶은 말>",
-        "help": "TODO 넣기, 보기, 완료, 미루기를 말로(나만 보여요)",
+        "help": "ㅁㅇㅅ TODO를 말로",
         "todo": True,
     },
 ]
@@ -211,12 +211,9 @@ class BotCommands:
     @staticmethod
     def _line(number: int, item: dict[str, Any]) -> str:
         mark = "✅" if item["done"] else "⬜"
-        meta = " ".join(
-            part
-            for part in (item["time"] or "", f"@{item['place']}" if item["place"] else "")
-            if part
-        )
-        return f"{number}. {mark} {item['title']}" + (f"  {meta}" if meta else "")
+        # 장소는 @ 없이, 이름 | 시각 | 장소(2026-11-23 사용자 요청)
+        parts = [item["title"], item["time"] or "", item["place"] or ""]
+        return f"{number}. {mark} " + " | ".join(part for part in parts if part)
 
     @staticmethod
     def _day_word(day: str) -> str:
@@ -278,15 +275,21 @@ class BotCommands:
             )
         if not categories:
             return CommandResult("열린 카테고리가 없어요.")
-        category = categories[0]
-        if words.category:
-            match = [c for c in categories if c["name"] == words.category]
-            if not match:
-                names = ", ".join(str(c["name"]) for c in categories)
-                return CommandResult(
-                    f"'{words.category}' 카테고리가 없어요. 열린 카테고리: {names}"
-                )
-            category = match[0]
+        # 카테고리는 말하지 않았으면 무조건 물어본다(2026-11-23 사용자 요청, 하나뿐이어도)
+        picks = [
+            (str(c["name"]), f"/todo {raw.strip()} [{c['name']}]")
+            for c in categories
+            if "]" not in str(c["name"])
+        ]
+        if not words.category:
+            return CommandResult("어느 카테고리에 넣을까요?", choices=picks[:20])
+        match = [c for c in categories if c["name"] == words.category]
+        if not match:
+            return CommandResult(
+                f"'{words.category}' 카테고리가 없어요. 어느 카테고리에 넣을까요?",
+                choices=picks[:20],
+            )
+        category = match[0]
         day = words.days[0] if words.days else today
         body = {
             "title": words.title,
@@ -300,15 +303,9 @@ class BotCommands:
             await self.todo.add_item(account_id, body)
         except TodoError as error:
             return CommandResult(f"넣지 못했어요({error.code}).")
-        meta = " ".join(
-            part for part in (words.time or "", f"@{words.place}" if words.place else "") if part
-        )
+        parts = [self._day_word(day), str(category["name"]), words.title, words.time, words.place]
         memo = "\n메모: " + words.memo if words.memo else ""
-        return CommandResult(
-            f"✅ 넣었어요: {self._day_word(day)} [{category['name']}] {words.title}"
-            + (f"  {meta}" if meta else "")
-            + memo
-        )
+        return CommandResult("✅ 넣었어요: " + " | ".join(p for p in parts if p) + memo)
 
     @staticmethod
     def _half(raw: str, hour: str, half: str) -> str:

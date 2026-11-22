@@ -217,6 +217,12 @@ def understand(raw: str, today: str, categories: list[str] | None = None) -> Und
     text = _tidy(raw)
     if not text:
         return Understood("view", days=[today])
+    # [카테고리]는 메모(//, 끝까지)보다 먼저 뗀다: 단추가 글 끝에 [이름]을 붙여 다시 보낸다
+    category = None
+    bracket = re.search(r"\[([^\]]{1,30})\]", text)
+    if bracket:
+        category = bracket[1].strip()
+        text = _tidy(text[: bracket.start()] + " " + text[bracket.end() :])
     memo = None
     memo_at = re.search(r"(^|\s)//", text)
     if memo_at:
@@ -235,12 +241,7 @@ def understand(raw: str, today: str, categories: list[str] | None = None) -> Und
             place = where[2]
             text = _cut(text, where)
 
-    category = None
-    bracket = re.search(r"\[([^\]]{1,30})\]", text)
-    if bracket:
-        category = bracket[1].strip()
-        text = text[: bracket.start()] + " " + text[bracket.end() :]
-    elif categories:
+    if category is None and categories:
         for name in sorted(categories, key=len, reverse=True):
             hit = re.search(rf"(^|\s){re.escape(name)}(?:\s?카테고리)?(?:에|에다|로)(?=\s|$)", text)
             if hit:

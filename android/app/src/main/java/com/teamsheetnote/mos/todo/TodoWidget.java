@@ -191,7 +191,7 @@ public class TodoWidget extends AppWidgetProvider {
             String place = item.isNull("place") ? "" : item.optString("place", "");
             int placeAt = line.length();
             if (!place.isEmpty()) {
-                line = line + "  @" + place;
+                line = line + "  |  " + place;
             }
             SpannableString text = new SpannableString(line);
             if (!place.isEmpty()) {
