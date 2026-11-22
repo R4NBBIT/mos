@@ -32,6 +32,7 @@ const GROUP_GAP_MS = 5 * 60 * 1000;
 const JUMP_PAGE_SIZE = 100;
 const JUMP_MAX_PAGES = 15;
 const JUMP_FLASH_MS = 2200;
+const SCROLL_HOLD_MS = 1500;
 const NARROW_QUERY = "(max-width: 760px)";
 const NEAR_BOTTOM_PX = 120;
 
@@ -170,6 +171,8 @@ export default function ChatRoom({
 
   const listRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
+  // 구분선이나 고른 메시지로 옮긴 직후 잠깐은 '맨 아래 근처'로 보지 않는다(짧은 대화에서 다시 맨 아래로 끌려가지 않게)
+  const holdScrollUntil = useRef(0);
   const keepOffset = useRef<number | null>(null);
 
   const handleAuthError = useCallback(
@@ -315,8 +318,10 @@ export default function ChatRoom({
     const list = listRef.current;
     if (!list) return;
     const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < NEAR_BOTTOM_PX;
-    stickToBottom.current = nearBottom;
-    if (nearBottom) setUnseen(0);
+    if (performance.now() >= holdScrollUntil.current) {
+      stickToBottom.current = nearBottom;
+      if (nearBottom) setUnseen(0);
+    }
     // 글·스레드는 맨 위에 본문 카드가 있어, 지난 댓글은 버튼으로만 불러온다
     if (!isThread && list.scrollTop < 40 && hasMore && !loadingOlder) void loadOlder();
   };
@@ -381,6 +386,7 @@ export default function ChatRoom({
     const top = mark.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
     if (list.scrollHeight - top > list.clientHeight) {
       stickToBottom.current = false;
+      holdScrollUntil.current = performance.now() + SCROLL_HOLD_MS;
       list.scrollTop = Math.max(0, top - 16);
     }
   }, [messages, readAtOpen]);
@@ -398,6 +404,7 @@ export default function ChatRoom({
     if (!row) return;
     pendingJump.current = null;
     stickToBottom.current = false;
+    holdScrollUntil.current = performance.now() + SCROLL_HOLD_MS;
     row.scrollIntoView({ block: "center" });
     setJumpedId(id);
   }, [messages, jumpTick]);
