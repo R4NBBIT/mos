@@ -30,6 +30,8 @@ from mos.services.directory import (
     MemberInfo,
     Overwrite,
     StickerInfo,
+    VoiceChannelInfo,
+    VoiceMemberInfo,
 )
 from mos.services.messages import message_to_row, row_to_api
 from mos.services.realtime import RealtimeHub
@@ -60,7 +62,15 @@ def build_intents() -> discord.Intents:
     intents.members = True  # 역할 변경·탈퇴 이벤트(권한 캐시 지우기)
     intents.guild_reactions = True
     intents.emojis_and_stickers = True
+    intents.voice_states = True  # 음성 채널에 누가 들어가 있는지(특권 인텐트 아님)
     return intents
+
+
+def _member_cache_flags() -> discord.MemberCacheFlags:
+    """멤버는 캐시하지 않되, 음성 채널에 들어가 있는 사람만 이름과 사진을 위해 기억한다."""
+    flags = discord.MemberCacheFlags.none()
+    flags.voice = True
+    return flags
 
 
 def _overwrites(channel: Any) -> tuple[Overwrite, ...]:
@@ -155,12 +165,48 @@ def channel_to_info(channel: Any) -> ChannelInfo | None:
     )
 
 
+def _voice_member(guild: discord.Guild, user_id: int, state: discord.VoiceState) -> VoiceMemberInfo:
+    member = guild.get_member(user_id)
+    return VoiceMemberInfo(
+        user_id=user_id,
+        display_name=member.display_name if member else "이름을 불러오지 못함",
+        avatar_url=str(member.display_avatar.url) if member else None,
+        muted=bool(state.self_mute or state.mute),
+        deafened=bool(state.self_deaf or state.deaf),
+        streaming=bool(state.self_stream),
+        video=bool(state.self_video),
+        is_bot=bool(member and member.bot),
+    )
+
+
+def voice_to_info(channel: discord.VoiceChannel | discord.StageChannel) -> VoiceChannelInfo:
+    category = channel.category
+    me = channel.guild.me
+    info = ChannelInfo(
+        id=channel.id,
+        guild_id=channel.guild.id,
+        name=channel.name,
+        kind="stage" if isinstance(channel, discord.StageChannel) else "voice",
+        position=channel.position,
+        category_id=category.id if category else None,
+        category_name=category.name if category else None,
+        category_position=category.position if category else -1,
+        overwrites=_overwrites(channel),
+        bot_can_read=bool(me and channel.permissions_for(me).view_channel),
+    )
+    members = tuple(
+        _voice_member(channel.guild, user_id, state)
+        for user_id, state in channel.voice_states.items()
+    )
+    return VoiceChannelInfo(channel=info, members=members)
+
+
 class MosBot(discord.Client):
     def __init__(self, settings: Settings, repo: MessageRepo, hub: RealtimeHub) -> None:
         super().__init__(
             intents=build_intents(),
             chunk_guilds_at_startup=False,  # 서버 전체 멤버 목록은 받지 않는다
-            member_cache_flags=discord.MemberCacheFlags.none(),
+            member_cache_flags=_member_cache_flags(),
             max_messages=500,
         )
         self.settings = settings
@@ -230,6 +276,17 @@ class MosBot(discord.Client):
         items = [channel_to_info(channel) for channel in [*guild.text_channels, *guild.forums]]
         channels = [item for item in items if item is not None]
         return sorted(channels, key=lambda c: (c.category_position, c.position, c.id))
+
+    def voice_channels_info(self, guild_id: int) -> list[VoiceChannelInfo]:
+        guild = self.get_guild(guild_id)
+        if guild is None:
+            return []
+        rooms = [*guild.voice_channels, *guild.stage_channels]
+        voices = [voice_to_info(channel) for channel in rooms]
+        return sorted(
+            voices,
+            key=lambda v: (v.channel.category_position, v.channel.position, v.channel.id),
+        )
 
     def channel_info(self, channel_id: int) -> ChannelInfo | None:
         channel = self.get_channel(channel_id)
@@ -602,6 +659,12 @@ class MosBot(discord.Client):
     async def on_thread_member_join(self, member: discord.ThreadMember) -> None:
         self._notify_thread_member(member.thread_id, member.id)
 
+    async def on_voice_state_update(
+        self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState
+    ) -> None:
+        # 들고 남, 옮김, 마이크와 소리, 화면 공유가 바뀌면 그 서버를 보는 화면이 다시 받는다
+        await self.hub.voice_changed(member.guild.id)
+
     async def on_member_join(self, member: discord.Member) -> None:
         self._notify_member(member.guild.id, member.id)  # '서버에 없음' 캐시를 지운다
 
@@ -842,6 +905,9 @@ class BotDirectory:
 
     def channel(self, channel_id: int) -> ChannelInfo | None:
         return self.bot.channel_info(channel_id)
+
+    def voice_channels(self, guild_id: int) -> list[VoiceChannelInfo]:
+        return self.bot.voice_channels_info(guild_id)
 
     def emojis(self, guild_id: int) -> list[EmojiInfo]:
         return self.bot.emojis_info(guild_id)

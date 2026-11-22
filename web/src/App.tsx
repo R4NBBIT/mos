@@ -21,7 +21,8 @@ import SettingsScreen from "./SettingsScreen";
 import WordChrome from "./WordChrome";
 import { LookContext, type LookValue } from "./lookContext";
 import { applyDisguise, applyLook, type BossTemplate, cachedLook, type Settings } from "./theme";
-import type { ChannelInfo, SessionAccount, SessionState } from "./types";
+import type { ChannelInfo, SessionAccount, SessionState, VoiceChannel } from "./types";
+import VoiceRoom from "./VoiceRoom";
 import NotifyToast from "./NotifyToast";
 import { useNotifications } from "./useNotifications";
 
@@ -43,12 +44,14 @@ type Route =
   | { view: "settings" }
   | { view: "channels"; groupId: string }
   | { view: "chat"; groupId: string; channelId: string }
+  | { view: "voice"; groupId: string; channelId: string }
   | { view: "posts"; groupId: string; parentId: string }
   | { view: "thread"; groupId: string; parentId: string; threadId: string };
 
 /**
  * 주소 # 뒤: #/ 모임 목록, #/g/모임 채널 목록, #/g/모임/c/채널 채팅방,
- * #/g/모임/p/채널 포럼 글·스레드 목록, #/g/모임/p/채널/t/글 글(스레드) 채팅. ID는 숫자만 받는다
+ * #/g/모임/p/채널 포럼 글, 스레드 목록, #/g/모임/p/채널/t/글 글(스레드) 채팅,
+ * #/g/모임/v/채널 음성 채널(누가 있는지). ID는 숫자만 받는다
  */
 function parseRoute(hash: string): Route {
   if (hash === "#/settings") return { view: "settings" };
@@ -58,6 +61,8 @@ function parseRoute(hash: string): Route {
   }
   const posts = /^#\/g\/(\d{1,21})\/p\/(\d{1,21})$/.exec(hash);
   if (posts?.[1] && posts[2]) return { view: "posts", groupId: posts[1], parentId: posts[2] };
+  const voice = /^#\/g\/(\d{1,21})\/v\/(\d{1,21})$/.exec(hash);
+  if (voice?.[1] && voice[2]) return { view: "voice", groupId: voice[1], channelId: voice[2] };
   const chat = /^#\/g\/(\d{1,21})\/c\/(\d{1,21})$/.exec(hash);
   if (chat?.[1] && chat[2]) return { view: "chat", groupId: chat[1], channelId: chat[2] };
   const channels = /^#\/g\/(\d{1,21})$/.exec(hash);
@@ -297,6 +302,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     };
     const openChannel = (groupId: string, channel: ChannelInfo) =>
       go(channel.kind === "forum" ? `#/g/${groupId}/p/${channel.id}` : `#/g/${groupId}/c/${channel.id}`);
+    const openVoice = (groupId: string, voice: VoiceChannel) => go(`#/g/${groupId}/v/${voice.id}`);
     // 넓은 화면 왼쪽 목록에는 계정 메뉴·안내를 두지 않는다(계정 메뉴는 늘 오른쪽 위 같은 자리)
     const listSide = { ...common, menu: null, notice: "" };
     const browseTo = (groupId: string | null) => setBrowse({ from: route, groupId });
@@ -306,6 +312,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
         tree={look.theme === "note"}
         onOpen={(groupId) => (side ? browseTo(groupId) : go(`#/g/${groupId}`))}
         onOpenChannel={openChannel}
+        onOpenVoice={openVoice}
         {...(side ? listSide : common)}
       />
     );
@@ -319,6 +326,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           activeChannelId={activeChannelId}
           onOpen={(id) => go(`#/g/${id}`)}
           onOpenChannel={openChannel}
+          onOpenVoice={openVoice}
           {...(side ? listSide : common)}
         />
       ) : (
@@ -329,6 +337,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           onBack={() => (side ? browseTo(null) : go("#/"))}
           onSwitch={(id) => (side ? browseTo(id) : go(`#/g/${id}`))}
           onOpen={(channel) => openChannel(groupId, channel)}
+          onOpenVoice={(voice) => openVoice(groupId, voice)}
           {...(side ? listSide : common)}
         />
       );
@@ -346,6 +355,19 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
         onNoticeClose={common.onNoticeClose}
         theme={look.theme}
         onOpenChannel={(channel) => openChannel(groupId, channel)}
+      />
+    );
+
+    const voiceRoom = (groupId: string, channelId: string, inSplit: boolean) => (
+      <VoiceRoom
+        key={`${active.id}:${channelId}`}
+        groupId={groupId}
+        channelId={channelId}
+        showBack={!inSplit}
+        onBack={() => go(`#/g/${groupId}`)}
+        menu={common.menu}
+        notice={notice}
+        onNoticeClose={common.onNoticeClose}
       />
     );
 
@@ -380,6 +402,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     // 목록 없이 한 화면(좁은 창, 또는 넓은 창에서 목록을 접었을 때)
     const single = () => {
       if (route.view === "chat") return chatRoom(route.groupId, route.channelId, false);
+      if (route.view === "voice") return voiceRoom(route.groupId, route.channelId, false);
       if (route.view === "posts") return posts(route.groupId, route.parentId);
       if (route.view === "thread") return chatRoom(route.groupId, route.threadId, false, route.parentId);
       if (route.view === "channels") return channelList(route.groupId);
@@ -394,7 +417,11 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     const routeGroup = route.view === "groups" ? null : route.groupId;
     const leftGroup = browse && browse.from === route ? browse.groupId : routeGroup;
     const routeActive =
-      route.view === "chat" ? route.channelId : route.view === "posts" || route.view === "thread" ? route.parentId : undefined;
+      route.view === "chat" || route.view === "voice"
+        ? route.channelId
+        : route.view === "posts" || route.view === "thread"
+          ? route.parentId
+          : undefined;
     return (
       <div className="split">
         <aside
@@ -416,6 +443,8 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
               single()
             ) : route.view === "chat" ? (
               chatRoom(route.groupId, route.channelId, true)
+            ) : route.view === "voice" ? (
+              voiceRoom(route.groupId, route.channelId, true)
             ) : route.view === "posts" ? (
               posts(route.groupId, route.parentId)
             ) : route.view === "thread" ? (

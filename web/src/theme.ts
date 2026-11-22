@@ -49,6 +49,8 @@ export interface Settings {
   lock_minutes: number;
   /** 메시지 작성자 프로필 사진 보이기(모든 테마) */
   show_avatars: boolean;
+  /** 왼쪽 목록에 음성 채널과 들어가 있는 사람 보이기 */
+  voice_view: boolean;
   /** 반응 표시: 그대로, 작게('+2'), 숨기기 */
   reactions_view: ReactionsView;
   /** 스티커와 큰 이모지: 그대로, 작게(움직이는 이모지는 멈춤), 숨기기 */
@@ -105,6 +107,7 @@ export const DEFAULT_SETTINGS: Settings = {
   guide_done: false,
   lock_minutes: 30,
   show_avatars: true,
+  voice_view: true,
   reactions_view: "full",
   stickers_view: "full",
   media_view: "full",
@@ -258,6 +261,7 @@ export function cachedLook(): Settings {
           lock_minutes:
             typeof value.lock_minutes === "number" && LOCK_MINUTES.includes(value.lock_minutes) ? value.lock_minutes : 30,
           show_avatars: value.show_avatars !== false,
+          voice_view: value.voice_view !== false,
           reactions_view:
             value.reactions_view === "compact" || value.reactions_view === "hidden" ? value.reactions_view : "full",
           stickers_view:

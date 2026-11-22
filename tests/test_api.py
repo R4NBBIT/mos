@@ -24,6 +24,8 @@ from mos.services.directory import (
     GuildInfo,
     MemberInfo,
     Overwrite,
+    VoiceChannelInfo,
+    VoiceMemberInfo,
 )
 from mos.services.discord_oauth import DiscordUser, OAuthError, TokenSet
 from mos.services.messages import row_to_api
@@ -42,6 +44,7 @@ ORIGIN = "https://chat.example.com"
 CHANNEL = 1573319705849102408
 SECRET = 1573319705849102500
 FORUM = 1573319705849102600
+VOICE = 1573319705849102700
 GUILD = 1573319960745353352
 OTHER_GUILD = 1573319960745353999
 SECRET_ROLE = 1573319960745354000
@@ -125,6 +128,30 @@ class FakeDirectory:
 
     def emojis(self, guild_id: int) -> list[EmojiInfo]:
         return self.emoji_map.get(guild_id, [])
+
+    def voice_channels(self, guild_id: int) -> list[VoiceChannelInfo]:
+        """게임방(모두, 둘 들어가 있음), 비밀방(비밀 역할만), 봇이 못 보는 방."""
+        if guild_id != GUILD:
+            return []
+        deny_everyone = Overwrite(GUILD, True, 0, VIEW_CHANNEL)
+        allow_role = Overwrite(SECRET_ROLE, True, VIEW_CHANNEL, 0)
+        people = (
+            VoiceMemberInfo(43, "한민희", None, muted=True),
+            VoiceMemberInfo(42, "단월", None, muted=True, deafened=True),
+            VoiceMemberInfo(7, "음악봇", None, is_bot=True),
+        )
+        return [
+            VoiceChannelInfo(ChannelInfo(VOICE, GUILD, "게임방", "voice", 3), people),
+            VoiceChannelInfo(
+                ChannelInfo(
+                    VOICE + 1, GUILD, "비밀방", "voice", 4, overwrites=(deny_everyone, allow_role)
+                ),
+                (),
+            ),
+            VoiceChannelInfo(
+                ChannelInfo(VOICE + 2, GUILD, "숨은방", "stage", 5, bot_can_read=False), ()
+            ),
+        ]
 
     async def fetch_channel(self, channel_id: int) -> ChannelInfo | None:
         return self.archived_map.get(channel_id)  # 캐시에 없는 보관 스레드
@@ -1003,6 +1030,53 @@ def test_members_follow_channel_visibility(env: Env) -> None:
     assert env.client.get(f"/api/groups/{GUILD}/members").json()["restricted"] == {}
 
 
+def test_voice_channels_follow_view_permission(env: Env) -> None:
+    signed_up(env, "mocha")  # 비밀 역할 있음
+    body = env.client.get(f"/api/groups/{GUILD}/voice").json()
+    assert [c["name"] for c in body["channels"]] == ["게임방", "비밀방"]  # 봇이 못 보는 방은 뺀다
+    game = body["channels"][0]
+    assert (game["kind"], game["private"], game["group_id"]) == ("voice", False, str(GUILD))
+    assert [m["name"] for m in game["members"]] == ["단월", "한민희", "음악봇"]  # 봇은 뒤로
+    assert game["members"][0] == {
+        "id": "42",
+        "name": "단월",
+        "avatar_url": None,
+        "muted": True,
+        "deafened": True,
+        "streaming": False,
+        "video": False,
+        "bot": False,
+    }
+    assert body["channels"][1]["private"] is True
+    # 음성 채널은 메시지를 다루지 않는다
+    assert env.client.get(f"/api/channels/{VOICE}/messages").status_code == 404
+    assert env.client.get(f"/api/groups/{OTHER_GUILD}/voice").status_code == 404
+
+    signed_up(env, "latte")  # 역할 없음: 비밀방은 없는 것처럼
+    names = [c["name"] for c in env.client.get(f"/api/groups/{GUILD}/voice").json()["channels"]]
+    assert names == ["게임방"]
+
+
+def test_voice_changes_reach_only_members_who_asked(env: Env) -> None:
+    signed_up(env, "latte")  # 서버 A 멤버, 옆 서버는 아님
+    with env.client.websocket_connect(
+        "/ws", headers={"origin": ORIGIN, "cookie": ws_cookie(env)}
+    ) as ws:
+        ws.send_text(f'{{"type": "voice", "group_ids": ["{GUILD}", "{OTHER_GUILD}", "x"]}}')
+        ws.send_text("ping")
+        assert ws.receive_text() == "pong"
+        env.client.portal.call(env.hub.voice_changed, OTHER_GUILD)  # 멤버가 아닌 서버
+        env.client.portal.call(env.hub.voice_changed, GUILD)
+        assert ws.receive_json() == {"type": "voice_changed", "data": {"group_id": str(GUILD)}}
+
+        ws.send_text('{"type": "voice", "group_ids": []}')  # 그만 받기
+        ws.send_text("ping")
+        assert ws.receive_text() == "pong"
+        env.client.portal.call(env.hub.voice_changed, GUILD)
+        ws.send_text("ping")
+        assert ws.receive_text() == "pong"  # 그 사이 아무것도 안 왔다
+
+
 def test_forum_messages_are_not_served_yet(env: Env) -> None:
     signed_up(env)
     assert env.client.get(f"/api/channels/{FORUM}/messages").status_code == 404
@@ -1649,6 +1723,7 @@ def test_settings_per_account(env: Env) -> None:
         "guide_done": False,
         "lock_minutes": 30,
         "show_avatars": True,
+        "voice_view": True,
         "reactions_view": "full",
         "stickers_view": "full",
         "media_view": "full",

@@ -16,7 +16,13 @@ from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from mos.services.directory import ChannelInfo, Directory, GuildInfo, MemberInfo
+from mos.services.directory import (
+    ChannelInfo,
+    Directory,
+    GuildInfo,
+    MemberInfo,
+    VoiceChannelInfo,
+)
 
 ADMINISTRATOR = 1 << 3
 ADD_REACTIONS = 1 << 6
@@ -267,3 +273,26 @@ class PermissionService:
             if access.can_read:
                 result.append(access)
         return result
+
+    async def visible_voice_channels(
+        self, user_id: int, guild_id: int
+    ) -> list[VoiceChannelInfo] | None:
+        """내가 볼 수 있는(채널 보기 권한) 음성 채널. 봇도 볼 수 있어야 한다.
+        서버 멤버가 아니면 None."""
+        guild = self.directory.guild(guild_id)
+        if guild is None:
+            return None
+        member = await self.member(guild_id, user_id)
+        if member is None:
+            return None
+        return [
+            voice
+            for voice in self.directory.voice_channels(guild_id)
+            if voice.channel.bot_can_read
+            and compute_permissions(guild, member, voice.channel) & VIEW_CHANNEL
+        ]
+
+    async def is_member(self, user_id: int, guild_id: int) -> bool:
+        if self.directory.guild(guild_id) is None:
+            return False
+        return await self.member(guild_id, user_id) is not None

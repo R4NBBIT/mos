@@ -16,6 +16,8 @@ log = logging.getLogger(__name__)
 SEND_TIMEOUT_SEC = 5
 
 AccessCheck = Callable[[int, int], Awaitable[bool]]  # (사용자 ID, 채널 ID) → 볼 수 있나
+GroupCheck = Callable[[int, int], Awaitable[bool]]  # (사용자 ID, 서버 ID) → 그 서버 멤버인가
+MAX_VOICE_GROUPS = 10  # 한 접속이 음성 채널 변화를 받을 서버 수
 # 나를 부른 것만, 나를 부른 것과 고정한 채널, 볼 수 있는 모든 채널의 새 글
 NOTIFY_SCOPES = ("mentions", "pinned", "all")
 
@@ -31,6 +33,8 @@ class Subscriber:
     account_id: int = 0
     # 알림을 받겠다고 한 접속만 범위가 있다(None이면 알림 안 보냄)
     notify_scope: str | None = None
+    # 음성 채널에 누가 들어가 있는지 바뀌면 알려 줄 서버들
+    voice_groups: frozenset[int] = frozenset()
 
 
 # (구독자, 채널 ID, 메시지) → 알림으로 보낼 내용 또는 None(이 사람에게는 안 보냄)
@@ -56,12 +60,17 @@ async def _allow_nothing(_user_id: int, _channel_id: int) -> bool:
     return False
 
 
+async def _member_of_nothing(_user_id: int, _group_id: int) -> bool:
+    return False
+
+
 class RealtimeHub:
     def __init__(self) -> None:
         self._sockets: dict[JsonSocket, Subscriber] = {}
         self._access_check: AccessCheck = _allow_nothing
         self._notify_rule: NotifyRule = _notify_nothing
         self._after_notify: AfterNotify = _after_nothing
+        self._group_check: GroupCheck = _member_of_nothing
 
     def set_access_check(self, check: AccessCheck) -> None:
         self._access_check = check
@@ -71,6 +80,9 @@ class RealtimeHub:
 
     def set_after_notify(self, after: AfterNotify) -> None:
         self._after_notify = after
+
+    def set_group_check(self, check: GroupCheck) -> None:
+        self._group_check = check
 
     @property
     def count(self) -> int:
@@ -110,6 +122,30 @@ class RealtimeHub:
             return
         payload = {"type": event_type, "data": data}
         await self._send_all([(socket, payload) for socket in sockets])
+
+    def set_voice_groups(self, socket: JsonSocket, group_ids: set[int]) -> None:
+        """멤버인지는 부르는 쪽(API)이 먼저 확인한다. 보낼 때 다시 확인한다."""
+        subscriber = self._sockets.get(socket)
+        if subscriber is not None:
+            subscriber.voice_groups = frozenset(list(group_ids)[:MAX_VOICE_GROUPS])
+
+    async def voice_changed(self, group_id: int) -> None:
+        """음성 채널에 들고 나거나 마이크, 소리 상태가 바뀜. 누가 어디인지는 보내지 않고,
+        화면이 /api/groups/{id}/voice 로 다시 받는다(채널 권한은 거기서 확인)."""
+        targets = [
+            (socket, subscriber)
+            for socket, subscriber in list(self._sockets.items())
+            if group_id in subscriber.voice_groups
+        ]
+        if not targets:
+            return
+        allowed = await asyncio.gather(
+            *(self._group_check(subscriber.user_id, group_id) for _, subscriber in targets),
+            return_exceptions=True,
+        )
+        payload = {"type": "voice_changed", "data": {"group_id": str(group_id)}}
+        pairs = zip(targets, allowed, strict=True)
+        await self._send_all([(socket, payload) for (socket, _), ok in pairs if ok is True])
 
     async def notify(self, channel_id: int, message: dict[str, Any]) -> None:
         """새 메시지를 알림을 켠 접속에 알린다. 볼 수 있는지와 알림 조건은 사람마다 따로 본다."""

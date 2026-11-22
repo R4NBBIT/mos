@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal, Protocol
 
-ChannelKind = Literal["text", "news", "forum", "thread"]
+ChannelKind = Literal["text", "news", "forum", "thread", "voice", "stage"]
 
 
 class DirectoryError(Exception):
@@ -106,6 +106,28 @@ class MemberInfo:
     is_bot: bool = False
 
 
+@dataclass(frozen=True)
+class VoiceMemberInfo:
+    """음성 채널에 들어가 있는 사람. 꺼짐은 본인이 끈 것과 서버가 끈 것을 합친 값"""
+
+    user_id: int
+    display_name: str
+    avatar_url: str | None
+    muted: bool = False
+    deafened: bool = False
+    streaming: bool = False
+    video: bool = False
+    is_bot: bool = False
+
+
+@dataclass(frozen=True)
+class VoiceChannelInfo:
+    """음성, 스테이지 채널과 지금 들어가 있는 사람. channel.bot_can_read는 봇이 볼 수 있는지"""
+
+    channel: ChannelInfo
+    members: tuple[VoiceMemberInfo, ...] = ()
+
+
 class Directory(Protocol):
     def is_gateway_ready(self) -> bool: ...
 
@@ -120,7 +142,11 @@ class Directory(Protocol):
         ...
 
     def channel(self, channel_id: int) -> ChannelInfo | None:
-        """스레드도 포함. 스레드면 overwrites는 부모 채널 것."""
+        """스레드도 포함. 스레드면 overwrites는 부모 채널 것. 음성 채널은 없음."""
+        ...
+
+    def voice_channels(self, guild_id: int) -> list[VoiceChannelInfo]:
+        """음성, 스테이지 채널과 들어가 있는 사람(봇 캐시). 메시지는 다루지 않는다."""
         ...
 
     def emojis(self, guild_id: int) -> list[EmojiInfo]: ...

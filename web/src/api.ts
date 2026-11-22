@@ -8,6 +8,7 @@ import type {
   Reaction,
   SessionState,
   ThreadPage,
+  VoiceChannel,
 } from "./types";
 
 export class ApiError extends Error {
@@ -102,6 +103,12 @@ export async function fetchGroupChannels(groupId: string): Promise<GroupChannels
 
 export async function fetchGroupMembers(groupId: string): Promise<GroupMembers> {
   return (await request(`/api/groups/${encodeURIComponent(groupId)}/members`)).json() as Promise<GroupMembers>;
+}
+
+export async function fetchGroupVoice(groupId: string): Promise<{ channels: VoiceChannel[] }> {
+  return (await request(`/api/groups/${encodeURIComponent(groupId)}/voice`)).json() as Promise<{
+    channels: VoiceChannel[];
+  }>;
 }
 
 export async function fetchChannel(channelId: string): Promise<ChannelInfo> {

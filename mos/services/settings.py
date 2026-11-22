@@ -52,7 +52,8 @@ LIST_ORDER_KEY_RE = re.compile(r"groups|pinned|c:[0-9]{15,21}")
 SNOWFLAKE_RE = re.compile(r"[0-9]{15,21}")
 MAX_LIST_ORDERS = 200
 MAX_LIST_ORDER_LEN = 500
-# 자동 위장, 돌아올 때 잠그기, 알림, 알림에 내용 보이기, 처음 사용 안내를 봤는지, 작성자 프로필 사진
+# 자동 위장, 돌아올 때 잠그기, 알림, 알림에 내용 보이기, 처음 사용 안내를 봤는지,
+# 작성자 프로필 사진, 음성 채널 보이기
 BOOL_KEYS = (
     "boss_auto",
     "boss_relock",
@@ -61,8 +62,9 @@ BOOL_KEYS = (
     "notify_preview",
     "guide_done",
     "show_avatars",
+    "voice_view",
 )
-# 알림 범위: 나를 부른 것만 · 나를 부른 것 + 고정한 채널의 새 메시지
+# 알림 범위: 나를 부른 것만, 나를 부른 것 + 고정한 채널, 모든 새 메시지
 NOTIFY_SCOPES = ("mentions", "pinned", "all")
 # 자동 잠금(분). 너무 길면 자리를 비운 사이 위험해서 8시간까지만
 LOCK_MINUTES = (5, 10, 15, 30, 60, 120, 240, 480)
@@ -85,6 +87,7 @@ DEFAULTS: dict[str, Any] = {
     "guide_done": False,
     "lock_minutes": 30,
     "show_avatars": True,
+    "voice_view": True,
     "reactions_view": "full",
     "stickers_view": "full",
     "media_view": "full",

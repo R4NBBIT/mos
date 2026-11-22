@@ -40,14 +40,20 @@ from mos.services.boss_files import MAX_BYTES as BOSS_MAX_BYTES
 from mos.services.boss_files import MAX_EDITS_BYTES as BOSS_MAX_EDITS
 from mos.services.boss_files import BossFileError, BossFiles
 from mos.services.crypto import BytesCipher, TokenCipher
-from mos.services.directory import ChannelInfo, Directory, DirectoryError, GuildInfo
+from mos.services.directory import (
+    ChannelInfo,
+    Directory,
+    DirectoryError,
+    GuildInfo,
+    VoiceChannelInfo,
+)
 from mos.services.discord_oauth import DiscordOAuth, OAuthClient
 from mos.services.egress import EgressMeter
 from mos.services.emojis import EmojiService
 from mos.services.messages import row_to_api
 from mos.services.permissions import ADD_REACTIONS, ChannelAccess, PermissionService, is_private
 from mos.services.push import PushError, PushService
-from mos.services.realtime import RealtimeHub, Subscriber
+from mos.services.realtime import MAX_VOICE_GROUPS, RealtimeHub, Subscriber
 from mos.services.sender import (
     MAX_FILES,
     MAX_FILES_BYTES,
@@ -129,6 +135,7 @@ def channel_to_api(
         "group_id": str(channel.guild_id),
         "category_id": str(channel.category_id) if channel.category_id else None,
         "category_name": channel.category_name,
+        "category_position": channel.category_position,
         "can_send": access.can_send,
     }
     if channel.kind == "forum":
@@ -154,6 +161,34 @@ def channel_to_api(
     if group_name is not None:
         data["group_name"] = group_name
     return data
+
+
+def voice_to_api(voice: VoiceChannelInfo, guild: GuildInfo) -> dict[str, Any]:
+    channel = voice.channel
+    members = sorted(voice.members, key=lambda m: (m.is_bot, m.display_name.casefold()))
+    return {
+        "id": str(channel.id),
+        "name": channel.name,
+        "kind": channel.kind,
+        "group_id": str(channel.guild_id),
+        "category_id": str(channel.category_id) if channel.category_id else None,
+        "category_name": channel.category_name,
+        "category_position": channel.category_position,
+        "private": is_private(guild, channel),
+        "members": [
+            {
+                "id": str(member.user_id),
+                "name": member.display_name,
+                "avatar_url": member.avatar_url,
+                "muted": member.muted,
+                "deafened": member.deafened,
+                "streaming": member.streaming,
+                "video": member.video,
+                "bot": member.is_bot,
+            }
+            for member in members
+        ],
+    }
 
 
 class PasswordBody(BaseModel):
@@ -223,6 +258,7 @@ def create_app(
 ) -> FastAPI:
     perms = permissions or PermissionService(directory)
     hub.set_access_check(perms.can_read)
+    hub.set_group_check(perms.is_member)
     cipher = TokenCipher(settings.secret_key)
     boss_files = BossFiles(db, BytesCipher(cipher), clock=clock)
     emojis = EmojiService(directory, perms)
@@ -663,6 +699,17 @@ def create_app(
                 for channel_id, viewers in restricted.items()
             },
         }
+
+    @app.get("/api/groups/{group_id}/voice")
+    async def list_voice(group_id: int, request: Request) -> dict[str, Any]:
+        """볼 수 있는 음성 채널과 지금 들어가 있는 사람. 듣기, 말하기는 없다."""
+        account = await require_account(request)
+        require_ready()
+        found = await perms.visible_voice_channels(account.discord_user_id, group_id)
+        guild = directory.guild(group_id)
+        if found is None or guild is None:
+            raise HTTPException(status_code=404, detail="not found")
+        return {"channels": [voice_to_api(voice, guild) for voice in found]}
 
     @app.post("/api/pins", status_code=204)
     async def add_pin(body: PinBody, request: Request) -> None:
@@ -1214,10 +1261,27 @@ def create_app(
         websocket: WebSocket, account: ActiveAccount, text: str
     ) -> None:
         """화면이 보는 채널: {"type": "subscribe", "channel_id": "123" | null}
-        알림 받기: {"type": "notify", "scope": "mentions" | "pinned" | null}"""
+        알림 받기: {"type": "notify", "scope": "mentions" | "pinned" | null}
+        음성 채널 변화: {"type": "voice", "group_ids": ["123", ...]}"""
         try:
             message = json.loads(text)
         except ValueError:
+            return
+        if isinstance(message, dict) and message.get("type") == "voice":
+            raw_ids = message.get("group_ids")
+            if not isinstance(raw_ids, list):
+                return
+            wanted = {
+                int(raw)
+                for raw in raw_ids[:MAX_VOICE_GROUPS]
+                if isinstance(raw, str) and raw.isdigit() and len(raw) <= 21
+            }
+            groups: set[int] = set()
+            for group_id in wanted:
+                with contextlib.suppress(DirectoryError):
+                    if await perms.is_member(account.discord_user_id, group_id):
+                        groups.add(group_id)
+            hub.set_voice_groups(websocket, groups)
             return
         if isinstance(message, dict) and message.get("type") == "notify":
             scope = message.get("scope")

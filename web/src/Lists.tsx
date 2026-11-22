@@ -7,7 +7,16 @@ import { type ListSkin, listSkin, lockIcon } from "./listSkin";
 import { useLook } from "./lookContext";
 import { applyOrder, channelSections, OrderBar, ResetOrder, Sortable } from "./listOrder";
 import { Avatar } from "./MessageItem";
-import type { ChannelInfo, Group, GroupChannels, GroupList as GroupListData, GroupMembers } from "./types";
+import type {
+  ChannelInfo,
+  Group,
+  GroupChannels,
+  GroupList as GroupListData,
+  GroupMembers,
+  VoiceChannel,
+} from "./types";
+import { useVoiceChannels } from "./voice";
+import { VoiceRow, withVoice } from "./voiceParts";
 
 const RETRY_MAX_MS = 15_000;
 const REFRESH_MS = 20_000; // 안 읽음 숫자를 새로 받는 간격(목록을 보고 있을 때만)
@@ -424,6 +433,7 @@ function TreeChannels({
   skin,
   editing,
   onOpen,
+  onOpenVoice,
   onAuthLost,
 }: {
   groupId: string;
@@ -432,19 +442,23 @@ function TreeChannels({
   /** 순서 바꾸기 중 */
   editing: boolean;
   onOpen: (channel: ChannelInfo) => void;
+  onOpenVoice: (voice: VoiceChannel) => void;
   onAuthLost: () => void;
 }) {
   const [load, reload] = useLoad<GroupChannels>(() => fetchGroupChannels(groupId), [groupId], onAuthLost);
   const members = useMembers(groupId, onAuthLost);
   const { settings, save } = useLook();
+  const voice = useVoiceChannels(groupId, settings.voice_view);
   const orderKey = `c:${groupId}`;
   const [pinError, togglePin] = usePinToggle(reload);
   if (load.state !== "ok") return <p className="list-note tree-note">{load.state === "loading" ? "불러오는 중…" : load.message}</p>;
-  if (load.value.channels.length === 0) return <p className="list-note tree-note">볼 수 있는 페이지가 없어요.</p>;
+  if (load.value.channels.length === 0 && !voice?.length) {
+    return <p className="list-note tree-note">볼 수 있는 페이지가 없어요.</p>;
+  }
   return (
     <>
       {pinError && <p className="list-error">{pinError}</p>}
-      {channelSections(load.value.channels, settings.list_order[orderKey]).map((section, _, sections) => (
+      {withVoice(channelSections(load.value.channels, settings.list_order[orderKey]), voice).map((section, _, sections) => (
         <div key={section.key || "-"} role="group" aria-label={section.name ?? undefined}>
           {section.name && <p className="tree-category">{section.name}</p>}
           <Sortable
@@ -466,6 +480,16 @@ function TreeChannels({
               />
             )}
           </Sortable>
+          {section.voice.map((room) => (
+            <VoiceRow
+              key={room.id}
+              voice={room}
+              skin={skin}
+              indent={1}
+              active={room.id === activeChannelId}
+              onOpen={onOpenVoice}
+            />
+          ))}
         </div>
       ))}
       {editing && (
@@ -487,6 +511,7 @@ function TreeChannels({
 export function GroupList({
   onOpen,
   onOpenChannel,
+  onOpenVoice,
   tree = false,
   openGroupId,
   activeChannelId,
@@ -494,6 +519,7 @@ export function GroupList({
 }: CommonProps & {
   onOpen: (groupId: string) => void;
   onOpenChannel: (groupId: string, channel: ChannelInfo) => void;
+  onOpenVoice: (groupId: string, voice: VoiceChannel) => void;
   /** 노션: 서버를 누르면 그 자리에서 채널이 펼쳐지는 트리 */
   tree?: boolean;
   openGroupId?: string;
@@ -576,6 +602,7 @@ export function GroupList({
                         skin={skin}
                         editing={editing}
                         onOpen={(channel) => onOpenChannel(group.id, channel)}
+                        onOpenVoice={(voice) => onOpenVoice(group.id, voice)}
                         onAuthLost={common.onAuthLost}
                       />
                     </Collapse>
@@ -702,6 +729,7 @@ export function ChannelList({
   groupId,
   activeChannelId,
   onOpen,
+  onOpenVoice,
   onBack,
   onSwitch,
   ...common
@@ -709,6 +737,7 @@ export function ChannelList({
   groupId: string;
   activeChannelId?: string;
   onOpen: (channel: ChannelInfo) => void;
+  onOpenVoice: (voice: VoiceChannel) => void;
   onBack: () => void;
   /** 머리의 서버 이름에서 다른 서버를 골랐을 때 */
   onSwitch: (groupId: string) => void;
@@ -725,6 +754,7 @@ export function ChannelList({
   );
   const [pinError, togglePin] = usePinToggle(reload);
   const members = useMembers(groupId, common.onAuthLost);
+  const voice = useVoiceChannels(groupId, settings.voice_view);
   const group = load.state === "ok" ? load.value.group : null;
   return (
     <Shell
@@ -764,11 +794,11 @@ export function ChannelList({
       )}
       {load.state === "loading" && <p className="list-note">불러오는 중…</p>}
       {load.state === "error" && <p className="list-note">{load.message}</p>}
-      {load.state === "ok" && load.value.channels.length === 0 && (
+      {load.state === "ok" && load.value.channels.length === 0 && !voice?.length && (
         <p className="list-note">이 계정으로 볼 수 있는 채널이 없어요.</p>
       )}
       {load.state === "ok" &&
-        channelSections(load.value.channels, settings.list_order[orderKey]).map((section, _, sections) => (
+        withVoice(channelSections(load.value.channels, settings.list_order[orderKey]), voice).map((section, _, sections) => (
           <section key={section.key || "-"} className="list-section">
             {section.name && <h2 className="list-section-title">{section.name}</h2>}
             <Sortable
@@ -791,6 +821,15 @@ export function ChannelList({
                 />
               )}
             </Sortable>
+            {section.voice.map((room) => (
+              <VoiceRow
+                key={room.id}
+                voice={room}
+                skin={skin}
+                active={room.id === activeChannelId}
+                onOpen={onOpenVoice}
+              />
+            ))}
           </section>
         ))}
       {load.state === "ok" && load.value.channels.length > 1 && (

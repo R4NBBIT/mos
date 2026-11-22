@@ -98,6 +98,8 @@ export interface ChannelInfo {
   group_name?: string;
   category_id: string | null;
   category_name: string | null;
+  /** 카테고리 순서(음성 채널을 같은 묶음에 끼울 때 쓴다) */
+  category_position?: number;
   can_send: boolean;
   pinned?: boolean;
   unread?: number;
@@ -168,6 +170,31 @@ export interface GroupMembers {
   restricted: Record<string, string[]>;
 }
 
+/** 음성 채널에 들어가 있는 사람. 꺼짐은 본인이 끈 것과 서버가 끈 것을 합친 값 */
+export interface VoiceMember {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+  muted: boolean;
+  deafened: boolean;
+  streaming: boolean;
+  video: boolean;
+  bot: boolean;
+}
+
+/** 음성, 스테이지 채널(누가 들어가 있는지만, 듣기 말하기 없음) */
+export interface VoiceChannel {
+  id: string;
+  name: string;
+  kind: "voice" | "stage";
+  group_id: string;
+  category_id: string | null;
+  category_name: string | null;
+  category_position: number;
+  private: boolean;
+  members: VoiceMember[];
+}
+
 export interface GroupChannels {
   group: Group;
   channels: ChannelInfo[];
@@ -177,7 +204,8 @@ export type RealtimeEvent =
   | { type: "message_create" | "message_update"; data: Message }
   | { type: "message_delete"; data: { channel_id: string; ids: string[] } }
   | { type: "reactions_update"; data: { channel_id: string; message_id: string; reactions: Reaction[] } }
-  | { type: "subscribed" | "subscribe_denied" | "threads_changed"; data: { channel_id: string } };
+  | { type: "subscribed" | "subscribe_denied" | "threads_changed"; data: { channel_id: string } }
+  | { type: "voice_changed"; data: { group_id: string } };
 
 /** 이 브라우저에 저장된 계정 하나 */
 export interface SessionAccount {

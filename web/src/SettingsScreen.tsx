@@ -233,6 +233,18 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
               <option value="hidden">숨기기</option>
             </select>
           </label>
+          <label className="settings-toggle">
+            <span>
+              <strong>음성 채널 보이기</strong>
+              <small>왼쪽 목록에 음성 채널과 지금 들어가 있는 사람을 보여요. 여기서 듣거나 말할 수는 없어요</small>
+            </span>
+            <input
+              type="checkbox"
+              className="switch"
+              checked={settings.voice_view}
+              onChange={(event) => void save({ voice_view: event.target.checked })}
+            />
+          </label>
         </section>
 
         <section className="settings-card">

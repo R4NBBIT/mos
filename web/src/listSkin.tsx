@@ -2,7 +2,7 @@
 // 기본과 다크는 메모 앱 폴더, 스프레드시트는 통합 문서와 시트, 메모장은 파일 열기 창, 노션은 사이드바 트리, Word는 문서 열기
 import type { ReactNode } from "react";
 import type { Theme } from "./theme";
-import type { ChannelInfo, Group } from "./types";
+import type { ChannelInfo, Group, VoiceChannel } from "./types";
 
 function Svg({ children, size = 18 }: { children: ReactNode; size?: number }) {
   return (
@@ -51,6 +51,20 @@ const noWrite = (
   <Svg size={15}>
     <path d="M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5z" fill="none" stroke="currentColor" strokeWidth="1.4" />
     <circle cx="10" cy="10" r="2.2" fill="currentColor" />
+  </Svg>
+);
+
+/** 음성 채널(기본, 다크): 스피커 */
+const speaker = (
+  <Svg>
+    <path d="M3.5 8v4h3l4 3.5v-11l-4 3.5z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    <path
+      d="M13.5 7.5a3.5 3.5 0 0 1 0 5M15.5 5.5a6.5 6.5 0 0 1 0 9"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    />
   </Svg>
 );
 
@@ -115,6 +129,11 @@ export interface ListSkin {
   badge: "count" | "paren" | "dot";
   /** 왼쪽 아래 서버 인원 묶음 이름 */
   membersTitle: string;
+  /** 음성 채널: 아이콘, 이름 뒤 확장자, 들어가 있는 사람 수 표시, 화면 머리의 작은 글자 */
+  voiceIcon: (voice: VoiceChannel) => ReactNode;
+  voiceExt: string;
+  voiceCount: (count: number) => string;
+  voiceSub: string;
 }
 
 const plain = (channel: ChannelInfo) => (channel.kind === "forum" ? memoStack : memoNote);
@@ -134,6 +153,10 @@ export function listSkin(theme: Theme): ListSkin {
         channelsTitle: (name) => `${name}.xlsx`,
         badge: "paren",
         membersTitle: "공유 대상",
+        voiceIcon: () => sheetGrid,
+        voiceExt: ".xlsx",
+        voiceCount: (count) => `공동 편집 ${count}`,
+        voiceSub: "공동 편집",
       };
     case "memo":
       return {
@@ -148,6 +171,10 @@ export function listSkin(theme: Theme): ListSkin {
         channelsTitle: () => "열기",
         badge: "paren",
         membersTitle: "공유 대상",
+        voiceIcon: () => textFile,
+        voiceExt: ".log",
+        voiceCount: (count) => `[${count}명 접속]`,
+        voiceSub: "접속 기록",
       };
     case "note":
       return {
@@ -162,6 +189,10 @@ export function listSkin(theme: Theme): ListSkin {
         channelsTitle: (name) => name,
         badge: "count",
         membersTitle: "멤버",
+        voiceIcon: () => <span className="skin-emoji">🗒️</span>,
+        voiceExt: "",
+        voiceCount: (count) => `👥 ${count}`,
+        voiceSub: "함께 보는 중",
       };
     case "word":
       return {
@@ -176,6 +207,10 @@ export function listSkin(theme: Theme): ListSkin {
         channelsTitle: (name) => name,
         badge: "dot",
         membersTitle: "공유 대상",
+        voiceIcon: () => wordDoc,
+        voiceExt: ".docx",
+        voiceCount: (count) => `공동 작업 ${count}`,
+        voiceSub: "공동 작업",
       };
     default:
       // 기본, 다크: 메모 앱 폴더
@@ -195,6 +230,10 @@ export function listSkin(theme: Theme): ListSkin {
         channelsTitle: (name) => name,
         badge: "count",
         membersTitle: "함께 보는 사람",
+        voiceIcon: () => speaker,
+        voiceExt: "",
+        voiceCount: (count) => `${count}명`,
+        voiceSub: "음성 채널",
       };
   }
 }
