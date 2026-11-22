@@ -75,9 +75,10 @@ export default function TodoAiPanel({ onClose }: { onClose: () => void }) {
         <span className="todo-setting-name">ChatGPT</span>
         <div className="todo-setting-body">
           <p className="todo-setting-help">
-            설정 › 앱 › 고급 설정에서 개발자 모드를 켠 뒤 앱 만들기에 위 주소를 넣어요. 개발자 모드는 요금제에 따라 없거나 읽기만 될 수
-            있어요.
+            데스크톱 앱: 설정 › MCP servers › Add server에서 Streamable HTTP를 고르고 위 주소를 넣은 뒤 Restart, 목록에서 Authenticate를
+            누르면 이 사이트에서 승인해요.
           </p>
+          <p className="todo-setting-help">웹: Plugins › + › Add custom MCP server(요금제에 따라 메뉴가 없을 수 있어요).</p>
         </div>
       </div>
       <div className="todo-alerts-head todo-alerts-sub">
