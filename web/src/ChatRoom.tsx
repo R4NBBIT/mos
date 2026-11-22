@@ -36,6 +36,11 @@ const JUMP_MAX_PAGES = 15;
 const JUMP_FLASH_MS = 2200;
 const SCROLL_HOLD_MS = 1500;
 const JUMP_SHOW_PX = 300;
+// Word 테마의 흰 종이(폭 816px, styles.css --word-edge와 같은 계산) 바깥 회색 폭.
+// 맨 아래로 단추를 종이 오른쪽 여백(72px) 안에 두려고 쓴다
+const WORD_PAPER_PX = 816;
+const WORD_EDGE_MIN_PX = 12;
+const wordPaperInset = (width: number) => Math.max(WORD_EDGE_MIN_PX, width / 2 - WORD_PAPER_PX / 2);
 const NARROW_QUERY = "(max-width: 760px)";
 const NEAR_BOTTOM_PX = 120;
 
@@ -584,6 +589,7 @@ export default function ChatRoom({
       listRef={listRef}
       shown={farFromBottom || unseen > 0}
       unseen={unseen}
+      insetRight={theme === "word" ? wordPaperInset : undefined}
       onClick={() => {
         setFarFromBottom(false);
         scrollToBottom();

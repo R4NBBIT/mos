@@ -10,11 +10,14 @@ export default function JumpToBottom({
   listRef,
   shown,
   unseen,
+  insetRight,
   onClick,
 }: {
   listRef: RefObject<HTMLDivElement | null>;
   shown: boolean;
   unseen: number;
+  /** 목록 상자 오른쪽 안쪽으로 더 들일 폭(Word: 회색 바탕 말고 흰 종이 안에) */
+  insetRight?: (listWidth: number) => number;
   onClick: () => void;
 }) {
   const [place, setPlace] = useState<{ right: number; bottom: number } | null>(null);
@@ -25,8 +28,9 @@ export default function JumpToBottom({
       const box = list.getBoundingClientRect();
       const view = window.visualViewport;
       const viewHeight = view ? view.height + view.offsetTop : window.innerHeight;
+      const inset = insetRight ? insetRight(box.width) : 0;
       setPlace({
-        right: Math.max(GAP_PX, document.documentElement.clientWidth - box.right + GAP_PX),
+        right: Math.max(GAP_PX, document.documentElement.clientWidth - box.right + inset + GAP_PX),
         bottom: Math.max(GAP_PX, viewHeight - box.bottom + GAP_PX),
       });
     };
@@ -40,7 +44,7 @@ export default function JumpToBottom({
       window.removeEventListener("resize", measure);
       window.visualViewport?.removeEventListener("resize", measure);
     };
-  }, [listRef, shown]);
+  }, [listRef, shown, insetRight]);
   // 위치 계산이 흔들리지 않게 화면 맨 바깥(.app-root, 위장 중에는 통째로 inert)에 그린다
   const host = listRef.current?.closest(".app-root");
   if (!shown || !place || !host) return null;
