@@ -4002,3 +4002,13 @@
 .todo-menu .todo-prop-value > button {
   white-space: nowrap;
 }
+
+/* 글자만 있는 머리 단추('TODO로', '오늘')는 어느 화면 너비, 글꼴에서도 글자 길이만큼(아이콘 단추용 고정 너비를 받지 않게) */
+.header-tool:has(> .todo-tool-always),
+:root[data-theme] .header-tool:has(> .todo-tool-always) {
+  width: auto;
+  min-width: max-content;
+  flex-shrink: 0;
+  padding: 0 10px;
+  white-space: nowrap;
+}
