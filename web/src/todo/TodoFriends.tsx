@@ -14,6 +14,7 @@ import {
   type TodoPeople,
   type TodoPerson,
 } from "./todoApi";
+import { GroupsSection } from "./TodoGroups";
 import "./todo.css";
 
 function Avatar({ person }: { person: TodoPerson }) {
@@ -156,6 +157,7 @@ export default function TodoFriends({
                 )}
               </ul>
             </section>
+            <GroupsSection friends={people.friends} />
             {people.outgoing.length > 0 && (
               <section className="todo-friend-section">
                 <h2 className="todo-friend-title">보낸 요청</h2>

@@ -622,6 +622,7 @@ def create_app(
         return int(account["discord_user_id"])
 
     todo_actions = TodoAiActions(db, todo_service, todo_repo, clock)
+    todo_service.trash = todo_actions.trash_item
     register_todo_ai_routes(
         app,
         origin=settings.public_origin.rstrip("/"),
@@ -724,6 +725,7 @@ def create_app(
         clock=clock,
     )
     todo_service.decorate = todo_friends.annotate
+    todo_actions.friends = todo_friends  # AI가 요청한 친구 일을 승인하면 실행
     register_todo_friend_routes(
         app,
         todo_account=todo_account,

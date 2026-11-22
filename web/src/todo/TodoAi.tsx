@@ -19,8 +19,8 @@ function dayLabel(at: number | null): string {
   return `${value.getMonth() + 1}월 ${value.getDate()}일`;
 }
 
-/** AI가 만든 요청 중 ㅁㅇㅅ에서 승인해야 하는 것, AI가 지운 할 일(7일) */
-function AiRequests({ onChanged }: { onChanged: () => void }) {
+/** AI가 만든 요청 중 ㅁㅇㅅ에서 승인해야 하는 것, 휴지통(7일, 직접 지운 것과 AI가 지운 것) */
+export function AiRequests({ onChanged }: { onChanged: () => void }) {
   const [state, setState] = useState<{ pending: TodoAiPending[]; trash: TodoAiTrash[] } | null>(null);
   const [message, setMessage] = useState("");
   const load = () =>
@@ -57,7 +57,7 @@ function AiRequests({ onChanged }: { onChanged: () => void }) {
           <div className="todo-alerts-head todo-alerts-sub">
             <strong>승인 기다리는 요청</strong>
           </div>
-          <p className="todo-setting-help">공개 범위를 넓히는 일은 여기서 한 번 더 승인해야 적용돼요.</p>
+          <p className="todo-setting-help">친구에 관한 일이나 공개 범위를 넓히는 일은 여기서 한 번 더 승인해야 적용돼요.</p>
           <ul className="todo-news">
             {state.pending.map((item) => (
               <li key={item.id} className="todo-ai-item todo-ai-request">
@@ -79,15 +79,15 @@ function AiRequests({ onChanged }: { onChanged: () => void }) {
       {state.trash.length > 0 && (
         <>
           <div className="todo-alerts-head todo-alerts-sub">
-            <strong>AI가 지운 할 일</strong>
+            <strong>휴지통</strong>
           </div>
-          <p className="todo-setting-help">7일 동안 되돌릴 수 있어요.</p>
+          <p className="todo-setting-help">지운 할 일은 7일 동안 되돌릴 수 있어요.</p>
           <ul className="todo-news">
             {state.trash.map((item) => (
               <li key={item.id} className="todo-ai-item">
                 <span className="todo-news-title">{item.title}</span>
                 <span className="todo-news-time">
-                  {dateWithWeekday(item.day)}, {item.client}
+                  {dateWithWeekday(item.day)}, {item.client ? `${item.client}가 지움` : "직접 지움"}
                 </span>
                 <button type="button" className="todo-small-button" onClick={() => void restore(item.id)}>
                   되돌리기

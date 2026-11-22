@@ -27,11 +27,8 @@ MAX_PENDING_OUT = 20
 MAX_EMOJI_PER_PERSON = 10
 REACTION_MERGE_SEC = 60
 CUSTOM_EMOJI = re.compile(r"^<(a?):([A-Za-z0-9_]{1,32}):(\d{15,21})>$")
-SHOWN_TO = {
-    "friend": ("public", "friends"),
-    "server": ("public",),
-    "self": ("public", "friends", "private"),
-}
+MAX_GROUPS = 30
+MAX_GROUP_NAME = 20
 
 # (디스코드 사용자 ID) → 지금 같이 있는 서버 ID들
 GuildsOf = Callable[[int], Awaitable[set[int]]]
@@ -254,7 +251,18 @@ class TodoFriends:
                 "DELETE FROM todo_friend WHERE account_a = ? AND account_b = ?",
                 (min(me_id, other_id), max(me_id, other_id)),
             )
-            # 서로 볼 수 없게 됐을 수 있으니 남긴 반응은 그대로 두되, 보이는 곳에서만 보인다
+            # 친구가 아니게 되면 서로의 그룹과 일부 공개 대상에서도 뺀다
+            for owner, member in ((me_id, other_id), (other_id, me_id)):
+                await conn.execute(
+                    "DELETE FROM todo_friend_group_member WHERE member_account = ? AND group_id IN"
+                    " (SELECT id FROM todo_friend_group WHERE account_id = ?)",
+                    (member, owner),
+                )
+                await conn.execute(
+                    "DELETE FROM todo_category_audience WHERE kind = 'friend' AND target = ?"
+                    " AND category_id IN (SELECT id FROM todo_category WHERE account_id = ?)",
+                    (member, owner),
+                )
 
     async def set_accept_requests(self, me_id: int, value: Any) -> None:
         if not isinstance(value, bool):
@@ -268,10 +276,26 @@ class TodoFriends:
         if relation is None:
             raise TodoError("not_found", 404)
         rows = await self.todo.categories(owner)
-        shown = SHOWN_TO[relation]
+        chosen = await self._chosen_categories(owner, viewer) if relation == "friend" else set()
         return relation, [
-            row for row in rows if row["visibility"] in shown and row["closed_at"] is None
+            row
+            for row in rows
+            if row["closed_at"] is None
+            and can_see(relation, row["visibility"], row["id"] in chosen)
         ]
+
+    async def _chosen_categories(self, owner: int, viewer: int) -> set[int]:
+        """일부 공개 카테고리 중 보는 사람이 직접 또는 그룹으로 들어 있는 것."""
+        rows = await self.db.fetch_all(
+            "SELECT a.category_id FROM todo_category_audience a"
+            " JOIN todo_category c ON c.id = a.category_id"
+            " WHERE c.account_id = ? AND ((a.kind = 'friend' AND a.target = ?) OR (a.kind = 'group'"
+            " AND a.target IN (SELECT m.group_id FROM todo_friend_group_member m"
+            " JOIN todo_friend_group g ON g.id = m.group_id"
+            " WHERE g.account_id = ? AND m.member_account = ?)))",
+            (owner, viewer, owner, viewer),
+        )
+        return {int(row[0]) for row in rows}
 
     async def day_for(self, viewer: int, raw_owner: Any, day: str) -> dict[str, Any]:
         owner = _account_id(raw_owner)
@@ -383,6 +407,191 @@ class TodoFriends:
         await self.annotate(viewer, owner, result)
         return result[0]["reactions"]
 
+    # ------------------------------------------------------------ 친구 그룹
+
+    async def _friend_ids(self, me_id: int) -> set[int]:
+        rows = await self.db.fetch_all(
+            "SELECT account_a, account_b FROM todo_friend WHERE status = 'accepted'"
+            " AND (account_a = ? OR account_b = ?)",
+            (me_id, me_id),
+        )
+        return {int(b) if int(a) == me_id else int(a) for a, b in rows}
+
+    async def groups(self, me_id: int) -> list[dict[str, Any]]:
+        rows = await self.db.fetch_all(
+            "SELECT id, name FROM todo_friend_group WHERE account_id = ? ORDER BY name",
+            (me_id,),
+        )
+        friends = await self._friend_ids(me_id)
+        result = []
+        for group_id, name in rows:
+            members = await self.db.fetch_all(
+                "SELECT member_account FROM todo_friend_group_member WHERE group_id = ?",
+                (group_id,),
+            )
+            people = []
+            for (member,) in members:
+                account = await self._account(int(member))
+                if account is not None and int(member) in friends:
+                    people.append(self._person(account))
+            people.sort(key=lambda person: person["name"].casefold())
+            result.append({"id": str(group_id), "name": str(name), "members": people})
+        return result
+
+    def _group_name(self, raw: Any) -> str:
+        if not isinstance(raw, str):
+            raise TodoError("bad_name")
+        name = " ".join(raw.split())
+        if not 1 <= len(name) <= MAX_GROUP_NAME:
+            raise TodoError("bad_name")
+        return name
+
+    async def _own_group(self, me_id: int, raw_id: Any) -> int:
+        group_id = _account_id(raw_id)
+        row = await self.db.fetch_one(
+            "SELECT id FROM todo_friend_group WHERE id = ? AND account_id = ?", (group_id, me_id)
+        )
+        if row is None:
+            raise TodoError("not_found", 404)
+        return group_id
+
+    async def create_group(self, me_id: int, body: dict[str, Any]) -> dict[str, Any]:
+        name = self._group_name(body.get("name"))
+        count = await self.db.fetch_one(
+            "SELECT COUNT(*) FROM todo_friend_group WHERE account_id = ?", (me_id,)
+        )
+        if count and int(count[0]) >= MAX_GROUPS:
+            raise TodoError("too_many_groups", 409)
+        try:
+            async with self.db.writing() as conn:
+                cursor = await conn.execute(
+                    "INSERT INTO todo_friend_group (account_id, name, created_at) VALUES (?, ?, ?)",
+                    (me_id, name, self.now()),
+                )
+                group_id = int(cursor.lastrowid or 0)
+        except Exception as error:  # 같은 이름
+            raise TodoError("duplicate_name", 409) from error
+        if "members" in body:
+            await self.set_members(me_id, str(group_id), body.get("members"))
+        return next(g for g in await self.groups(me_id) if g["id"] == str(group_id))
+
+    async def rename_group(self, me_id: int, raw_id: Any, raw_name: Any) -> None:
+        group_id = await self._own_group(me_id, raw_id)
+        name = self._group_name(raw_name)
+        try:
+            async with self.db.writing() as conn:
+                await conn.execute(
+                    "UPDATE todo_friend_group SET name = ? WHERE id = ?", (name, group_id)
+                )
+        except Exception as error:
+            raise TodoError("duplicate_name", 409) from error
+
+    async def delete_group(self, me_id: int, raw_id: Any) -> None:
+        group_id = await self._own_group(me_id, raw_id)
+        async with self.db.writing() as conn:
+            await conn.execute(
+                "DELETE FROM todo_category_audience WHERE kind = 'group' AND target = ?",
+                (group_id,),
+            )
+            await conn.execute("DELETE FROM todo_friend_group WHERE id = ?", (group_id,))
+
+    async def set_members(self, me_id: int, raw_id: Any, raw_members: Any) -> None:
+        group_id = await self._own_group(me_id, raw_id)
+        members = self._friend_list(raw_members, await self._friend_ids(me_id))
+        async with self.db.writing() as conn:
+            await conn.execute(
+                "DELETE FROM todo_friend_group_member WHERE group_id = ?", (group_id,)
+            )
+            for member in members:
+                await conn.execute(
+                    "INSERT INTO todo_friend_group_member (group_id, member_account) VALUES (?, ?)",
+                    (group_id, member),
+                )
+
+    @staticmethod
+    def _friend_list(raw: Any, friends: set[int]) -> list[int]:
+        if not isinstance(raw, list) or len(raw) > MAX_FRIENDS:
+            raise TodoError("bad_body")
+        result = []
+        for item in raw:
+            member = _account_id(item)
+            if member not in friends:
+                raise TodoError("not_friend")
+            if member not in result:
+                result.append(member)
+        return result
+
+    # ------------------------------------------------------------ 카테고리 일부 공개 대상
+
+    async def audience(self, me_id: int, raw_category: Any) -> dict[str, Any]:
+        category_id = await self._own_category(me_id, raw_category)
+        rows = await self.db.fetch_all(
+            "SELECT kind, target FROM todo_category_audience WHERE category_id = ?",
+            (category_id,),
+        )
+        return {
+            "friends": [str(t) for k, t in rows if k == "friend"],
+            "groups": [str(t) for k, t in rows if k == "group"],
+        }
+
+    async def _own_category(self, me_id: int, raw: Any) -> int:
+        category_id = _account_id(raw)
+        if await self.repo.category(me_id, category_id) is None:
+            raise TodoError("not_found", 404)
+        return category_id
+
+    async def plan_audience(self, me_id: int, raw_category: Any, body: dict[str, Any]):
+        """검사만: (카테고리 ID, 친구 ID들, 그룹 ID들). 그룹에 이미 든 친구는 따로 넣지 않는다."""
+        category_id = await self._own_category(me_id, raw_category)
+        friends = await self._friend_ids(me_id)
+        chosen_friends = self._friend_list(body.get("friends", []), friends)
+        raw_groups = body.get("groups", [])
+        if not isinstance(raw_groups, list) or len(raw_groups) > MAX_GROUPS:
+            raise TodoError("bad_body")
+        groups = [await self._own_group(me_id, raw) for raw in dict.fromkeys(raw_groups)]
+        in_groups: set[int] = set()
+        for group_id in groups:
+            rows = await self.db.fetch_all(
+                "SELECT member_account FROM todo_friend_group_member WHERE group_id = ?",
+                (group_id,),
+            )
+            in_groups |= {int(row[0]) for row in rows}
+        return category_id, [f for f in chosen_friends if f not in in_groups], groups
+
+    async def set_audience(
+        self, me_id: int, raw_category: Any, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        category_id, friends, groups = await self.plan_audience(me_id, raw_category, body)
+        async with self.db.writing() as conn:
+            await conn.execute(
+                "DELETE FROM todo_category_audience WHERE category_id = ?", (category_id,)
+            )
+            for friend in friends:
+                await conn.execute(
+                    "INSERT INTO todo_category_audience (category_id, kind, target)"
+                    " VALUES (?, 'friend', ?)",
+                    (category_id, friend),
+                )
+            for group_id in groups:
+                await conn.execute(
+                    "INSERT INTO todo_category_audience (category_id, kind, target)"
+                    " VALUES (?, 'group', ?)",
+                    (category_id, group_id),
+                )
+        return await self.audience(me_id, str(category_id))
+
+    async def audience_people(self, me_id: int, category_id: int) -> set[int]:
+        """지금 그 카테고리를 볼 수 있는 일부 공개 대상(그룹 풀어서). AI 넓히기 판단용."""
+        current = await self.audience(me_id, str(category_id))
+        people = {int(f) for f in current["friends"]}
+        for group_id in current["groups"]:
+            rows = await self.db.fetch_all(
+                "SELECT member_account FROM todo_friend_group_member WHERE group_id = ?",
+                (int(group_id),),
+            )
+            people |= {int(row[0]) for row in rows}
+        return people
+
     # ------------------------------------------------------------ 소식
 
     async def _tell(self, account_id: int, kind: str, title: str, body: str) -> None:
@@ -404,6 +613,17 @@ class TodoFriends:
                 await conn.execute("UPDATE todo_news SET body = ? WHERE id = ?", (body, last[0]))
             return
         await self._tell(owner, "reaction", head, f"'{title}'에 {emoji}")
+
+
+def can_see(relation: str, visibility: str, chosen: bool) -> bool:
+    """self는 모두, 친구는 전체, 친구, (골랐으면) 일부 공개, 같은 서버 사람은 전체만."""
+    if relation == "self":
+        return True
+    if visibility == "public":
+        return True
+    if relation != "friend":
+        return False
+    return visibility == "friends" or (visibility == "selected" and chosen)
 
 
 def _account_id(raw: Any) -> int:

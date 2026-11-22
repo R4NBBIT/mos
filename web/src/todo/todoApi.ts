@@ -5,7 +5,7 @@ export interface TodoCategory {
   id: string;
   name: string;
   color: string;
-  visibility: "public" | "friends" | "private";
+  visibility: "public" | "friends" | "selected" | "private";
   memo_shared: boolean;
   closed: boolean;
 }
@@ -158,6 +158,8 @@ export function todoErrorText(error: unknown): string {
     too_many_reactions: "한 할 일에 반응은 10개까지예요.",
     too_many_requests: "보낸 친구 요청이 너무 많아요(20개).",
     too_many_friends: "친구는 200명까지예요.",
+    too_many_groups: "그룹은 30개까지예요.",
+    not_friend: "친구만 고를 수 있어요.",
   };
   return words[code] ?? "저장하지 못했어요. 다시 해 주세요.";
 }
@@ -282,3 +284,26 @@ export const reactTodo = (owner: string | null, item: string, emoji: string, on:
   call<{ reactions: TodoReaction[] }>("/api/todo/react", "POST", owner ? { owner, item, emoji, on } : { item, emoji, on });
 export const fetchTodoEmojis = () =>
   call<{ emojis: { id: string; name: string; animated: boolean; group_id: string; group_name: string }[] }>("/api/todo/emojis");
+
+// ------------------------------------------------------------ 친구 그룹, 일부 공개 대상
+
+export interface TodoGroup {
+  id: string;
+  name: string;
+  members: TodoPerson[];
+}
+
+export interface TodoAudience {
+  friends: string[];
+  groups: string[];
+}
+
+export const fetchGroups = async () => (await call<{ groups: TodoGroup[] }>("/api/todo/groups")).groups;
+export const createGroup = (name: string, members: string[]) => call<TodoGroup>("/api/todo/groups", "POST", { name, members });
+export const updateGroup = (id: string, changes: { name?: string; members?: string[] }) =>
+  call<void>(`/api/todo/groups/${encodeURIComponent(id)}`, "PATCH", changes);
+export const deleteGroup = (id: string) => call<void>(`/api/todo/groups/${encodeURIComponent(id)}`, "DELETE");
+export const fetchAudience = (categoryId: string) =>
+  call<TodoAudience>(`/api/todo/categories/${encodeURIComponent(categoryId)}/audience`);
+export const saveAudience = (categoryId: string, audience: TodoAudience) =>
+  call<TodoAudience>(`/api/todo/categories/${encodeURIComponent(categoryId)}/audience`, "PUT", audience);

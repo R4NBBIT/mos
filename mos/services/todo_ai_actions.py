@@ -25,9 +25,19 @@ CHAT_TTL_SEC = 10 * 60
 APP_TTL_SEC = 3 * 86400
 TRASH_KEEP_SEC = 7 * 86400
 MAX_DELETE = 20
-VISIBILITY_RANK = {"private": 0, "friends": 1, "public": 2}
-VISIBILITY_WORD = {"private": "나만", "friends": "친구", "public": "전체"}
-KINDS = ("delete_todos", "add_category", "update_category", "close_category")
+VISIBILITY_RANK = {"private": 0, "selected": 1, "friends": 2, "public": 3}
+VISIBILITY_WORD = {"private": "나만", "selected": "일부", "friends": "친구", "public": "전체"}
+# 친구 일(2026-11-22 사용자 결정): 대화에서 확인한 뒤에도 ㅁㅇㅅ 화면에서 한 번 더 승인해야 실행
+FRIEND_KINDS = (
+    "friend_request",
+    "friend_accept",
+    "friend_remove",
+    "group_create",
+    "group_update",
+    "group_delete",
+    "set_audience",
+)
+KINDS = ("delete_todos", "add_category", "update_category", "close_category", *FRIEND_KINDS)
 
 
 class ActionError(Exception):
@@ -46,6 +56,7 @@ class TodoAiActions:
         self.todo = todo
         self.repo = repo
         self.clock = clock
+        self.friends: Any = None  # TodoFriends(앱이 이어 줌, 친구 일 실행용)
 
     def now(self) -> int:
         return int(self.clock())
@@ -101,7 +112,9 @@ class TodoAiActions:
             raise ActionError("확인 번호가 없거나 10분이 지났어요. 다시 요청해 주세요.")
         account_id = grant.account_id
         kind, payload = found["kind"], found["payload"]
-        if kind == "update_category" and await self._widens(account_id, payload):
+        if kind in FRIEND_KINDS or (
+            kind == "update_category" and await self._widens(account_id, payload)
+        ):
             # 남에게 보이는 범위를 넓히는 것은 ㅁㅇㅅ 화면에서 한 번 더
             async with self.db.writing() as conn:
                 await conn.execute(
@@ -116,8 +129,8 @@ class TodoAiActions:
                 self.now(),
             )
             return (
-                "공개 범위를 넓히는 일이라 ㅁㅇㅅ 화면(할 일 › AI)에서 사용자가 승인해야 적용돼요. "
-                "사용자에게 ㅁㅇㅅ에서 승인해 달라고 알려 주세요."
+                "친구나 공개 범위에 관한 일이라 ㅁㅇㅅ 화면(할 일 › AI)에서 사용자가 승인해야 "
+                "적용돼요. 사용자에게 ㅁㅇㅅ에서 승인해 달라고 알려 주세요."
             )
         await self._forget(str(action_id))
         return await self._run(account_id, kind, payload, grant.client_name)
@@ -138,7 +151,7 @@ class TodoAiActions:
             if kind == "delete_todos":
                 count = 0
                 for item_id in payload["ids"]:
-                    if await self._delete_one(account_id, item_id, client):
+                    if await self.trash_item(account_id, item_id, client):
                         count += 1
                 return (
                     f"{count}개를 지웠어요. "
@@ -160,11 +173,50 @@ class TodoAiActions:
                     f"'{made['name']}' 카테고리를 끝냈어요(지운 게 아니라 숨김, "
                     "ㅁㅇㅅ 카테고리 화면에서 다시 열 수 있어요)."
                 )
+            if kind in FRIEND_KINDS and self.friends is not None:
+                return await self._run_friend(account_id, kind, payload)
         except TodoError as error:
             raise ActionError(_todo_error(error)) from error
         raise ActionError("없는 요청이에요")
 
-    async def _delete_one(self, account_id: int, item_id: Any, client: str) -> bool:
+    async def _run_friend(self, account_id: int, kind: str, payload: dict[str, Any]) -> str:
+        friends = self.friends
+        if kind == "friend_request":
+            state = await friends.request(account_id, payload["person"])
+            return "친구가 됐어요." if state == "friends" else "친구 요청을 보냈어요."
+        if kind == "friend_accept":
+            await friends.accept(account_id, payload["person"])
+            return "친구 요청을 받았어요."
+        if kind == "friend_remove":
+            await friends.remove(account_id, payload["person"])
+            return "친구를 끊었어요(요청이었으면 취소, 거절)."
+        if kind == "group_create":
+            made = await friends.create_group(
+                account_id, {"name": payload["name"], "members": payload.get("members", [])}
+            )
+            return f"'{made['name']}' 그룹을 만들었어요."
+        if kind == "group_update":
+            if "name" in payload:
+                await friends.rename_group(account_id, payload["group"], payload["name"])
+            if "members" in payload:
+                await friends.set_members(account_id, payload["group"], payload["members"])
+            return "그룹을 바꿨어요."
+        if kind == "group_delete":
+            await friends.delete_group(account_id, payload["group"])
+            return "그룹을 지웠어요."
+        await friends.set_audience(
+            account_id,
+            payload["category"],
+            {"friends": payload.get("friends", []), "groups": payload.get("groups", [])},
+        )
+        if payload.get("visibility"):
+            await self.todo.update_category(
+                account_id, int(payload["category"]), {"visibility": payload["visibility"]}
+            )
+        return "일부 공개 대상을 바꿨어요."
+
+    async def trash_item(self, account_id: int, item_id: Any, client: str = "") -> bool:
+        """할 일을 지우고 휴지통에 7일(앱에서 지울 때 client는 빈 문자열)."""
         try:
             row = await self.todo._row(account_id, item_id)  # noqa: SLF001  반복 회차도 행으로
         except TodoError:
@@ -282,7 +334,11 @@ def _todo_error(error: TodoError) -> str:
         "last_category": "열린 카테고리가 하나는 있어야 해요",
         "bad_color": "색은 #RRGGBB여야 해요",
         "bad_visibility": "공개 범위는 나만, 친구, 전체 중 하나예요",
-        "not_found": "그런 할 일이나 카테고리가 없어요",
+        "not_found": "그런 할 일, 카테고리, 사람, 그룹이 없어요",
+        "not_friend": "친구만 고를 수 있어요",
+        "too_many_groups": "그룹은 30개까지예요",
+        "too_many_requests": "보낸 친구 요청이 너무 많아요",
+        "too_many_friends": "친구는 200명까지예요",
     }
     return words.get(error.code, "처리하지 못했어요")
 

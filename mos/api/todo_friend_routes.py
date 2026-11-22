@@ -90,6 +90,44 @@ def register_todo_friend_routes(
         )
         return {"reactions": reactions}
 
+    # ------------------------------------------------------------ 친구 그룹, 일부 공개 대상
+
+    @app.get("/api/todo/groups")
+    async def todo_groups(request: Request) -> dict[str, Any]:
+        account = await todo_account(request)
+        return {"groups": await friends.groups(account.account_id)}
+
+    @app.post("/api/todo/groups")
+    async def todo_group_add(request: Request) -> dict[str, Any]:
+        account = await writer(request)
+        return await friends.create_group(account.account_id, await body_of(request))
+
+    @app.patch("/api/todo/groups/{group_id}", status_code=204)
+    async def todo_group_edit(group_id: str, request: Request) -> Response:
+        account = await writer(request)
+        body = await body_of(request)
+        if "name" in body:
+            await friends.rename_group(account.account_id, group_id, body["name"])
+        if "members" in body:
+            await friends.set_members(account.account_id, group_id, body["members"])
+        return Response(status_code=204)
+
+    @app.delete("/api/todo/groups/{group_id}", status_code=204)
+    async def todo_group_delete(group_id: str, request: Request) -> Response:
+        account = await writer(request)
+        await friends.delete_group(account.account_id, group_id)
+        return Response(status_code=204)
+
+    @app.get("/api/todo/categories/{category_id}/audience")
+    async def todo_audience(category_id: str, request: Request) -> dict[str, Any]:
+        account = await todo_account(request)
+        return await friends.audience(account.account_id, category_id)
+
+    @app.put("/api/todo/categories/{category_id}/audience")
+    async def todo_audience_set(category_id: str, request: Request) -> dict[str, Any]:
+        account = await writer(request)
+        return await friends.set_audience(account.account_id, category_id, await body_of(request))
+
     @app.get("/api/todo/emojis")
     async def todo_emojis(request: Request) -> dict[str, Any]:
         account = await todo_account(request)

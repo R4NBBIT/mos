@@ -22,7 +22,7 @@ MAX_PER_DAY = 200
 MAX_TOTAL = 20_000
 MAX_RANGE_DAYS = 42
 FIRST_CATEGORY = ("할 일", "#FFD66B")  # 사용자 결정: 노랑(ㅁㅇㅅ 꿀색)
-VISIBILITIES = ("public", "friends", "private")
+VISIBILITIES = ("public", "friends", "selected", "private")  # selected: 고른 친구와 그룹만
 DEFAULT_VISIBILITY = "friends"
 RULES = ("daily", "weekdays", "weekly", "monthly")
 MAX_REPEATS = 100
@@ -199,6 +199,8 @@ def day_range(start: str, end: str) -> list[str]:
 
 
 class TodoService:
+    # 지우기를 휴지통으로(계정, 할 일 ID) → 지웠는지. 없으면 바로 지움
+    trash: Callable[[int, Any], Awaitable[bool]] | None = None
     # 하루 보기에 덧붙이기(친구 기능의 반응). (보는 사람, 주인, 할 일들)
     decorate: Callable[[int, int, list[dict[str, Any]]], Awaitable[None]] | None = None
 

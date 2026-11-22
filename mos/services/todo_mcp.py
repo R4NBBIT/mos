@@ -59,7 +59,9 @@ INSTRUCTIONS = """ㅁㅇㅅ 할 일에 사용자의 할 일을 넣고 고치는 
 - 여러 개나 '전부' 지우라고 하면 먼저 list_todos로 그 범위를 보고, 날짜별로 어느 카테고리에
   무슨 할 일이 있는지 빠짐없이 모두 보여 준 뒤 물어보세요(delete_todos 요약도 같은 모양이에요).
 - 지운 할 일은 ㅁㅇㅅ 휴지통에 7일 있어요. 카테고리는 지우지 않고 '끝내기'(다시 열 수 있음)만 해요.
-- ㅁㅇㅅ 메시지, 디스코드 정보, 친구 목록은 볼 수 없어요.
+- 친구 일(요청, 수락, 끊기, 그룹, 일부 공개 대상)은 list_friends로 이름을 확인하고, 같은 두 단계
+  뒤에 ㅁㅇㅅ 화면에서 사용자가 한 번 더 승인해야 실행돼요.
+- ㅁㅇㅅ 메시지, 디스코드 정보는 볼 수 없어요. 친구의 할 일도 볼 수 없어요.
 """
 
 
@@ -300,7 +302,123 @@ TOOLS: list[dict[str, Any]] = [
         },
         "annotations": {"destructiveHint": True},
     },
+    {
+        "name": "list_friends",
+        "title": "친구 보기",
+        "description": "친구, 받은 요청, 보낸 요청, 같은 서버 사람(요청 가능), 친구 그룹의 이름.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+        "annotations": {"readOnlyHint": True},
+    },
+    {
+        "name": "friend_request",
+        "title": "친구 요청(승인 필요)",
+        "description": (
+            "같은 서버 사람에게 친구 요청. 확인 번호가 오고, 대화 확인 뒤 ㅁㅇㅅ에서 승인해야 실행."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "person": {"type": "string", "description": "사람 이름(list_friends에 나온 그대로)"}
+            },
+            "required": ["person"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "friend_accept",
+        "title": "받은 요청 수락(승인 필요)",
+        "description": "받은 친구 요청 수락. 대화 확인 뒤 ㅁㅇㅅ 승인.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "person": {"type": "string", "description": "사람 이름(list_friends에 나온 그대로)"}
+            },
+            "required": ["person"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "friend_remove",
+        "title": "친구 끊기, 요청 취소/거절(승인 필요)",
+        "description": "친구를 끊거나 요청을 취소, 거절. 대화 확인 뒤 ㅁㅇㅅ 승인.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "person": {"type": "string", "description": "사람 이름(list_friends에 나온 그대로)"}
+            },
+            "required": ["person"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "create_group",
+        "title": "친구 그룹 만들기(승인 필요)",
+        "description": "친구 그룹을 만들어요. 대화 확인 뒤 ㅁㅇㅅ 승인.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "maxLength": 20},
+                "members": {"type": "array", "items": {"type": "string"}, "maxItems": 200},
+            },
+            "required": ["name"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "update_group",
+        "title": "친구 그룹 바꾸기(승인 필요)",
+        "description": "그룹 이름이나 사람(전체 목록으로)을 바꿔요. 대화 확인 뒤 ㅁㅇㅅ 승인.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "group": {"type": "string"},
+                "name": {"type": "string", "maxLength": 20},
+                "members": {"type": "array", "items": {"type": "string"}, "maxItems": 200},
+            },
+            "required": ["group"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "delete_group",
+        "title": "친구 그룹 지우기(승인 필요)",
+        "description": "그룹을 지워요. 대화 확인 뒤 ㅁㅇㅅ 승인.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"group": {"type": "string"}},
+            "required": ["group"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "set_category_audience",
+        "title": "일부 공개 대상 정하기(승인 필요)",
+        "description": (
+            "카테고리를 '일부' 공개로 하고 볼 수 있는 친구와 그룹을 정해요(전체 목록으로). "
+            "대화 확인 뒤 ㅁㅇㅅ 승인."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "category": {"type": "string"},
+                "friends": {"type": "array", "items": {"type": "string"}, "maxItems": 200},
+                "groups": {"type": "array", "items": {"type": "string"}, "maxItems": 200},
+            },
+            "required": ["category"],
+            "additionalProperties": False,
+        },
+    },
 ]
+
+FRIEND_TOOLS = (
+    "friend_request",
+    "friend_accept",
+    "friend_remove",
+    "create_group",
+    "update_group",
+    "delete_group",
+    "set_category_audience",
+)
 
 ERROR_TEXT = {
     "bad_title": "이름은 1~100자 한 줄이어야 해요",
@@ -498,6 +616,10 @@ class TodoMcp:
             return f"방금 넣은 {len(ids)}개를 지웠어요.", {"removed": len(ids)}
         if name in ("delete_todos", "add_category", "update_category", "close_category"):
             return await self._ask(grant, name, args)
+        if name == "list_friends":
+            return await self._list_friends(account_id)
+        if name in FRIEND_TOOLS:
+            return await self._ask_friend(grant, name, args)
         if name == "confirm_action":
             text = await self.actions.confirm(grant, args.get("confirm_id"))
             return text, {"done": True}
@@ -569,6 +691,150 @@ class TodoMcp:
         confirm_id = await self.actions.request(grant, name, payload, summary)
         text = (
             "아직 실행하지 않았어요. 사용자에게 아래 내용을 보여 주고 확인받으세요."
+            f"\n\n{summary}\n\n사용자가 '네'라고 하면 "
+            f'confirm_action(confirm_id="{confirm_id}")을 부르세요(10분 안).'
+        )
+        return text, {"confirm_id": confirm_id, "summary": summary}
+
+    async def _list_friends(self, account_id: int) -> tuple[str, dict[str, Any]]:
+        friends = self.actions.friends
+        people = await friends.people(account_id)
+        groups = await friends.groups(account_id)
+        names = lambda rows: [row["name"] for row in rows]  # noqa: E731
+        data = {
+            "friends": names(people["friends"]),
+            "incoming": names(people["incoming"]),
+            "outgoing": names(people["outgoing"]),
+            "candidates": names(people["candidates"]),
+            "groups": [{"name": g["name"], "members": names(g["members"])} for g in groups],
+        }
+        lines = [
+            "친구: " + (", ".join(data["friends"]) or "없음"),
+            "받은 요청: " + (", ".join(data["incoming"]) or "없음"),
+            "보낸 요청: " + (", ".join(data["outgoing"]) or "없음"),
+            "같은 서버 사람(요청 가능): " + (", ".join(data["candidates"]) or "없음"),
+            "그룹: "
+            + (
+                "; ".join(
+                    f"{g['name']}({', '.join(g['members']) or '빈 그룹'})" for g in data["groups"]
+                )
+                or "없음"
+            ),
+        ]
+        return "\n".join(lines), data
+
+    async def _person_id(
+        self, account_id: int, name: Any, pools: tuple[str, ...]
+    ) -> tuple[str, str]:
+        if not isinstance(name, str) or not name.strip():
+            raise ToolError("사람 이름을 넣어 주세요")
+        people = await self.actions.friends.people(account_id)
+        found = [p for pool in pools for p in people[pool] if p["name"] == name.strip()]
+        if not found:
+            raise ToolError(f"'{name}'을(를) 찾을 수 없어요. list_friends로 이름을 확인하세요")
+        if len({p["id"] for p in found}) > 1:
+            raise ToolError(f"'{name}'이(가) 여러 명이에요. 사용자에게 누구인지 물어보세요")
+        return found[0]["id"], found[0]["name"]
+
+    async def _group_id(self, account_id: int, name: Any) -> tuple[str, str]:
+        groups = await self.actions.friends.groups(account_id)
+        for group in groups:
+            if isinstance(name, str) and group["name"] == name.strip():
+                return group["id"], group["name"]
+        raise ToolError(f"'{name}' 그룹이 없어요. list_friends로 확인하세요")
+
+    async def _friend_ids(self, account_id: int, raw: Any) -> tuple[list[str], list[str]]:
+        if raw is None:
+            return [], []
+        if not isinstance(raw, list):
+            raise ToolError("사람은 이름 목록으로 넣어 주세요")
+        ids, shown = [], []
+        for name in raw:
+            person_id, person_name = await self._person_id(account_id, name, ("friends",))
+            ids.append(person_id)
+            shown.append(person_name)
+        return ids, shown
+
+    async def _ask_friend(
+        self, grant: Grant, name: str, args: dict[str, Any]
+    ) -> tuple[str, dict[str, Any]]:
+        account_id = grant.account_id
+        if name == "friend_request":
+            person, shown = await self._person_id(
+                account_id, args.get("person"), ("candidates", "incoming")
+            )
+            kind, payload, summary = (
+                "friend_request",
+                {"person": person},
+                f"{shown}님에게 친구 요청",
+            )
+        elif name == "friend_accept":
+            person, shown = await self._person_id(account_id, args.get("person"), ("incoming",))
+            kind, payload, summary = (
+                "friend_accept",
+                {"person": person},
+                f"{shown}님의 친구 요청 수락",
+            )
+        elif name == "friend_remove":
+            person, shown = await self._person_id(
+                account_id, args.get("person"), ("friends", "incoming", "outgoing")
+            )
+            kind, payload, summary = (
+                "friend_remove",
+                {"person": person},
+                f"{shown}님과 친구 끊기(요청이면 취소, 거절)",
+            )
+        elif name == "create_group":
+            members, shown = await self._friend_ids(account_id, args.get("members"))
+            kind = "group_create"
+            payload = {"name": args.get("name"), "members": members}
+            summary = f"새 그룹 '{args.get('name')}': " + (", ".join(shown) or "아무도 없음")
+        elif name == "update_group":
+            group_id, group_name = await self._group_id(account_id, args.get("group"))
+            kind, payload = "group_update", {"group": group_id}
+            parts = []
+            if "name" in args:
+                payload["name"] = args["name"]
+                parts.append(f"이름 → '{args['name']}'")
+            if "members" in args:
+                members, shown = await self._friend_ids(account_id, args.get("members"))
+                payload["members"] = members
+                parts.append("사람 → " + (", ".join(shown) or "아무도 없음"))
+            if not parts:
+                raise ToolError("바꿀 것이 없어요")
+            summary = f"'{group_name}' 그룹: " + ", ".join(parts)
+        elif name == "delete_group":
+            group_id, group_name = await self._group_id(account_id, args.get("group"))
+            kind, payload, summary = (
+                "group_delete",
+                {"group": group_id},
+                f"'{group_name}' 그룹 지우기",
+            )
+        else:
+            row = await self._category_row(account_id, args.get("category"))
+            friends, shown = await self._friend_ids(account_id, args.get("friends"))
+            groups, group_names = [], []
+            for group in args.get("groups") or []:
+                group_id, group_name = await self._group_id(account_id, group)
+                groups.append(group_id)
+                group_names.append(group_name)
+            kind = "set_audience"
+            payload = {
+                "category": str(row["id"]),
+                "friends": friends,
+                "groups": groups,
+                "visibility": "selected",
+            }
+            summary = (
+                f"'{row['name']}' 카테고리를 일부 공개로: 그룹 "
+                + (", ".join(group_names) or "없음")
+                + ", 친구 "
+                + (", ".join(shown) or "없음")
+            )
+        confirm_id = await self.actions.request(grant, kind, payload, summary)
+        text = (
+            "아직 실행하지 않았어요. 사용자에게 아래 내용을 보여 주고 확인받으세요. "
+            "확인한 뒤에도 ㅁㅇㅅ 화면에서 한 번 더 승인해야 적용돼요."
             f"\n\n{summary}\n\n사용자가 '네'라고 하면 "
             f'confirm_action(confirm_id="{confirm_id}")을 부르세요(10분 안).'
         )

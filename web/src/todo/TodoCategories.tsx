@@ -3,6 +3,8 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import BackIcon from "../BackIcon";
 import { Sortable } from "../listOrder";
+import { AiRequests } from "./TodoAi";
+import { AudiencePicker } from "./TodoAudience";
 import SplitToggle from "../SplitToggle";
 import { useEnterKey } from "./enterKey";
 import {
@@ -13,6 +15,9 @@ import {
   type TodoCategory,
   todoErrorText,
   updateCategory,
+  fetchAudience,
+  saveAudience,
+  type TodoAudience,
 } from "./todoApi";
 import "./todo.css";
 
@@ -129,6 +134,7 @@ function ColorPicker({ value, recent, onChange }: { value: string; recent: strin
 
 const VISIBILITY = [
   { value: "private", label: "나만", help: "나만 볼 수 있어요." },
+  { value: "selected", label: "일부", help: "고른 친구와 그룹만 볼 수 있어요." },
   { value: "friends", label: "친구", help: "친구가 볼 수 있어요(반응도 달 수 있어요)." },
   { value: "public", label: "전체", help: "같은 디스코드 서버의 할 일 사용자 모두가 볼 수 있어요." },
 ] as const;
@@ -150,6 +156,16 @@ function CategoryEditor({
   const [color, setColor] = useState(category.color);
   const [visibility, setVisibility] = useState(category.visibility);
   const [memoShared, setMemoShared] = useState(category.memo_shared);
+  const [audience, setAudience] = useState<TodoAudience>({ friends: [], groups: [] });
+  const [audienceLoaded, setAudienceLoaded] = useState(false);
+  useEffect(() => {
+    fetchAudience(category.id)
+      .then((value) => {
+        setAudience(value);
+        setAudienceLoaded(true);
+      })
+      .catch(() => setAudienceLoaded(true));
+  }, [category.id]);
   const [error, setError] = useState("");
   const [confirming, setConfirming] = useState(false);
   const nameRef = useRef(name);
@@ -161,6 +177,7 @@ function CategoryEditor({
       if (color !== category.color) changes.color = color;
       if (visibility !== category.visibility) changes.visibility = visibility;
       if (memoShared !== category.memo_shared) changes.memo_shared = memoShared;
+      if (visibility === "selected" && audienceLoaded) await saveAudience(category.id, audience);
       if (Object.keys(changes).length > 0) onSaved(await updateCategory(category.id, changes));
       onClose();
     } catch (failure) {
@@ -202,6 +219,7 @@ function CategoryEditor({
           ))}
         </div>
         <span className="todo-setting-help">{VISIBILITY.find((option) => option.value === visibility)?.help}</span>
+        {visibility === "selected" && <AudiencePicker value={audience} onChange={setAudience} />}
         <label className={visibility === "private" ? "todo-switch todo-switch-off" : "todo-switch"}>
           <input
             type="checkbox"
@@ -407,6 +425,9 @@ export default function TodoCategories({
           </Sortable>
         )}
         {items && <NewCategory count={items.length} recent={recent} onMade={(made) => changed([...items, made])} />}
+        <section className="todo-alerts todo-trash">
+          <AiRequests onChanged={() => onChanged?.()} />
+        </section>
       </div>
     </div>
   );

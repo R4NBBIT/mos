@@ -397,8 +397,8 @@ function TodoMenu({
         <div className="todo-confirm" role="group" aria-label="지우기 확인">
           <span>
             {item.repeat
-              ? "반복 할 일이에요. 이날 것만 지우거나 앞으로 것까지 지울 수 있어요. 되돌릴 수 없어요."
-              : "이 할 일을 지울까요? 되돌릴 수 없어요."}
+              ? "반복 할 일이에요. 이날 것만 지우면 휴지통에서 7일 동안 되돌릴 수 있어요. 앞으로 것까지 지우면 되돌릴 수 없어요."
+              : "이 할 일을 지울까요? 휴지통(카테고리 화면 아래)에서 7일 동안 되돌릴 수 있어요."}
           </span>
           <div className="todo-confirm-buttons">
             <button type="button" className="todo-small-button" onClick={() => setConfirming(false)}>

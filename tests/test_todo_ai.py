@@ -134,6 +134,14 @@ def test_full_flow_and_tools(env: Env) -> None:
         "update_category",
         "close_category",
         "confirm_action",
+        "list_friends",
+        "friend_request",
+        "friend_accept",
+        "friend_remove",
+        "create_group",
+        "update_group",
+        "delete_group",
+        "set_category_audience",
     ]
     cats = call(env, token, "list_categories")
     assert cats["structuredContent"]["categories"] == ["할 일"]
@@ -353,3 +361,58 @@ def test_android_app_redirect(env: Env) -> None:
     for bad in ("javascript:/x", "file:/etc/passwd", "com:/x", "data:/x"):
         response = env.client.post("/oauth/register", json={"redirect_uris": [bad]})
         assert response.status_code == 400, bad
+
+
+def test_app_delete_goes_to_trash(env: Env) -> None:
+    signed_up(env, "mocha")
+    cat = env.client.get("/api/todo/day/2026-11-23").json()["categories"][0]["id"]
+    item = env.client.post(
+        "/api/todo/items",
+        json={"title": "빨래", "day": "2026-11-23", "category_id": cat},
+        headers=POST,
+    ).json()["id"]
+    env.tick(1)
+    assert env.client.delete(f"/api/todo/items/{item}", headers=POST).status_code == 204
+    trash = env.client.get("/api/todo/ai").json()["trash"]
+    assert [(t["title"], t["client"]) for t in trash] == [("빨래", "")]
+    env.client.post(f"/api/todo/ai/trash/{trash[0]['id']}/restore", headers=POST)
+    assert [i["title"] for i in env.client.get("/api/todo/day/2026-11-23").json()["items"]] == [
+        "빨래"
+    ]
+
+
+def test_ai_friend_actions_need_app_approval(tmp_path: Path) -> None:
+    from tests.test_api import POST as _POST
+    from tests.test_todo_friends import use
+
+    gen = build(tmp_path, frozenset({42, 43}))
+    env = next(gen)
+    try:
+        latte = signed_up(env, "latte")
+        _client_id, issued = connect(env)  # 모카로 연결
+        token = issued["access_token"]
+        listed = call(env, token, "list_friends")
+        assert listed["structuredContent"]["candidates"] == ["라떼"]
+        asked = call(env, token, "friend_request", {"person": "라떼"})
+        assert "ㅁㅇㅅ 화면에서 한 번 더" in asked["content"][0]["text"]
+        waiting = call(
+            env, token, "confirm_action", {"confirm_id": asked["structuredContent"]["confirm_id"]}
+        )
+        assert "승인해야" in waiting["content"][0]["text"]
+        # 아직 요청 안 감
+        assert env.client.get("/api/todo/people").json()["outgoing"] == []
+        pending = env.client.get("/api/todo/ai").json()["pending"]
+        assert pending[0]["summary"] == "라떼님에게 친구 요청"
+        ok = env.client.post(
+            f"/api/todo/ai/pending/{pending[0]['id']}", json={"approve": True}, headers=_POST
+        )
+        assert ok.json()["message"] == "친구 요청을 보냈어요."
+        assert [p["name"] for p in env.client.get("/api/todo/people").json()["outgoing"]] == [
+            "라떼"
+        ]
+        bad = call(env, token, "friend_accept", {"person": "없는사람"})
+        assert bad["isError"] is True
+        assert latte
+        _ = use
+    finally:
+        gen.close()

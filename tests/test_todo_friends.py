@@ -184,3 +184,63 @@ def test_emoji_list(env: Env) -> None:
     signed_up(env, "latte")
     names = [e["name"] for e in env.client.get("/api/todo/emojis").json()["emojis"]]
     assert names == ["smile"]  # 움직이는 것(니트로), 역할 전용(vip)은 빠짐
+
+
+def test_groups_and_selected_visibility(env: Env) -> None:
+    mocha, latte = two(env)
+    befriend(env, mocha, latte)
+    use(env, latte)
+    secret = env.client.post(
+        "/api/todo/categories",
+        json={"name": "골라서", "color": "#2563EB", "visibility": "selected"},
+        headers=POST,
+    ).json()["id"]
+    env.tick(1)
+    env.client.post(
+        "/api/todo/items", json={"title": "몰래", "day": DAY, "category_id": secret}, headers=POST
+    )
+    env.tick(1)
+    # 아무도 안 골랐으면 친구도 못 봄
+    use(env, mocha)
+    assert env.client.get(f"/api/todo/friends/{latte}/day/{DAY}").json()["items"] == []
+    use(env, latte)
+    group = env.client.post(
+        "/api/todo/groups", json={"name": "회사", "members": [mocha]}, headers=POST
+    ).json()
+    assert [m["name"] for m in group["members"]] == ["모카"]
+    env.tick(1)
+    # 그룹과 그 안의 친구를 같이 고르면 친구는 따로 넣지 않는다
+    saved = env.client.put(
+        f"/api/todo/categories/{secret}/audience",
+        json={"friends": [mocha], "groups": [group["id"]]},
+        headers=POST,
+    ).json()
+    assert saved == {"friends": [], "groups": [group["id"]]}
+    use(env, mocha)
+    assert [
+        i["title"] for i in env.client.get(f"/api/todo/friends/{latte}/day/{DAY}").json()["items"]
+    ] == ["몰래"]
+    # 친구가 아닌 사람은 고를 수 없다
+    use(env, latte)
+    env.tick(1)
+    bad = env.client.put(
+        f"/api/todo/categories/{secret}/audience", json={"friends": ["99999"]}, headers=POST
+    )
+    assert bad.status_code == 400
+    # 그룹에서 빼면 다시 못 봄
+    env.tick(1)
+    env.client.patch(f"/api/todo/groups/{group['id']}", json={"members": []}, headers=POST)
+    use(env, mocha)
+    assert env.client.get(f"/api/todo/friends/{latte}/day/{DAY}").json()["items"] == []
+    # 친구를 끊으면 그룹과 대상에서도 빠진다
+    use(env, latte)
+    env.tick(1)
+    env.client.put(
+        f"/api/todo/categories/{secret}/audience", json={"friends": [mocha]}, headers=POST
+    )
+    env.tick(1)
+    env.client.delete(f"/api/todo/people/{mocha}", headers=POST)
+    assert env.client.get(f"/api/todo/categories/{secret}/audience").json() == {
+        "friends": [],
+        "groups": [],
+    }

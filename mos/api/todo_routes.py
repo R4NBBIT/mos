@@ -116,6 +116,11 @@ def register_todo_routes(
         account = await writer(request)
         if scope not in ("today", "future"):
             raise TodoError("bad_scope")
+        if scope == "today" and todo.trash is not None:
+            # 앱에서 지운 것도 휴지통에 7일(되돌리기)
+            if not await todo.trash(account.account_id, item_id):
+                raise TodoError("not_found", 404)
+            return
         await todo.delete_item(account.account_id, item_id, scope)
 
     # ------------------------------------------------------------ 알림 설정(NOTI-01, NOTI-03)
