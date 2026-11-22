@@ -30,8 +30,11 @@ android {
     buildTypes {
         release {
             minifyEnabled false
+            // 'signingConfig (조건) ? a : b'로 쓰면 Groovy가 signingConfig(조건)을 먼저 불러 설정 단계에서
+            // 실패한다(불린을 서명 설정으로 바꿀 수 없음). 그래서 값을 먼저 고르고 '='로 넣는다
             def keystore = System.getenv("MOS_ANDROID_KEYSTORE")
-            signingConfig (keystore != null && !keystore.isEmpty()) ? signingConfigs.release : signingConfigs.debug
+            def useRelease = keystore != null && !keystore.isEmpty()
+            signingConfig = useRelease ? signingConfigs.release : signingConfigs.debug
         }
     }
 
