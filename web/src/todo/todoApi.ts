@@ -202,7 +202,6 @@ export function todoErrorText(error: unknown): string {
     bad_boss_mode: "위장 중 알림을 다시 골라 주세요.",
     bad_emoji: "이 이모지는 쓸 수 없어요.",
     too_many_reactions: "한 할 일에 반응은 10개까지예요.",
-    too_many_requests: "보낸 친구 요청이 너무 많아요(20개).",
     too_many_friends: "친구는 200명까지예요.",
     too_many_groups: "그룹은 30개까지예요.",
     not_friend: "친구만 고를 수 있어요.",
@@ -309,6 +308,8 @@ export interface TodoPeople {
   incoming: TodoPerson[];
   outgoing: TodoPerson[];
   candidates: TodoPerson[];
+  /** 내가 차단한 사람 */
+  blocked: TodoPerson[];
   accept_requests: boolean;
 }
 
@@ -321,6 +322,8 @@ export const fetchPeople = () => call<TodoPeople>("/api/todo/people");
 export const requestFriend = (id: string) => call<{ state: string }>(`/api/todo/people/${encodeURIComponent(id)}/request`, "POST");
 export const acceptFriend = (id: string) => call<{ state: string }>(`/api/todo/people/${encodeURIComponent(id)}/accept`, "POST");
 export const removeFriend = (id: string) => call<void>(`/api/todo/people/${encodeURIComponent(id)}`, "DELETE");
+export const blockPerson = (id: string) => call<void>(`/api/todo/people/${encodeURIComponent(id)}/block`, "POST");
+export const unblockPerson = (id: string) => call<void>(`/api/todo/people/${encodeURIComponent(id)}/block`, "DELETE");
 export const setAcceptRequests = (value: boolean) => call<void>("/api/todo/people/settings", "PATCH", { accept_requests: value });
 export const fetchFriendsToday = (day: string) =>
   call<{ friends: (TodoPerson & { done: number; total: number })[] }>(`/api/todo/friends/today?day=${day}`);

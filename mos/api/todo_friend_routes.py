@@ -70,6 +70,18 @@ def register_todo_friend_routes(
         await friends.remove(account.account_id, other_id)
         return Response(status_code=204)
 
+    @app.post("/api/todo/people/{other_id}/block", status_code=204)
+    async def todo_friend_block(other_id: str, request: Request) -> Response:
+        account = await writer(request)
+        await friends.block(account.account_id, other_id)
+        return Response(status_code=204)
+
+    @app.delete("/api/todo/people/{other_id}/block", status_code=204)
+    async def todo_friend_unblock(other_id: str, request: Request) -> Response:
+        account = await writer(request)
+        await friends.unblock(account.account_id, other_id)
+        return Response(status_code=204)
+
     @app.get("/api/todo/friends/today")
     async def todo_friends_today(request: Request, day: str = "") -> dict[str, Any]:
         account = await todo_account(request)

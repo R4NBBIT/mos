@@ -36,8 +36,19 @@ FRIEND_KINDS = (
     "group_update",
     "group_delete",
     "set_audience",
+    "block",
+    "unblock",
 )
-KINDS = ("delete_todos", "add_category", "update_category", "close_category", *FRIEND_KINDS)
+# 반복 화면 일(2026-11-22 사용자 요청 'AI로도'): 대화에서 확인하면 실행
+REPEAT_KINDS = ("repeat_create", "repeat_period", "repeat_update", "repeat_delete")
+KINDS = (
+    "delete_todos",
+    "add_category",
+    "update_category",
+    "close_category",
+    *FRIEND_KINDS,
+    *REPEAT_KINDS,
+)
 
 
 class ActionError(Exception):
@@ -177,12 +188,38 @@ class TodoAiActions:
                 )
             if kind in FRIEND_KINDS and self.friends is not None:
                 return await self._run_friend(account_id, kind, payload)
+            if kind in REPEAT_KINDS:
+                return await self._run_repeat(account_id, kind, payload)
         except TodoError as error:
             raise ActionError(_todo_error(error)) from error
         raise ActionError("없는 요청이에요")
 
+    async def _run_repeat(self, account_id: int, kind: str, payload: dict[str, Any]) -> str:
+        if kind == "repeat_create":
+            made = await self.todo.new_repeat(account_id, payload)
+            return f"'{made['title']}' 반복을 만들었어요."
+        if kind == "repeat_period":
+            await self.todo.new_repeat(account_id, payload)
+            return "반복에 새 기간을 더했어요."
+        if kind == "repeat_update":
+            await self.todo.update_repeat(account_id, int(payload["repeat_id"]), payload["changes"])
+            return "반복을 바꿨어요."
+        if self.bin is None or not await self.bin.repeat_series(
+            account_id, int(payload["series_id"])
+        ):
+            raise ActionError("그런 반복이 없어요")
+        return (
+            "반복을 지웠어요. ㅁㅇㅅ 휴지통(카테고리 화면 맨 아래)에서 7일 동안 되살릴 수 있어요."
+        )
+
     async def _run_friend(self, account_id: int, kind: str, payload: dict[str, Any]) -> str:
         friends = self.friends
+        if kind == "block":
+            await friends.block(account_id, payload["person"])
+            return "차단했어요. 서로 할 일이 안 보이고 친구도 끊겼어요."
+        if kind == "unblock":
+            await friends.unblock(account_id, payload["person"])
+            return "차단을 풀었어요."
         if kind == "friend_request":
             state = await friends.request(account_id, payload["person"])
             return "친구가 됐어요." if state == "friends" else "친구 요청을 보냈어요."
@@ -340,12 +377,19 @@ def _todo_error(error: TodoError) -> str:
         "too_many_categories": "카테고리는 50개까지예요",
         "last_category": "열린 카테고리가 하나는 있어야 해요",
         "bad_color": "색은 #RRGGBB여야 해요",
-        "bad_visibility": "공개 범위는 나만, 친구, 전체 중 하나예요",
+        "bad_visibility": "공개 범위는 나만, 일부, 친구, 전체 중 하나예요",
         "not_found": "그런 할 일, 카테고리, 사람, 그룹이 없어요",
         "not_friend": "친구만 고를 수 있어요",
         "too_many_groups": "그룹은 30개까지예요",
-        "too_many_requests": "보낸 친구 요청이 너무 많아요",
         "too_many_friends": "친구는 200명까지예요",
+        "period_overlap": "새 기간은 앞 기간이 끝난 다음 날부터 시작해야 해요",
+        "bad_rule": "반복 규칙은 daily, weekdays, weekly, monthly 중 하나예요",
+        "bad_weekdays": "매주 반복은 요일을 하나 이상 골라야 해요",
+        "bad_end_day": "끝 날은 시작 날보다 뒤여야 해요",
+        "bad_day": "날짜는 YYYY-MM-DD여야 해요",
+        "bad_time": "시각은 HH:MM(24시간)이어야 해요",
+        "bad_title": "이름은 1~100자 한 줄이어야 해요",
+        "too_many_repeats": "반복은 100개까지예요",
     }
     return words.get(error.code, "처리하지 못했어요")
 

@@ -6,6 +6,7 @@ import SplitToggle from "../SplitToggle";
 import { viaServer } from "../format";
 import {
   acceptFriend,
+  blockPerson,
   fetchPeople,
   removeFriend,
   requestFriend,
@@ -13,6 +14,7 @@ import {
   todoErrorText,
   type TodoPeople,
   type TodoPerson,
+  unblockPerson,
 } from "./todoApi";
 import { GroupsSection } from "./TodoGroups";
 import "./todo.css";
@@ -44,6 +46,7 @@ export default function TodoFriends({
   const [error, setError] = useState("");
   const [confirming, setConfirming] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [blocking, setBlocking] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const load = useCallback(
     () =>
@@ -66,6 +69,35 @@ export default function TodoFriends({
       setError(todoErrorText(failure));
     }
   };
+  // 차단: 누르면 한 번 묻고, 친구와 요청을 끊고 서로 안 보이게
+  const blockable = (person: TodoPerson, actions: ReactNode): ReactNode =>
+    blocking === person.id ? (
+      <>
+        <span className="todo-friend-ask">차단하면 친구가 끊기고 서로 할 일이 안 보여요.</span>
+        <button type="button" className="todo-small-button" onClick={() => setBlocking(null)}>
+          취소
+        </button>
+        <button
+          type="button"
+          className="todo-small-button todo-danger"
+          onClick={() =>
+            void run(async () => {
+              await blockPerson(person.id);
+              setBlocking(null);
+            })
+          }
+        >
+          차단
+        </button>
+      </>
+    ) : (
+      <>
+        {actions}
+        <button type="button" className="todo-text-button todo-danger-text" onClick={() => setBlocking(person.id)}>
+          차단
+        </button>
+      </>
+    );
   const row = (person: TodoPerson, actions: ReactNode, open = false) => (
     <li key={person.id} className="todo-friend-row">
       <Avatar person={person} />
@@ -76,7 +108,7 @@ export default function TodoFriends({
       ) : (
         <span className="todo-friend-name">{person.name}</span>
       )}
-      <span className="todo-friend-actions">{actions}</span>
+      <span className="todo-friend-actions">{blockable(person, actions)}</span>
     </li>
   );
   return (
@@ -145,7 +177,7 @@ export default function TodoFriends({
               </div>
               <p className="todo-field-help">
                 같은 디스코드 서버에서 할 일을 쓰는 사람에게 요청할 수 있어요. 친구가 되면 서로 '친구' 카테고리까지 보이고 반응을
-                달 수 있어요. 친구가 아니어도 같은 서버 사람은 내 '전체' 카테고리를 볼 수 있어요.
+                달 수 있어요. 친구가 아니어도 같은 서버 사람은 내 '전체' 카테고리를 볼 수 있어요(차단한 사람 빼고).
               </p>
               {adding && (
                 <div className="todo-friend-add">
@@ -231,6 +263,25 @@ export default function TodoFriends({
               </section>
             )}
             <GroupsSection friends={people.friends} />
+            {people.blocked.length > 0 && (
+              <section className="todo-friend-section">
+                <h2 className="todo-friend-title">차단한 사람</h2>
+                <p className="todo-field-help">서로 할 일이 안 보이고, 요청과 반응도 할 수 없어요.</p>
+                <ul>
+                  {people.blocked.map((person) => (
+                    <li key={person.id} className="todo-friend-row">
+                      <Avatar person={person} />
+                      <span className="todo-friend-name">{person.name}</span>
+                      <span className="todo-friend-actions">
+                        <button type="button" className="todo-small-button" onClick={() => void run(() => unblockPerson(person.id))}>
+                          차단 풀기
+                        </button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
             <section className="todo-friend-section">
               <div className="todo-setting">
                 <span className="todo-setting-name">친구 요청 받기</span>

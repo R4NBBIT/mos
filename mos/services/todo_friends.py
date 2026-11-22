@@ -23,7 +23,6 @@ from mos.services.todo import TodoError, TodoService
 from mos.services.todo_access import TodoAccess
 
 MAX_FRIENDS = 200
-MAX_PENDING_OUT = 20
 MAX_EMOJI_PER_PERSON = 10
 REACTION_MERGE_SEC = 60
 CUSTOM_EMOJI = re.compile(r"^<(a?):([A-Za-z0-9_]{1,32}):(\d{15,21})>$")
@@ -119,10 +118,32 @@ class TodoFriends:
         )
         return {"requester": int(row[0]), "status": str(row[1])} if row else None
 
+    async def blocked(self, one: int, other: int) -> bool:
+        """둘 중 한쪽이라도 차단했는지."""
+        row = await self.db.fetch_one(
+            "SELECT 1 FROM todo_block WHERE (account_id = ? AND blocked_account = ?)"
+            " OR (account_id = ? AND blocked_account = ?)",
+            (one, other, other, one),
+        )
+        return row is not None
+
+    async def _block_set(self, me_id: int) -> tuple[set[int], set[int]]:
+        """(내가 차단한 사람, 나를 차단한 사람)"""
+        rows = await self.db.fetch_all(
+            "SELECT account_id, blocked_account FROM todo_block"
+            " WHERE account_id = ? OR blocked_account = ?",
+            (me_id, me_id),
+        )
+        mine = {int(r[1]) for r in rows if int(r[0]) == me_id}
+        theirs = {int(r[0]) for r in rows if int(r[1]) == me_id}
+        return mine, theirs
+
     async def relation(self, viewer: int, owner: int) -> str | None:
-        """self, friend, server(같은 서버 할 일 사용자), 또는 None(볼 수 없음)."""
+        """self, friend, server(같은 서버 할 일 사용자), 또는 None(볼 수 없음, 차단 포함)."""
         if viewer == owner:
             return "self"
+        if await self.blocked(viewer, owner):
+            return None
         me, them = await self._account(viewer), await self._account(owner)
         if me is None or them is None or not await self._share_guild(me, them):
             return None
@@ -141,6 +162,8 @@ class TodoFriends:
             " WHERE account_a = ? OR account_b = ?",
             (me_id, me_id),
         )
+        i_blocked, blocked_me = await self._block_set(me_id)
+        hidden = i_blocked | blocked_me
         related: dict[int, tuple[int, str]] = {}
         for a, b, requester, status in rows:
             other = int(b) if int(a) == me_id else int(a)
@@ -148,7 +171,7 @@ class TodoFriends:
         friends, incoming, outgoing = [], [], []
         for other_id, (requester, status) in related.items():
             other = await self._account(other_id)
-            if other is None:
+            if other is None or other_id in hidden:
                 continue
             if status == "accepted":
                 friends.append(self._person(other))
@@ -162,7 +185,7 @@ class TodoFriends:
             "SELECT id FROM account WHERE status = 'active' AND id != ?", (me_id,)
         )
         for (other_id,) in account_rows:
-            if int(other_id) in related:
+            if int(other_id) in related or int(other_id) in hidden:
                 continue
             other = await self._account(int(other_id))
             if other is None or not await self.accepts_requests(other["id"]):
@@ -175,6 +198,10 @@ class TodoFriends:
             "incoming": sorted(incoming, key=by_name),
             "outgoing": sorted(outgoing, key=by_name),
             "candidates": sorted(candidates, key=by_name),
+            "blocked": sorted(
+                [self._person(a) for a in [await self._account(i) for i in i_blocked] if a],
+                key=by_name,
+            ),
             "accept_requests": await self.accepts_requests(me_id),
         }
 
@@ -185,8 +212,8 @@ class TodoFriends:
         me, other = await self._account(me_id), await self._account(other_id)
         if me is None or other is None or other_id == me_id:
             raise TodoError("not_found", 404)
-        if not await self._share_guild(me, other):
-            raise TodoError("not_found", 404)  # 같은 서버가 아니면 없는 사람과 같게
+        if not await self._share_guild(me, other) or await self.blocked(me_id, other_id):
+            raise TodoError("not_found", 404)  # 같은 서버가 아니거나 차단이면 없는 사람과 같게
         pair = await self._pair(me_id, other_id)
         if pair is not None:
             if pair["status"] == "accepted":
@@ -196,12 +223,6 @@ class TodoFriends:
             return "pending"
         if not await self.accepts_requests(other_id):
             raise TodoError("not_found", 404)
-        out = await self.db.fetch_one(
-            "SELECT COUNT(*) FROM todo_friend WHERE requester = ? AND status = 'pending'",
-            (me_id,),
-        )
-        if out and int(out[0]) >= MAX_PENDING_OUT:
-            raise TodoError("too_many_requests", 409)
         await self._check_friend_limit(me_id)
         async with self.db.writing() as conn:
             await conn.execute(
@@ -264,6 +285,32 @@ class TodoFriends:
                     " AND category_id IN (SELECT id FROM todo_category WHERE account_id = ?)",
                     (member, owner),
                 )
+
+    async def block(self, me_id: int, raw_other: Any) -> None:
+        """차단: 친구와 요청을 끊고, 서로의 그룹, 일부 공개 대상, 반응에서도 뺀다."""
+        other_id = _account_id(raw_other)
+        if other_id == me_id or await self._account(other_id) is None:
+            raise TodoError("not_found", 404)
+        await self.remove(me_id, str(other_id))
+        async with self.db.writing() as conn:
+            await conn.execute(
+                "INSERT OR IGNORE INTO todo_block (account_id, blocked_account, created_at)"
+                " VALUES (?, ?, ?)",
+                (me_id, other_id, self.now()),
+            )
+            await conn.execute(
+                "DELETE FROM todo_reaction WHERE (owner_account = ? AND reactor_account = ?)"
+                " OR (owner_account = ? AND reactor_account = ?)",
+                (me_id, other_id, other_id, me_id),
+            )
+
+    async def unblock(self, me_id: int, raw_other: Any) -> None:
+        other_id = _account_id(raw_other)
+        async with self.db.writing() as conn:
+            await conn.execute(
+                "DELETE FROM todo_block WHERE account_id = ? AND blocked_account = ?",
+                (me_id, other_id),
+            )
 
     async def set_accept_requests(self, me_id: int, value: Any) -> None:
         if not isinstance(value, bool):

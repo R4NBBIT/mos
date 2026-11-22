@@ -256,3 +256,34 @@ def test_groups_and_selected_visibility(env: Env) -> None:
         "friends": [],
         "groups": [],
     }
+
+
+def test_block(env: Env) -> None:
+    """차단하면 친구가 끊기고 서로 안 보이며 요청도 안 된다. 풀면 다시 후보로."""
+    mocha, latte = two(env)
+    befriend(env, mocha, latte)
+    use(env, latte)
+    cat = env.client.get(f"/api/todo/day/{DAY}").json()["categories"][0]["id"]
+    env.client.patch(f"/api/todo/categories/{cat}", json={"visibility": "public"}, headers=POST)
+    env.tick(1)
+    env.client.post(
+        "/api/todo/items", json={"title": "공개", "day": DAY, "category_id": cat}, headers=POST
+    )
+    use(env, mocha)
+    assert env.client.get(f"/api/todo/friends/{latte}/day/{DAY}").status_code == 200
+    env.tick(1)
+    assert env.client.post(f"/api/todo/people/{latte}/block", headers=POST).status_code == 204
+    people = env.client.get("/api/todo/people").json()
+    assert people["friends"] == [] and people["candidates"] == []
+    assert [p["name"] for p in people["blocked"]] == ["라떼"]
+    # 차단당한 쪽도 못 보고 요청도 못 함
+    use(env, latte)
+    assert env.client.get(f"/api/todo/friends/{mocha}/day/{DAY}").status_code == 404
+    env.tick(1)
+    assert env.client.post(f"/api/todo/people/{mocha}/request", headers=POST).status_code == 404
+    assert env.client.get("/api/todo/people").json()["candidates"] == []
+    # 풀면 다시 후보
+    use(env, mocha)
+    env.tick(1)
+    assert env.client.delete(f"/api/todo/people/{latte}/block", headers=POST).status_code == 204
+    assert [p["name"] for p in env.client.get("/api/todo/people").json()["candidates"]] == ["라떼"]

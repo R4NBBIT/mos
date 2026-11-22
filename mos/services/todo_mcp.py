@@ -61,8 +61,12 @@ INSTRUCTIONS = """ㅁㅇㅅ 할 일에 사용자의 할 일을 넣고 고치는 
   무슨 할 일이 있는지 빠짐없이 모두 보여 준 뒤 물어보세요(delete_todos 요약도 같은 모양이에요).
 - 지운 할 일은 ㅁㅇㅅ 휴지통에 7일 있어요(할 일 › 카테고리 화면 맨 아래, 또는 할 일 › AI).
 - 카테고리는 지우지 않고 '끝내기'(다시 열 수 있음)만 해요.
-- 친구 일(요청, 수락, 끊기, 그룹, 일부 공개 대상)은 list_friends로 이름을 확인하고, 같은 두 단계
-  뒤에 ㅁㅇㅅ 화면에서 사용자가 한 번 더 승인해야 실행돼요.
+- 친구 일(요청, 수락, 끊기, 차단, 차단 풀기, 그룹, 일부 공개 대상)은 list_friends로 이름을 확인하고,
+  같은 두 단계 뒤에 ㅁㅇㅅ 화면에서 사용자가 한 번 더 승인해야 실행돼요.
+- 반복 할 일(정해 둔 날마다 자동으로 생기는 할 일)은 list_repeats로 보고, create_repeat,
+  add_repeat_period(끝난 반복을 새 기간으로), update_repeat, delete_repeat도 같은 두 단계예요.
+  매주 반복의 요일은 여러 개, 공휴일 빼기(skip_holidays)를 고를 수 있어요.
+  끝 날을 말하지 않으면 비워 두세요.
 - ㅁㅇㅅ 메시지, 디스코드 정보는 볼 수 없어요. 친구의 할 일도 볼 수 없어요.
 """
 
@@ -410,9 +414,160 @@ TOOLS: list[dict[str, Any]] = [
             "additionalProperties": False,
         },
     },
+    {
+        "name": "block_person",
+        "title": "차단(승인 필요)",
+        "description": (
+            "사람을 차단해요. 친구와 요청이 끊기고 서로 할 일이 안 보여요. "
+            "대화 확인 뒤 ㅁㅇㅅ 승인."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "person": {"type": "string", "description": "사람 이름(list_friends에 나온 그대로)"}
+            },
+            "required": ["person"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "unblock_person",
+        "title": "차단 풀기(승인 필요)",
+        "description": "차단을 풀어요. 대화 확인 뒤 ㅁㅇㅅ 승인.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "person": {"type": "string", "description": "사람 이름(list_friends에 나온 그대로)"}
+            },
+            "required": ["person"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "list_repeats",
+        "title": "반복 보기",
+        "description": (
+            "반복 할 일 목록(규칙, 기간, 공휴일 빼기, 끝났는지). id는 반복 고치기, 새 기간, "
+            "지우기에 써요."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": False,
+        },
+        "annotations": {"readOnlyHint": True},
+    },
+    {
+        "name": "create_repeat",
+        "title": "반복 만들기(확인 필요)",
+        "description": (
+            "정해 둔 날마다 자동으로 생기는 할 일을 만드는 요청(확인 번호). "
+            "사용자가 '네'라고 하면 confirm_action."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "maxLength": 100},
+                "category": {"type": "string", "description": "카테고리 이름"},
+                "rule": {
+                    "type": "string",
+                    "enum": ["daily", "weekdays", "weekly", "monthly"],
+                    "description": "매일, 평일, 매주(요일 고르기), 매달(시작 날짜와 같은 날)",
+                },
+                "weekdays": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": ["일", "월", "화", "수", "목", "금", "토"]},
+                    "maxItems": 7,
+                    "description": "weekly일 때 요일(여러 개)",
+                },
+                "start_day": {"type": "string", "description": "YYYY-MM-DD"},
+                "end_day": {"type": ["string", "null"], "description": "YYYY-MM-DD, 없으면 계속"},
+                "skip_holidays": {"type": "boolean", "description": "한국 공휴일에는 빼기"},
+                "time": {"type": ["string", "null"], "description": "HH:MM"},
+                "place": {"type": ["string", "null"], "maxLength": 40},
+                "memo": {"type": "string", "maxLength": 1000},
+            },
+            "required": ["title", "category", "rule", "start_day"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "add_repeat_period",
+        "title": "끝난 반복에 새 기간(확인 필요)",
+        "description": (
+            "기간이 끝난 반복을 새 기간으로 다시 써요(앞 기간이 끝난 다음 날부터). "
+            "사용자가 '네'라고 하면 confirm_action."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "repeat": {"type": "string", "description": "list_repeats의 id"},
+                "start_day": {"type": "string", "description": "YYYY-MM-DD"},
+                "end_day": {"type": ["string", "null"]},
+            },
+            "required": ["repeat", "start_day"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "update_repeat",
+        "title": "반복 바꾸기(확인 필요)",
+        "description": (
+            "반복의 지금 기간을 바꿔요(바꿀 칸만). 사용자가 '네'라고 하면 confirm_action."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "repeat": {"type": "string", "description": "list_repeats의 id"},
+                "title": {"type": "string", "maxLength": 100},
+                "category": {"type": "string"},
+                "rule": {
+                    "type": "string",
+                    "enum": ["daily", "weekdays", "weekly", "monthly"],
+                    "description": "매일, 평일, 매주(요일 고르기), 매달(시작 날짜와 같은 날)",
+                },
+                "weekdays": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": ["일", "월", "화", "수", "목", "금", "토"]},
+                    "maxItems": 7,
+                    "description": "weekly일 때 요일(여러 개)",
+                },
+                "start_day": {"type": "string", "description": "YYYY-MM-DD"},
+                "end_day": {"type": ["string", "null"]},
+                "skip_holidays": {"type": "boolean"},
+                "time": {"type": ["string", "null"]},
+                "place": {"type": ["string", "null"], "maxLength": 40},
+                "memo": {"type": "string", "maxLength": 1000},
+            },
+            "required": ["repeat"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "delete_repeat",
+        "title": "반복 지우기(확인 필요)",
+        "description": (
+            "반복(모든 기간과 이미 생긴 회차)을 지워요. 휴지통에 7일. "
+            "사용자가 '네'라고 하면 confirm_action."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"repeat": {"type": "string", "description": "list_repeats의 id"}},
+            "required": ["repeat"],
+            "additionalProperties": False,
+        },
+        "annotations": {"destructiveHint": True},
+    },
 ]
 
+REPEAT_TOOLS = ("create_repeat", "add_repeat_period", "update_repeat", "delete_repeat")
+WEEKDAY_INDEX = {name: index for index, name in enumerate("일월화수목금토")}
+RULE_WORD = {"daily": "매일", "weekdays": "평일마다", "monthly": "매달"}
+
 FRIEND_TOOLS = (
+    "block_person",
+    "unblock_person",
     "friend_request",
     "friend_accept",
     "friend_remove",
@@ -630,6 +785,10 @@ class TodoMcp:
             return await self._list_friends(account_id)
         if name in FRIEND_TOOLS:
             return await self._ask_friend(grant, name, args)
+        if name == "list_repeats":
+            return await self._list_repeats(account_id, today)
+        if name in REPEAT_TOOLS:
+            return await self._ask_repeat(grant, name, args, today)
         if name == "confirm_action":
             text = await self.actions.confirm(grant, args.get("confirm_id"))
             return text, {"done": True}
@@ -716,6 +875,7 @@ class TodoMcp:
             "incoming": names(people["incoming"]),
             "outgoing": names(people["outgoing"]),
             "candidates": names(people["candidates"]),
+            "blocked": names(people.get("blocked", [])),
             "groups": [{"name": g["name"], "members": names(g["members"])} for g in groups],
         }
         lines = [
@@ -723,6 +883,7 @@ class TodoMcp:
             "받은 요청: " + (", ".join(data["incoming"]) or "없음"),
             "보낸 요청: " + (", ".join(data["outgoing"]) or "없음"),
             "같은 서버 사람(요청 가능): " + (", ".join(data["candidates"]) or "없음"),
+            "차단한 사람: " + (", ".join(data["blocked"]) or "없음"),
             "그룹: "
             + (
                 "; ".join(
@@ -769,7 +930,15 @@ class TodoMcp:
         self, grant: Grant, name: str, args: dict[str, Any]
     ) -> tuple[str, dict[str, Any]]:
         account_id = grant.account_id
-        if name == "friend_request":
+        if name == "block_person":
+            person, shown = await self._person_id(
+                account_id, args.get("person"), ("friends", "incoming", "outgoing", "candidates")
+            )
+            kind, payload, summary = "block", {"person": person}, f"{shown}님 차단"
+        elif name == "unblock_person":
+            person, shown = await self._person_id(account_id, args.get("person"), ("blocked",))
+            kind, payload, summary = "unblock", {"person": person}, f"{shown}님 차단 풀기"
+        elif name == "friend_request":
             person, shown = await self._person_id(
                 account_id, args.get("person"), ("candidates", "incoming")
             )
@@ -845,6 +1014,169 @@ class TodoMcp:
         text = (
             "아직 실행하지 않았어요. 사용자에게 아래 내용을 보여 주고 확인받으세요. "
             "확인한 뒤에도 ㅁㅇㅅ 화면에서 한 번 더 승인해야 적용돼요."
+            f"\n\n{summary}\n\n사용자가 '네'라고 하면 "
+            f'confirm_action(confirm_id="{confirm_id}")을 부르세요(10분 안).'
+        )
+        return text, {"confirm_id": confirm_id, "summary": summary}
+
+    # ------------------------------------------------------------ 반복(반복 화면과 같은 일)
+
+    @staticmethod
+    def _rule_text(period: dict[str, Any]) -> str:
+        if period["rule"] == "weekly":
+            return "매주 " + " ".join("일월화수목금토"[day] for day in period["weekdays"])
+        if period["rule"] == "monthly":
+            return f"매달 {int(period['start_day'][8:10])}일"
+        return RULE_WORD.get(period["rule"], period["rule"])
+
+    def _repeat_line(self, period: dict[str, Any], category: str) -> str:
+        parts = [self._rule_text(period)]
+        if period.get("time"):
+            parts.append(period["time"])
+        if period.get("place"):
+            parts.append(f"@{period['place']}")
+        if period.get("skip_holidays"):
+            parts.append("공휴일 빼기")
+        return f"{period['title']} [{category}] " + ", ".join(parts)
+
+    async def _list_repeats(self, account_id: int, today: str) -> tuple[str, dict[str, Any]]:
+        series = await self.todo.repeat_series(account_id, today)
+        names = await self._names(account_id)
+        lines = []
+        for item in series:
+            current = item["current"]
+            periods = ", ".join(
+                f"{p['start_day']}~{p['end_day'] or '(끝 날 없음)'}" for p in item["periods"]
+            )
+            state = " (끝남)" if item["ended"] else ""
+            lines.append(
+                f"- {self._repeat_line(current, names.get(current['category_id'], ''))}"
+                f" / 기간 {periods}{state} / id={item['id']}"
+            )
+        text = "\n".join(lines) if lines else "반복 할 일이 없어요."
+        return text, {"repeats": series}
+
+    async def _series(self, account_id: int, raw: Any, today: str) -> dict[str, Any]:
+        for item in await self.todo.repeat_series(account_id, today):
+            if item["id"] == str(raw):
+                return item
+        raise ToolError("그런 반복이 없어요. list_repeats로 id를 확인하세요")
+
+    @staticmethod
+    def _weekdays(raw: Any) -> list[int] | None:
+        if raw is None:
+            return None
+        if not isinstance(raw, list) or not all(isinstance(day, str) for day in raw):
+            raise ToolError("weekdays는 '월', '수' 같은 요일 목록이에요")
+        try:
+            return sorted({WEEKDAY_INDEX[day.strip()] for day in raw})
+        except KeyError as error:
+            raise ToolError("요일은 일, 월, 화, 수, 목, 금, 토 중에서 골라요") from error
+
+    async def _ask_repeat(
+        self, grant: Grant, name: str, args: dict[str, Any], today: str
+    ) -> tuple[str, dict[str, Any]]:
+        account_id = grant.account_id
+        names = await self._names(account_id)
+        if name == "create_repeat":
+            payload: dict[str, Any] = {
+                "title": args.get("title"),
+                "category_id": await self._category_id(account_id, args.get("category")),
+                "rule": args.get("rule"),
+                "start_day": args.get("start_day"),
+                "end_day": args.get("end_day"),
+                "skip_holidays": bool(args.get("skip_holidays", False)),
+                "time": args.get("time") or None,
+                "place": args.get("place") or None,
+                "memo": args.get("memo") or "",
+            }
+            weekdays = self._weekdays(args.get("weekdays"))
+            if weekdays is not None:
+                payload["weekdays"] = weekdays
+            shown = {**payload, "weekdays": weekdays or []}
+            period = f"{payload['start_day']}부터 " + (
+                f"{payload['end_day']}까지" if payload["end_day"] else "끝 날 없이"
+            )
+            kind = "repeat_create"
+            summary = (
+                "새 반복: "
+                + self._repeat_line(shown, names.get(payload["category_id"], ""))
+                + f", {period}"
+            )
+        elif name == "add_repeat_period":
+            item = await self._series(account_id, args.get("repeat"), today)
+            current = item["current"]
+            payload = {
+                key: current[key]
+                for key in (
+                    "title",
+                    "category_id",
+                    "rule",
+                    "skip_holidays",
+                    "time",
+                    "place",
+                    "memo",
+                )
+            }
+            if current["rule"] == "weekly":
+                payload["weekdays"] = current["weekdays"]
+            payload.update(
+                {
+                    "series_id": item["id"],
+                    "start_day": args.get("start_day"),
+                    "end_day": args.get("end_day"),
+                }
+            )
+            kind = "repeat_period"
+            summary = f"'{current['title']}' 반복에 새 기간: {args.get('start_day')}부터 " + (
+                f"{args.get('end_day')}까지" if args.get("end_day") else "끝 날 없이"
+            )
+        elif name == "update_repeat":
+            item = await self._series(account_id, args.get("repeat"), today)
+            current = item["current"]
+            changes: dict[str, Any] = {}
+            parts = []
+            for key, word in (
+                ("title", "이름"),
+                ("start_day", "시작 날"),
+                ("time", "시각"),
+                ("place", "장소"),
+                ("memo", "메모"),
+            ):
+                if key in args:
+                    changes[key] = args[key]
+                    parts.append(f"{word} → {args[key] or '없음'}")
+            if "category" in args:
+                changes["category_id"] = await self._category_id(account_id, args["category"])
+                parts.append(f"카테고리 → {args['category']}")
+            if "skip_holidays" in args:
+                changes["skip_holidays"] = bool(args["skip_holidays"])
+                parts.append("공휴일 " + ("빼기" if args["skip_holidays"] else "넣기"))
+            if "rule" in args or "end_day" in args:
+                # 규칙을 보낼 때는 끝 날도 같이(빠지면 끝 날 없음이 되므로 지금 값을 채운다)
+                changes["rule"] = args.get("rule", current["rule"])
+                weekdays = self._weekdays(args.get("weekdays"))
+                if changes["rule"] == "weekly":
+                    changes["weekdays"] = weekdays or current["weekdays"]
+                changes["end_day"] = args["end_day"] if "end_day" in args else current["end_day"]
+                shown = {**current, **changes}
+                parts.append(f"규칙 → {self._rule_text(shown)}")
+                parts.append(f"끝 날 → {changes['end_day'] or '없음'}")
+            if not changes:
+                raise ToolError("바꿀 것이 없어요")
+            kind = "repeat_update"
+            payload = {"repeat_id": current["id"], "changes": changes}
+            summary = f"'{current['title']}' 반복: " + ", ".join(parts)
+        else:
+            item = await self._series(account_id, args.get("repeat"), today)
+            kind = "repeat_delete"
+            payload = {"series_id": item["id"]}
+            summary = (
+                f"'{item['current']['title']}' 반복 지우기(모든 기간과 이미 생긴 회차, 휴지통 7일)"
+            )
+        confirm_id = await self.actions.request(grant, kind, payload, summary)
+        text = (
+            "아직 실행하지 않았어요. 사용자에게 아래 내용을 보여 주고 확인받으세요."
             f"\n\n{summary}\n\n사용자가 '네'라고 하면 "
             f'confirm_action(confirm_id="{confirm_id}")을 부르세요(10분 안).'
         )

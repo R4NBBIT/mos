@@ -142,6 +142,13 @@ def test_full_flow_and_tools(env: Env) -> None:
         "update_group",
         "delete_group",
         "set_category_audience",
+        "block_person",
+        "unblock_person",
+        "list_repeats",
+        "create_repeat",
+        "add_repeat_period",
+        "update_repeat",
+        "delete_repeat",
     ]
     cats = call(env, token, "list_categories")
     assert cats["structuredContent"]["categories"] == ["할 일"]
@@ -463,3 +470,41 @@ def test_every_delete_goes_to_trash(env: Env) -> None:
     assert "달리기" in [
         i["title"] for i in env.client.get("/api/todo/day/2026-11-27").json()["items"]
     ]
+
+
+def test_ai_repeats(env: Env) -> None:
+    """AI도 반복 화면 일(만들기, 기간, 바꾸기, 지우기)을 두 단계로(2026-11-22 사용자 요청)."""
+    _client_id, issued = connect(env)
+    token = issued["access_token"]
+    asked = call(
+        env,
+        token,
+        "create_repeat",
+        {
+            "title": "출근",
+            "category": "할 일",
+            "rule": "weekly",
+            "weekdays": ["월", "수", "금"],
+            "start_day": "2026-12-21",
+            "end_day": "2026-12-31",
+            "skip_holidays": True,
+            "time": "09:00",
+        },
+    )
+    summary = asked["structuredContent"]["summary"]
+    assert "매주 월 수 금" in summary and "공휴일 빼기" in summary
+    done = call(
+        env, token, "confirm_action", {"confirm_id": asked["structuredContent"]["confirm_id"]}
+    )
+    assert "반복을 만들었어요" in done["content"][0]["text"]
+    listed = call(env, token, "list_repeats")
+    series_id = listed["structuredContent"]["repeats"][0]["id"]
+    assert "출근" in listed["content"][0]["text"]
+    asked = call(env, token, "update_repeat", {"repeat": series_id, "place": "본사"})
+    call(env, token, "confirm_action", {"confirm_id": asked["structuredContent"]["confirm_id"]})
+    listed = call(env, token, "list_repeats")
+    assert listed["structuredContent"]["repeats"][0]["current"]["place"] == "본사"
+    assert listed["structuredContent"]["repeats"][0]["current"]["end_day"] == "2026-12-31"
+    asked = call(env, token, "delete_repeat", {"repeat": series_id})
+    call(env, token, "confirm_action", {"confirm_id": asked["structuredContent"]["confirm_id"]})
+    assert call(env, token, "list_repeats")["structuredContent"]["repeats"] == []
