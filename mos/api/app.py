@@ -28,12 +28,14 @@ from pydantic import BaseModel, Field
 from starlette.websockets import WebSocketDisconnect
 
 from mos.api.rate_limit import RateLimiter
+from mos.api.todo_routes import register_todo_routes
 from mos.config import Settings
 from mos.db.auth_repo import AuthRepo
 from mos.db.database import Database
 from mos.db.lists_repo import ListsRepo
 from mos.db.repo import MAX_PAGE_SIZE, MessageRepo
 from mos.db.sender_repo import SenderRepo
+from mos.db.todo_repo import TodoRepo
 from mos.services import reactions
 from mos.services.boss_files import KINDS as BOSS_KINDS
 from mos.services.boss_files import MAX_BYTES as BOSS_MAX_BYTES
@@ -75,6 +77,9 @@ from mos.services.sender import (
 )
 from mos.services.session import ActiveAccount, Device, SessionError, SessionService
 from mos.services.settings import SettingsError, SettingsStore
+from mos.services.todo import TodoService
+from mos.services.todo_access import FEATURE_NAME as TODO_FEATURE
+from mos.services.todo_access import TodoAccess
 from mos.version import current_version
 
 log = logging.getLogger(__name__)
@@ -589,6 +594,11 @@ def create_app(
         if not limiter.allow(client_ip(request)):
             raise SessionError("rate_limited", status=429, retry_after=60)
 
+    # ------------------------------------------------------------ 할 일(공개 전, 기능 스위치)
+
+    todo_access = TodoAccess(settings)
+    register_todo_routes(app, require_account, todo_access, TodoService(TodoRepo(db), clock), clock)
+
     # ------------------------------------------------------------ 상태 확인(자동 배포가 본다)
 
     @app.get("/api/app/manifest")
@@ -645,7 +655,14 @@ def create_app(
 
     @app.get("/api/session")
     async def session_state(request: Request) -> dict[str, Any]:
-        return await sessions.describe(await current_device(request))
+        state = await sessions.describe(await current_device(request))
+        # 공개 전 기능은 허용된 계정에만 'features'를 붙인다(허용 안 되면 키도 없음)
+        for account in state["accounts"]:
+            if todo_access.allowed(int(account["user_id"])):
+                account["features"] = [TODO_FEATURE]
+                if not todo_access.is_public:
+                    account["preview_features"] = [TODO_FEATURE]
+        return state
 
     @app.post("/api/auth/password", status_code=204)
     async def set_password(body: PasswordBody, request: Request) -> None:

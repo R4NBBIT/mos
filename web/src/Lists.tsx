@@ -795,8 +795,11 @@ export function GroupList({
   tree = false,
   openGroupId,
   activeChannelId,
+  todoEntry,
   ...common
 }: CommonProps & {
+  /** 맨 위 '할 일' 줄(허용된 계정만) */
+  todoEntry?: ReactNode;
   onOpen: (groupId: string) => void;
   onOpenChannel: (groupId: string, channel: ChannelInfo) => void;
   onOpenVoice: (groupId: string, voice: VoiceChannel) => void;
@@ -904,6 +907,7 @@ export function GroupList({
           onPinChannel={(channel) => togglePin("channel", channel.id, !channel.pinned)}
         />
       )}
+      {!query && !editing && todoEntry}
       {load.state === "ok" && !query && shownPinned.length > 0 && (
         <section className="list-section">
           <h2 className="list-section-title">{skin.pinnedTitle}</h2>

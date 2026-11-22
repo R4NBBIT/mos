@@ -8910,3 +8910,40 @@ body.sorting * {
 .swipe-shade-on {
   display: block;
 }
+
+/* ------------------------------------------------------------ 할 일 자리(공개 전, 서버 목록 맨 위) */
+
+.todo-entry-section {
+  margin-bottom: 2px;
+}
+
+.todo-entry-icon svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  margin: 0 auto;
+  fill: var(--btn-bg);
+  stroke: none;
+}
+
+.todo-entry-icon svg path {
+  fill: none;
+  stroke: var(--btn-fg);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.todo-preview-chip {
+  flex: none;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 11px;
+  background: var(--honey-soft);
+  border: 1px solid var(--honey);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+}

@@ -232,6 +232,10 @@ export interface SessionAccount {
   /** 확인이 유지되는 때(유닉스 초) */
   nitro_until: number | null;
   disconnected: boolean;
+  /** 이 계정이 쓸 수 있는 기능(공개 전 기능은 허용된 계정에만 온다) */
+  features?: string[];
+  /** 아직 모두에게 열지 않은 기능('나만 보임' 표시) */
+  preview_features?: string[];
 }
 
 export interface SessionState {

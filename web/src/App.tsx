@@ -1,5 +1,5 @@
 import { usePresence } from "./motion";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, type ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AccountMenu from "./AccountMenu";
 import BossScreen from "./boss/BossScreen";
 import { DOUBLE_PRESS_MS, keyFromEvent, parseBossKey, sameKey } from "./boss/bossKey";
@@ -42,6 +42,13 @@ import VoiceRoom from "./VoiceRoom";
 import InstallDialog from "./InstallDialog";
 import NotifyToast from "./NotifyToast";
 import { useNotifications } from "./useNotifications";
+import TodoEntry from "./todo/TodoEntry";
+import { isDayKey, today } from "./todo/dates";
+
+// 할 일(공개 전): 허용된 계정에서만 내려받는다
+const TodoScreen = lazy(() => import("./todo/TodoScreen"));
+const TodoSide = lazy(() => import("./todo/TodoScreen").then((module) => ({ default: module.TodoSide })));
+const TODO_FEATURE = "todo";
 
 // 서버의 자동 잠금(계정 설정, 기본 30분)과 같게. 조작이 없으면 화면도 잠금으로 간다
 const IDLE_CHECK_MS = 30 * 1000;
@@ -59,6 +66,7 @@ function takeConnectError(): string {
 type Route =
   | { view: "groups" }
   | { view: "settings" }
+  | { view: "todo"; day: string }
   | { view: "channels"; groupId: string }
   | { view: "chat"; groupId: string; channelId: string }
   | { view: "voice"; groupId: string; channelId: string }
@@ -72,6 +80,9 @@ type Route =
  */
 function parseRoute(hash: string): Route {
   if (hash === "#/settings") return { view: "settings" };
+  if (hash === "#/todo") return { view: "todo", day: today() };
+  const todoDay = /^#\/todo\/(\d{4}-\d{2}-\d{2})$/.exec(hash);
+  if (todoDay?.[1] && isDayKey(todoDay[1])) return { view: "todo", day: todoDay[1] };
   const thread = /^#\/g\/(\d{1,21})\/p\/(\d{1,21})\/t\/(\d{1,21})$/.exec(hash);
   if (thread?.[1] && thread[2] && thread[3]) {
     return { view: "thread", groupId: thread[1], parentId: thread[2], threadId: thread[3] };
@@ -90,7 +101,7 @@ function parseRoute(hash: string): Route {
 /** 휴대폰에서 옆으로 넘기는 단계: 서버 목록 0, 채널 목록 1, 채팅(채팅방, 글, 음성) 2 */
 function routeLevel(route: Route): number {
   if (route.view === "groups" || route.view === "settings") return 0;
-  if (route.view === "channels") return 1;
+  if (route.view === "channels" || route.view === "todo") return 1;
   return 2;
 }
 
@@ -198,7 +209,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
   // 휴대폰에서 왼쪽으로 밀었을 때 돌아갈 곳: 마지막에 연 서버와 서버마다 마지막에 본 채팅
   const lastPlace = useRef<{ group: string | null; chats: Record<string, string> }>({ group: null, chats: {} });
   useEffect(() => {
-    if (route.view === "groups" || route.view === "settings") return;
+    if (route.view === "groups" || route.view === "settings" || route.view === "todo") return;
     lastPlace.current.group = route.groupId;
     if (routeLevel(route) === 2) lastPlace.current.chats[route.groupId] = window.location.hash;
   }, [route]);
@@ -207,6 +218,9 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
   // 넓은 화면 왼쪽 목록에서 둘러보는 서버(null이면 서버 목록). 오른쪽 화면과 따로 움직이고,
   // 채널을 열거나 뒤로 가서 주소가 바뀌면 다시 주소를 따른다
   const [browse, setBrowse] = useState<{ from: Route; groupId: string | null } | null>(null);
+  // 할 일이 바뀌면 서버 목록 요약, 왼쪽 달력을 다시 받는다
+  const [todoVersion, setTodoVersion] = useState(0);
+  const bumpTodo = useCallback(() => setTodoVersion((value) => value + 1), []);
 
   const refresh = useCallback(async () => {
     try {
@@ -379,10 +393,55 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     // 넓은 화면 왼쪽 목록에는 계정 메뉴·안내를 두지 않는다(계정 메뉴는 늘 오른쪽 위 같은 자리)
     const listSide = { ...common, menu: null, notice: "" };
     const browseTo = (groupId: string | null) => setBrowse({ from: route, groupId });
+    // 할 일(공개 전): 서버가 허용한 계정에만 features가 온다
+    const todoAllowed = Boolean(active.features?.includes(TODO_FEATURE));
+    const todoEntry = (side: boolean) =>
+      todoAllowed ? (
+        <TodoEntry
+          theme={look.theme}
+          preview={Boolean(active.preview_features?.includes(TODO_FEATURE))}
+          active={route.view === "todo"}
+          version={todoVersion}
+          onOpen={() => {
+            if (side) setBrowse(null);
+            go("#/todo");
+          }}
+        />
+      ) : undefined;
+    const todoDay = route.view === "todo" ? route.day : today();
+    const todoScreen = (inSplit: boolean) => (
+      <Suspense fallback={<div className="center-note">불러오는 중…</div>}>
+        <TodoScreen
+          key={active.id}
+          day={todoDay}
+          onDay={(day) => go(day === today() ? "#/todo" : `#/todo/${day}`)}
+          showBack={!inSplit}
+          onBack={() => go("#/")}
+          menu={common.menu}
+          notice={notice}
+          onNoticeClose={common.onNoticeClose}
+          onChanged={bumpTodo}
+          version={todoVersion}
+        />
+      </Suspense>
+    );
+    const todoSide = () => (
+      <Suspense fallback={<div className="center-note">불러오는 중…</div>}>
+        <TodoSide
+          key={active.id}
+          day={todoDay}
+          name={active.name}
+          onDay={(day) => go(day === today() ? "#/todo" : `#/todo/${day}`)}
+          onServers={() => browseTo(null)}
+          version={todoVersion}
+        />
+      </Suspense>
+    );
     const groupList = (side = false) => (
       <GroupList
         key={look.theme === "note" ? `${active.id}:tree` : active.id}
         tree={look.theme === "note"}
+        todoEntry={todoEntry(side)}
         onOpen={(groupId) => (side ? browseTo(groupId) : go(`#/g/${groupId}`))}
         onOpenChannel={openChannel}
         onOpenVoice={openVoice}
@@ -395,6 +454,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
         <GroupList
           key={`${active.id}:tree`}
           tree
+          todoEntry={todoEntry(side)}
           openGroupId={groupId}
           activeChannelId={activeChannelId}
           onOpen={(id) => (side ? browseTo(id) : go(`#/g/${id}`))}
@@ -484,6 +544,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
 
     // 목록 없이 한 화면(좁은 창, 또는 넓은 창에서 목록을 접었을 때)
     const single = (at: Route = route) => {
+      if (at.view === "todo") return todoAllowed ? todoScreen(false) : groupList();
       if (at.view === "chat") return chatRoom(at.groupId, at.channelId, false);
       if (at.view === "voice") return voiceRoom(at.groupId, at.channelId, false);
       if (at.view === "posts") return posts(at.groupId, at.parentId);
@@ -494,6 +555,17 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     if (!wide) {
       // 휴대폰: 서버 목록(0), 채널 목록(1), 채팅(2) 사이를 옆으로 밀어서 오간다
       const level = routeLevel(route);
+      if (route.view === "todo") {
+        // 할 일: 서버 목록(0) 옆 한 단계. 왼쪽으로는 더 가지 않는다
+        return (
+          <SwipeDeck
+            level={1}
+            render={(at) => (at === 1 ? single() : at === 0 ? groupList() : null)}
+            canGo={(at) => at === 0}
+            onGo={() => go("#/")}
+          />
+        );
+      }
       const groupId = route.view === "groups" ? lastPlace.current.group : route.groupId;
       const lastChat = groupId ? lastPlace.current.chats[groupId] : undefined;
       const nextChat = lastChat ? parseRoute(lastChat) : null;
@@ -516,8 +588,10 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     // 왼쪽 목록은 접어도 자리(aside)는 남겨 두고 폭만 줄여서 부드럽게 여닫는다
     const split = { open: listOpen, toggle: () => setListOpen(!listOpen) };
     // 왼쪽 목록: 둘러보는 중이면 그 서버, 아니면 주소의 서버
-    const routeGroup = route.view === "groups" ? null : route.groupId;
+    const routeGroup = route.view === "groups" || route.view === "todo" ? null : route.groupId;
+    const browsing = Boolean(browse && browse.from === route);
     const leftGroup = browse && browse.from === route ? browse.groupId : routeGroup;
+    const leftTodo = route.view === "todo" && todoAllowed && !browsing;
     const routeActive =
       route.view === "chat" || route.view === "voice"
         ? route.channelId
@@ -533,7 +607,9 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
         >
           {listPresence.shown && (
             <div className="split-list-inner">
-              {leftGroup === null
+              {leftTodo
+                ? todoSide()
+                : leftGroup === null
                 ? groupList(true)
                 : channelList(leftGroup, leftGroup === routeGroup ? routeActive : undefined, true)}
             </div>
@@ -543,6 +619,8 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           <main className="split-main">
             {!listOpen ? (
               single()
+            ) : route.view === "todo" && todoAllowed ? (
+              todoScreen(true)
             ) : route.view === "chat" ? (
               chatRoom(route.groupId, route.channelId, true)
             ) : route.view === "voice" ? (

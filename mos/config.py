@@ -7,11 +7,14 @@ from __future__ import annotations
 
 import base64
 import binascii
+import logging
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
+
+log = logging.getLogger(__name__)
 
 SECRET_KEY_BYTES = 32  # AES-256-GCM
 CONNECT_CALLBACK_PATH = "/api/auth/connect/callback"
@@ -52,6 +55,26 @@ def _read_egress_limit(environ: Mapping[str, str]) -> int:
     return int(raw) * 1024 * 1024
 
 
+def _read_todo_users(environ: Mapping[str, str]) -> frozenset[int] | None:
+    """할 일 기능을 쓸 수 있는 디스코드 ID. None이면 모두, 빈 묶음이면 운영자만.
+
+    공개 전 기능이라 잘못 적었을 때 앱을 멈추지 않고 '운영자만'으로 둔다.
+    """
+    raw = environ.get("TODO_USERS", "").strip()
+    if raw.lower() == "all":
+        return None
+    if not raw:
+        return frozenset()
+    ids: set[int] = set()
+    for part in raw.split(","):
+        item = part.strip()
+        if not item.isdigit() or not 15 <= len(item) <= 21:
+            log.warning("TODO_USERS 값이 잘못돼 할 일 기능은 운영자만 씁니다")
+            return frozenset()
+        ids.add(int(item))
+    return frozenset(ids)
+
+
 @dataclass(frozen=True)
 class Settings:
     discord_bot_token: str = field(repr=False)
@@ -65,6 +88,8 @@ class Settings:
     operator_discord_id: int | None = None
     # 월 송신량 한도(구글 무료 1GB). 80% 알림, 95% 첨부 막기
     egress_limit_bytes: int = 1024 * 1024 * 1024
+    # 할 일 기능(공개 전): None = 모두, 빈 묶음 = 운영자만, 그 밖 = 적힌 사람 + 운영자
+    todo_users: frozenset[int] | None = frozenset()
 
     @property
     def cookie_secure(self) -> bool:
@@ -112,4 +137,5 @@ def load_settings(environ: Mapping[str, str] | None = None) -> Settings:
         api_port=int(port_raw),
         operator_discord_id=_read_snowflake(env, "OPERATOR_DISCORD_ID", required=False),
         egress_limit_bytes=_read_egress_limit(env),
+        todo_users=_read_todo_users(env),
     )
