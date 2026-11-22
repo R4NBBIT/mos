@@ -168,6 +168,7 @@ def test_full_flow_and_tools(env: Env) -> None:
     assert fixed["structuredContent"]["todo"]["time"] is None
     listed = call(env, token, "list_todos", {"start_day": "2026-11-23"})
     assert len(listed["structuredContent"]["todos"]) == 2
+    assert listed["structuredContent"]["todos"][0]["color"].startswith("#")  # 위젯 체크 색
     bad = call(
         env,
         token,

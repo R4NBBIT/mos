@@ -2686,6 +2686,492 @@
   font-size: 14px;
 }
 
+/* ---------- 위젯 테마별 모양(시트, 메모장, 노션, Word) */
+.todo-widget.tw-sheet,
+.todo-widget.tw-memo,
+.todo-widget.tw-note,
+.todo-widget.tw-word {
+  padding: 0;
+  gap: 0;
+}
+
+.tw-grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.tw-done .tw-sheet-text,
+.tw-done .tw-note-text,
+.tw-done .tw-word-text,
+.tw-memo-line.tw-done {
+  color: #8a8f98;
+  text-decoration: line-through;
+}
+
+.tw-sheet-cell-input input,
+.tw-memo-input input,
+.tw-note-input input,
+.tw-word-input input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+}
+
+/* 스프레드시트 */
+.tw-sheet {
+  background: #ffffff;
+  color: #1f2328;
+  font-family: "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+  font-size: 13px;
+}
+
+.tw-sheet-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px;
+  background: #1f6e43;
+  color: #ffffff;
+  font-size: 12.5px;
+  flex: none;
+}
+
+.tw-sheet-logo,
+.tw-word-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  background: #ffffff;
+  color: #1f6e43;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.tw-sheet-saved {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.tw-sheet-fx {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+  border-bottom: 1px solid #d5d8dc;
+  font-size: 12px;
+  flex: none;
+}
+
+.tw-sheet-name {
+  width: 40px;
+  padding-right: 6px;
+  border-right: 1px solid #d5d8dc;
+  color: #5f6368;
+}
+
+.tw-sheet-fx-mark {
+  color: #5f6368;
+  font-style: italic;
+}
+
+.tw-sheet-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.tw-sheet-row {
+  display: grid;
+  grid-template-columns: 30px 44px 1fr 52px;
+  height: 25px;
+}
+
+.tw-sheet-row > span {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 6px;
+  border-right: 1px solid #e1e3e6;
+  border-bottom: 1px solid #e1e3e6;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tw-sheet-head > span,
+.tw-sheet-num {
+  justify-content: center;
+  background: #f3f4f6;
+  color: #5f6368;
+  font-size: 11.5px;
+}
+
+.tw-sheet-label > span:not(.tw-sheet-num) {
+  font-weight: 700;
+}
+
+.tw-sheet-check {
+  justify-content: center;
+}
+
+.tw-sheet-text {
+  display: block !important;
+  line-height: 25px;
+}
+
+.tw-sheet-time {
+  justify-content: flex-end;
+  color: #5f6368;
+  font-variant-numeric: tabular-nums;
+}
+
+.tw-sheet-input .tw-sheet-cell-input {
+  box-shadow: inset 0 0 0 2px #1f6e43;
+}
+
+.tw-sheet-note {
+  margin: 0;
+  padding: 6px 10px;
+  color: #5f6368;
+  font-size: 12px;
+}
+
+.tw-sheet-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 10px 0 36px;
+  border-top: 1px solid #d5d8dc;
+  background: #f3f4f6;
+  color: #5f6368;
+  font-size: 12px;
+  flex: none;
+}
+
+.tw-sheet-tab-on {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: #ffffff;
+  color: #1f6e43;
+  font-weight: 700;
+  border-bottom: 2px solid #1f6e43;
+}
+
+/* 메모장 */
+.tw-memo {
+  background: #ffffff;
+  color: #111111;
+  font-size: 13px;
+}
+
+.tw-memo-title {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  background: #f3f3f3;
+  font-family: "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+  font-size: 12px;
+  flex: none;
+}
+
+.tw-memo-menu {
+  display: flex;
+  gap: 12px;
+  height: 24px;
+  align-items: center;
+  padding: 0 10px;
+  border-bottom: 1px solid #e5e5e5;
+  font-family: "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+  font-size: 12px;
+  flex: none;
+}
+
+.tw-memo-text {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 8px;
+  font-family: var(--mono, ui-monospace, Consolas, monospace);
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
+.tw-memo-line {
+  display: flex;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.tw-memo-head,
+.tw-memo-dim {
+  cursor: default;
+  color: #6b6b6b;
+}
+
+.tw-memo-line:hover:not(.tw-memo-head):not(.tw-memo-dim) {
+  background: #cce8ff;
+}
+
+.tw-memo-mark {
+  flex: none;
+  margin-right: 0.6ch;
+}
+
+.tw-memo-input {
+  cursor: text;
+}
+
+.tw-memo-status {
+  display: flex;
+  gap: 14px;
+  height: 24px;
+  align-items: center;
+  padding: 0 10px;
+  border-top: 1px solid #e5e5e5;
+  background: #f3f3f3;
+  color: #444444;
+  font-family: "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+  font-size: 11.5px;
+  flex: none;
+}
+
+/* 노션 */
+.tw-note {
+  background: #ffffff;
+  color: #37352f;
+  font-family: ui-sans-serif, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+}
+
+.tw-note-crumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  font-size: 13px;
+  color: #37352f;
+  flex: none;
+}
+
+.tw-note-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: #e9e9e7;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tw-note-page {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 22px 16px;
+}
+
+.tw-note-h1 {
+  margin: 4px 0 10px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.tw-note-props {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  row-gap: 4px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e9e9e7;
+  font-size: 13px;
+}
+
+.tw-note-prop-name {
+  color: #787774;
+}
+
+.tw-note-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tw-note-todo {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.tw-note-todo .todo-check {
+  margin-top: 4px;
+}
+
+.tw-note-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.tw-note-time {
+  color: #787774;
+  font-size: 12.5px;
+  line-height: 22px;
+}
+
+.tw-note-ghost,
+.tw-word-ghost {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 4px;
+  border: 1.5px dashed #c7c6c3;
+  border-radius: 3px;
+}
+
+.tw-note-dim,
+.tw-word-dim {
+  margin: 6px 0;
+  color: #787774;
+  font-size: 13px;
+}
+
+/* Word */
+.tw-word {
+  background: #f3f3f3;
+  color: #242424;
+  font-family: "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+}
+
+.tw-word-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  background: #185abd;
+  color: #ffffff;
+  font-size: 12.5px;
+  flex: none;
+}
+
+.tw-word-logo {
+  color: #185abd;
+}
+
+.tw-word-tabs {
+  display: flex;
+  gap: 14px;
+  height: 28px;
+  align-items: center;
+  padding: 0 10px;
+  background: #ffffff;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 12px;
+  flex: none;
+}
+
+.tw-word-tab-on {
+  color: #185abd;
+  font-weight: 700;
+  border-bottom: 2px solid #185abd;
+  padding-bottom: 2px;
+}
+
+.tw-word-canvas {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.tw-word-page {
+  min-height: 100%;
+  box-sizing: border-box;
+  padding: 22px 22px 18px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+  font-family: "Malgun Gothic", "Calibri", system-ui, sans-serif;
+}
+
+.tw-word-heading {
+  margin: 0 0 10px;
+  color: #2f5496;
+  font-size: 17px;
+  font-weight: 400;
+}
+
+.tw-word-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tw-word-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.tw-word-item .todo-check {
+  margin-top: 4px;
+}
+
+.tw-word-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.tw-word-ghost {
+  width: 14px;
+  height: 14px;
+  border-radius: 1px;
+}
+
+.tw-word-status {
+  display: flex;
+  gap: 14px;
+  height: 24px;
+  align-items: center;
+  padding: 0 10px;
+  background: #185abd;
+  color: #ffffff;
+  font-size: 11.5px;
+  flex: none;
+}
+
 /* ---------- 일부 공개 대상, 친구 그룹 */
 .todo-audience {
   display: flex;

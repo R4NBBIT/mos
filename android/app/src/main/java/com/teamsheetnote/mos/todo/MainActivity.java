@@ -9,6 +9,8 @@ import android.util.Base64;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.TextView;
 
 import org.json.JSONArray;
@@ -41,6 +43,7 @@ public class MainActivity extends Activity {
         layout.addView(title);
         layout.addView(status);
         layout.addView(action);
+        layout.addView(lookPicker(pad));
         setContentView(layout);
         handle(getIntent());
         render();
@@ -66,6 +69,38 @@ public class MainActivity extends Activity {
             action.setText("ㅁㅇㅅ로 로그인");
             action.setOnClickListener(view -> startLogin());
         }
+    }
+
+    /** 위젯 모양 고르기(ㅁㅇㅅ 테마와 같은 6가지 + 휴대폰 다크 모드 따라) */
+    private LinearLayout lookPicker(int pad) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(0, pad, 0, 0);
+        TextView label = new TextView(this);
+        label.setText("위젯 모양");
+        label.setTextSize(16);
+        box.addView(label);
+        RadioGroup group = new RadioGroup(this);
+        String chosen = Look.chosen(this);
+        for (int index = 0; index < Look.KEYS.length; index++) {
+            RadioButton option = new RadioButton(this);
+            option.setId(index + 1);
+            option.setText(Look.NAMES[index]);
+            option.setTextSize(15);
+            group.addView(option);
+            if (Look.KEYS[index].equals(chosen)) {
+                option.setChecked(true);
+            }
+        }
+        group.setOnCheckedChangeListener((radioGroup, checkedId) -> {
+            int index = checkedId - 1;
+            if (index >= 0 && index < Look.KEYS.length) {
+                Look.choose(this, Look.KEYS[index]);
+                TodoWidget.refreshAll(this);
+            }
+        });
+        box.addView(group);
+        return box;
     }
 
     private static String random(int bytes) {

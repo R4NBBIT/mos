@@ -1,18 +1,18 @@
 // 할 일 위젯(T5, WIDGET): 오늘 할 일만 작게. 체크와 빠른 추가.
 // PC: 크롬, 엣지는 '항상 위' 작은 창(Document Picture-in-Picture), 없으면 작은 팝업 창(#/todo/widget).
-// 위장(보스키)이 켜지면 위젯 창도 같이 닫힌다. 테마는 지금 ㅁㅇㅅ 테마 그대로.
+// 위장(보스키)이 켜지면 위젯 창도 같이 닫힌다. 테마마다 그 프로그램처럼 보이는 모양(TodoWidgetLooks).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { isDisguised, onDisguiseChange } from "../boss/bossState";
-import { longLabel, timeLabel, today } from "./dates";
+import { today } from "./dates";
 import { useEnterKey } from "./enterKey";
-import { CHECK_PATH, checkStyle } from "./TodoItems";
+import { type WidgetModel, WidgetLook, widgetLook } from "./TodoWidgetLooks";
 import { addTodo, fetchTodoDay, type TodoDay, type TodoItem, updateTodo } from "./todoApi";
 import "./todo.css";
 
 const REFRESH_MS = 60_000;
 
-export default function TodoWidget({ compact = false }: { compact?: boolean }) {
+export default function TodoWidget({ compact = false, theme }: { compact?: boolean; theme?: string }) {
   const [data, setData] = useState<TodoDay | null>(null);
   const [day, setDay] = useState(today());
   const [text, setText] = useState("");
@@ -59,64 +59,32 @@ export default function TodoWidget({ compact = false }: { compact?: boolean }) {
   const items = [...(data?.items ?? [])].sort(
     (a, b) => Number(a.done) - Number(b.done) || (a.time ?? "99").localeCompare(b.time ?? "99"),
   );
-  const done = items.filter((item) => item.done).length;
-  const percent = items.length === 0 ? 0 : Math.round((done / items.length) * 100);
+  const colors = new Map((data?.categories ?? []).map((category) => [category.id, category.color]));
+  const model: WidgetModel = {
+    day,
+    items,
+    done: items.filter((item) => item.done).length,
+    colorOf: (item) => colors.get(item.category_id),
+    onToggle: (item) => void toggle(item),
+    note: failed
+      ? "불러오지 못했어요. ㅁㅇㅅ가 잠겼으면 잠금을 풀어 주세요."
+      : data && items.length === 0
+        ? "오늘 할 일이 없어요."
+        : null,
+    add: first
+      ? {
+          value: text,
+          maxLength: 100,
+          "aria-label": `${first.name}에 할 일 넣기`,
+          onChange: (event) => setText(event.target.value),
+          ...add,
+        }
+      : null,
+  };
+  const look = widgetLook(theme ?? document.documentElement.dataset.theme);
   return (
-    <div className={compact ? "todo-widget todo-widget-compact" : "todo-widget"}>
-      <header className="todo-widget-head">
-        <div className="todo-widget-heading">
-          <span className="todo-widget-brand">TODO</span>
-          <strong>{longLabel(day)}</strong>
-        </div>
-        <span className="todo-widget-count" aria-label={`${items.length}개 중 ${done}개 했어요`}>
-          {done}
-          <small>/{items.length}</small>
-        </span>
-      </header>
-      <div className="todo-widget-bar" aria-hidden="true">
-        <span style={{ width: `${percent}%` }} />
-      </div>
-      {failed && <p className="todo-widget-note">불러오지 못했어요. ㅁㅇㅅ가 잠겼으면 잠금을 풀어 주세요.</p>}
-      <ul className="todo-widget-list">
-        {items.map((item) => {
-          const category = data?.categories.find((c) => c.id === item.category_id);
-          return (
-            <li key={item.id} className={item.done ? "todo-widget-item todo-widget-done" : "todo-widget-item"}>
-              <button
-                type="button"
-                className={item.done ? "todo-check todo-check-on" : "todo-check"}
-                style={checkStyle(category?.color)}
-                aria-pressed={item.done}
-                aria-label={`${item.title} ${item.done ? "완료 취소" : "완료"}`}
-                onClick={() => void toggle(item)}
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d={CHECK_PATH} />
-                </svg>
-              </button>
-              <span className="todo-widget-title">{item.title}</span>
-              {item.time && <span className="todo-widget-time">{timeLabel(item.time)}</span>}
-            </li>
-          );
-        })}
-      </ul>
-      {data && items.length === 0 && <p className="todo-widget-note todo-widget-empty">오늘 할 일이 없어요.</p>}
-      {first && (
-        <div className="todo-widget-add">
-          <span className="todo-widget-plus" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-          </span>
-          <input
-            value={text}
-            maxLength={100}
-            aria-label={`${first.name}에 할 일 넣기`}
-            onChange={(event) => setText(event.target.value)}
-            {...add}
-          />
-        </div>
-      )}
+    <div className={`todo-widget tw-${look}${compact ? " todo-widget-compact" : ""}`}>
+      <WidgetLook look={look} model={model} />
     </div>
   );
 }
@@ -186,7 +154,7 @@ export async function openTodoWidget(): Promise<void> {
   const holder = pip.document.createElement("div");
   pip.document.body.appendChild(holder);
   const root = createRoot(holder);
-  root.render(<TodoWidget compact />);
+  root.render(<TodoWidget compact theme={document.documentElement.dataset.theme} />);
   const stop = onDisguiseChange((value) => {
     if (value) pip.close(); // 위장하면 위젯 창도 바로 닫는다
   });

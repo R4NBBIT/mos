@@ -522,6 +522,10 @@ class TodoMcp:
         names = ", ".join(row["name"] for row in open_rows)
         raise ToolError(f"'{wanted}' 카테고리가 없어요. 있는 것: {names}. 사용자에게 물어보세요.")
 
+    async def _colors(self, account_id: int) -> dict[str, str]:
+        """카테고리 색(위젯이 체크 표시를 칠할 때)"""
+        return {str(row["id"]): row["color"] for row in await self.todo.categories(account_id)}
+
     async def _names(self, account_id: int) -> dict[str, str]:
         return {str(row["id"]): row["name"] for row in await self.todo.categories(account_id)}
 
@@ -553,7 +557,11 @@ class TodoMcp:
             for offset in range(span + 1):
                 day = (first + timedelta(days=offset)).isoformat()
                 items.extend((await self.todo.day(account_id, day))["items"])
-            listed = [_public(item, names) for item in items]
+            colors = await self._colors(account_id)
+            listed = [
+                {**_public(item, names), "color": colors.get(item["category_id"], "")}
+                for item in items
+            ]
             text = _grouped(items, names) if items else "할 일이 없어요."
             text += "\n\n(id) " + ", ".join(f"{it['title']}={it['id']}" for it in listed)
             return text, {"todos": listed}

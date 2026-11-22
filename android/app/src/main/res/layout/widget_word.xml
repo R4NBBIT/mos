@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 할 일 위젯(테마별 모양, TodoWidget.java가 고름). 줄을 누르면 완료 켜고 끄기, ↻ 새로 고침, 날짜 누르면 ㅁㅇㅅ -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/w_word_bg" android:orientation="vertical" android:padding="0dp">
+<LinearLayout android:layout_width="match_parent" android:layout_height="30dp" android:background="@drawable/w_word_title" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="10dp" android:paddingEnd="6dp">
+  <TextView android:layout_width="18dp" android:layout_height="18dp" android:background="#FFFFFFFF" android:gravity="center" android:text="W" android:textColor="#FF185ABD" android:textSize="11sp" android:textStyle="bold" />
+  <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="TODO.docx" android:textSize="12sp" android:textColor="#FFFFFFFF" android:paddingStart="8dp" />
+  <TextView android:id="@+id/refresh" android:layout_width="wrap_content" android:layout_height="wrap_content" android:padding="4dp" android:text="↻" android:textColor="#FFFFFFFF" android:textSize="17sp" />
+</LinearLayout>
+<TextView android:layout_width="match_parent" android:layout_height="26dp" android:background="#FFFFFFFF" android:gravity="center_vertical" android:paddingStart="10dp" android:text="파일   홈   삽입   레이아웃   검토" android:textColor="#FF242424" android:textSize="12sp" />
+<LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="vertical" android:padding="10dp">
+  <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/w_word_page" android:orientation="vertical" android:padding="16dp">
+    <LinearLayout android:id="@+id/head" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingBottom="8dp">
+      <TextView android:id="@+id/title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="16sp" android:textColor="#FF2F5496" />
+    </LinearLayout>
+    <TextView android:id="@+id/message" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#FF616161" android:visibility="gone" android:paddingTop="6dp" android:paddingBottom="6dp" />
+<LinearLayout android:id="@+id/row0" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:paddingTop="3dp" android:paddingBottom="3dp" android:visibility="gone">
+  <TextView android:id="@+id/row0_mark" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingEnd="8dp" android:textSize="13sp" android:textColor="#FF242424" />
+  <TextView android:id="@+id/row0_text" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:singleLine="true" android:ellipsize="end" android:textSize="13sp" android:textColor="#FF242424" />
+  <TextView android:id="@+id/row0_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="8dp" android:textSize="12sp" android:textColor="#FF616161" />
+</LinearLayout>
+<LinearLayout android:id="@+id/row1" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:paddingTop="3dp" android:paddingBottom="3dp" android:visibility="gone">
+  <TextView android:id="@+id/row1_mark" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingEnd="8dp" android:textSize="13sp" android:textColor="#FF242424" />
+  <TextView android:id="@+id/row1_text" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:singleLine="true" android:ellipsize="end" android:textSize="13sp" android:textColor="#FF242424" />
+  <TextView android:id="@+id/row1_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="8dp" android:textSize="12sp" android:textColor="#FF616161" />
+</LinearLayout>
+<LinearLayout android:id="@+id/row2" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:paddingTop="3dp" android:paddingBottom="3dp" android:visibility="gone">
+  <TextView android:id="@+id/row2_mark" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingEnd="8dp" android:textSize="13sp" android:textColor="#FF242424" />
+  <TextView android:id="@+id/row2_text" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:singleLine="true" android:ellipsize="end" android:textSize="13sp" android:textColor="#FF242424" />
+  <TextView android:id="@+id/row2_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="8dp" android:textSize="12sp" android:textColor="#FF616161" />
+</LinearLayout>
+<LinearLayout android:id="@+id/row3" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:paddingTop="3dp" android:paddingBottom="3dp" android:visibility="gone">
+  <TextView android:id="@+id/row3_mark" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingEnd="8dp" android:textSize="13sp" android:textColor="#FF242424" />
+  <TextView android:id="@+id/row3_text" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:singleLine="true" android:ellipsize="end" android:textSize="13sp" android:textColor="#FF242424" />
+  <TextView android:id="@+id/row3_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="8dp" android:textSize="12sp" android:textColor="#FF616161" />
+</LinearLayout>
+<LinearLayout android:id="@+id/row4" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:paddingTop="3dp" android:paddingBottom="3dp" android:visibility="gone">
+  <TextView android:id="@+id/row4_mark" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingEnd="8dp" android:textSize="13sp" android:textColor="#FF242424" />
+  <TextView android:id="@+id/row4_text" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:singleLine="true" android:ellipsize="end" android:textSize="13sp" android:textColor="#FF242424" />
+  <TextView android:id="@+id/row4_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="8dp" android:textSize="12sp" android:textColor="#FF616161" />
+</LinearLayout>
+<LinearLayout android:id="@+id/row5" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:paddingTop="3dp" android:paddingBottom="3dp" android:visibility="gone">
+  <TextView android:id="@+id/row5_mark" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingEnd="8dp" android:textSize="13sp" android:textColor="#FF242424" />
+  <TextView android:id="@+id/row5_text" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:singleLine="true" android:ellipsize="end" android:textSize="13sp" android:textColor="#FF242424" />
+  <TextView android:id="@+id/row5_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="8dp" android:textSize="12sp" android:textColor="#FF616161" />
+</LinearLayout>
+<LinearLayout android:id="@+id/row6" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:paddingTop="3dp" android:paddingBottom="3dp" android:visibility="gone">
+  <TextView android:id="@+id/row6_mark" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingEnd="8dp" android:textSize="13sp" android:textColor="#FF242424" />
+  <TextView android:id="@+id/row6_text" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:singleLine="true" android:ellipsize="end" android:textSize="13sp" android:textColor="#FF242424" />
+  <TextView android:id="@+id/row6_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="8dp" android:textSize="12sp" android:textColor="#FF616161" />
+</LinearLayout>
+<LinearLayout android:id="@+id/row7" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:paddingTop="3dp" android:paddingBottom="3dp" android:visibility="gone">
+  <TextView android:id="@+id/row7_mark" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingEnd="8dp" android:textSize="13sp" android:textColor="#FF242424" />
+  <TextView android:id="@+id/row7_text" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:singleLine="true" android:ellipsize="end" android:textSize="13sp" android:textColor="#FF242424" />
+  <TextView android:id="@+id/row7_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="8dp" android:textSize="12sp" android:textColor="#FF616161" />
+</LinearLayout>
+  </LinearLayout>
+</LinearLayout>
+<LinearLayout android:layout_width="match_parent" android:layout_height="24dp" android:background="@drawable/w_word_status" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="10dp" android:paddingEnd="10dp">
+  <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="1/1 페이지" android:textSize="11sp" android:textColor="#FFFFFFFF" />
+  <TextView android:id="@+id/count" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#FFFFFFFF" android:paddingEnd="12dp" />
+  <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="한국어" android:textSize="11sp" android:textColor="#FFFFFFFF" />
+</LinearLayout>
+</LinearLayout>
