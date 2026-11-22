@@ -4,7 +4,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import BackIcon from "../BackIcon";
 import SplitToggle from "../SplitToggle";
 import { viaServer } from "../format";
-import { addDays, longLabel, shortDate, timeLabel, today } from "./dates";
+import { addDays, longLabel, timeLabel, today } from "./dates";
 import { CategoryDot, CHECK_PATH, checkStyle, MemoText, repeatLabel } from "./TodoItems";
 import { TodoReactions } from "./TodoReactions";
 import { type FriendDay, fetchFriendDay, type TodoItem, type TodoReaction } from "./todoApi";
@@ -14,13 +14,12 @@ function FriendRow({ owner, item, color }: { owner: string; item: TodoItem; colo
   const [reactions, setReactions] = useState<TodoReaction[]>(item.reactions ?? []);
   const [memoOpen, setMemoOpen] = useState(false);
   const meta = [
-    shortDate(item.day),
     item.time ? timeLabel(item.time) : "",
     item.place ? `@${item.place}` : "",
     item.repeat ? repeatLabel(item.repeat) : "",
   ]
     .filter(Boolean)
-    .join(", ");
+    .join(" | ");
   return (
     <li className={item.done ? "todo-row todo-row-done" : "todo-row"}>
       <div className="todo-row-line">

@@ -13,6 +13,7 @@ import {
   monthLabel,
   monthStart,
   shiftMonth,
+  shortDayLabel,
   today,
   WEEKDAY_NAMES,
   weekOf,
@@ -225,7 +226,10 @@ export default function TodoScreen({
           </button>
         )}
         <div className="room-title">
-          <strong>{longLabel(day)}</strong>
+          <strong>
+            <span className="todo-day-long">{longLabel(day)}</span>
+            <span className="todo-day-short">{shortDayLabel(day)}</span>
+          </strong>
           <span className="room-sub">{sub}</span>
         </div>
         <div className="header-tools">

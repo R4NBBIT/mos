@@ -1,4 +1,4 @@
-// AI 연결 관리(SCR-08): 내 Claude, ChatGPT에 붙이는 방법과 연결된 앱 목록(끊기)
+// AI 연결 관리(SCR-08): 연결 주소와 연결된 앱 목록(끊기). 앱별 붙이는 방법 설명은 두지 않음(2026-11-23 사용자 결정)
 import { useEffect, useState } from "react";
 import { dateWithWeekday } from "./dates";
 import {
@@ -87,7 +87,7 @@ export function AiRequests({ onChanged }: { onChanged: () => void }) {
               <li key={item.id} className="todo-ai-item">
                 <span className="todo-news-title">{item.title}</span>
                 <span className="todo-news-time">
-                  {dateWithWeekday(item.day)}, {item.client ? `${item.client}가 삭제` : "직접 삭제"}
+                  {dateWithWeekday(item.day)} | {item.client ? `${item.client}가 삭제` : "직접 삭제"}
                 </span>
                 <button type="button" className="todo-small-button" onClick={() => void restore(item.id)}>
                   되돌리기
@@ -160,29 +160,6 @@ export default function TodoAiPanel({ onChanged }: { onChanged: () => void }) {
           </button>
         </div>
       )}
-      <div className="todo-setting">
-        <span className="todo-setting-name">Claude</span>
-        <div className="todo-setting-body">
-          <p className="todo-setting-help">
-            웹, 데스크톱 앱(같은 방법): 설정(Customize) › 커넥터 › 추가 › 사용자 지정(Custom)에서 위 주소를 넣고, 연결을 누르면 이
-            사이트에서 승인해요. 무료 요금제는 사용자 지정 커넥터가 1개까지예요.
-          </p>
-          <p className="todo-setting-help">
-            휴대폰 앱: 웹이나 데스크톱에서 한 번 연결해 두면 같은 계정의 휴대폰 앱에도 저절로 생겨요. 휴대폰 앱에서 바로 추가하는
-            기능은 아직 시험 중이라, 웹에서 연결하는 것이 가장 확실해요.
-          </p>
-        </div>
-      </div>
-      <div className="todo-setting">
-        <span className="todo-setting-name">ChatGPT</span>
-        <div className="todo-setting-body">
-          <p className="todo-setting-help">
-            데스크톱 앱: 설정 › MCP servers › Add server에서 Streamable HTTP를 고르고 위 주소를 넣은 뒤 Restart, 목록에서 Authenticate를
-            누르면 이 사이트에서 승인해요.
-          </p>
-          <p className="todo-setting-help">웹: Plugins › + › Add custom MCP server에서 위 주소를 넣고 같은 방법으로 승인해요.</p>
-        </div>
-      </div>
       <div className="todo-alerts-head todo-alerts-sub">
         <strong>연결된 앱</strong>
       </div>

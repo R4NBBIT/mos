@@ -5,7 +5,7 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import BackIcon from "../BackIcon";
 import SplitToggle from "../SplitToggle";
 import { addDays, dateWithWeekday, timeLabel, today, WEEKDAY_NAMES } from "./dates";
-import { CategoryDot, useMemoAudience } from "./TodoItems";
+import { CategoryDot, PickField, useMemoAudience } from "./TodoItems";
 import {
   deleteRepeatSeries,
   endRepeatSeries,
@@ -38,7 +38,7 @@ function ruleText(period: RepeatPeriod): string {
 }
 
 function periodText(start: string, end: string | null): string {
-  return end ? `${dateWithWeekday(start)} ~ ${dateWithWeekday(end)}` : `${dateWithWeekday(start)}부터, 끝 날 없음`;
+  return end ? `${dateWithWeekday(start)} ~ ${dateWithWeekday(end)}` : `${dateWithWeekday(start)}부터`;
 }
 
 interface Draft {
@@ -220,21 +220,24 @@ function RepeatEditor({
         </>
       )}
       <Field name="기간">
-        <div className="todo-rep-period">
-          <input
+        <div className="todo-rep-period todo-pick-boxed">
+          <PickField
             type="date"
+            label="시작 날"
             value={draft.start_day}
             min={adding ? minStart : undefined}
-            aria-label="시작 날"
-            onChange={(event) => set({ start_day: event.target.value })}
+            empty=""
+            required
+            onChange={(value) => value && set({ start_day: value })}
           />
           <span>~</span>
-          <input
+          <PickField
             type="date"
+            label="끝 날"
             value={draft.end_day}
             min={draft.start_day}
-            aria-label="끝 날"
-            onChange={(event) => set({ end_day: event.target.value })}
+            empty="끝 날 없음"
+            onChange={(value) => set({ end_day: value })}
           />
           {draft.end_day && (
             <button type="button" className="todo-text-button" onClick={() => set({ end_day: "" })}>
@@ -259,7 +262,14 @@ function RepeatEditor({
             </label>
           </Field>
           <Field name="시각">
-            <input type="time" value={draft.time} onChange={(event) => set({ time: event.target.value })} />
+            <span className="todo-pick-row todo-pick-boxed">
+              <PickField type="time" label="시각" value={draft.time} empty="없음" onChange={(value) => set({ time: value })} />
+              {draft.time && (
+                <button type="button" className="todo-text-button" onClick={() => set({ time: "" })}>
+                  삭제
+                </button>
+              )}
+            </span>
           </Field>
           <Field name="장소">
             <input value={draft.place} maxLength={40} onChange={(event) => set({ place: event.target.value })} />
@@ -317,7 +327,7 @@ function SeriesCard({
       .catch((failure: unknown) => setError(todoErrorText(failure)));
   const category = categories.find((item) => item.id === current.category_id);
   const last = series.periods[series.periods.length - 1];
-  const meta = [ruleText(current), current.time ? timeLabel(current.time) : "", current.place ?? ""].filter(Boolean).join(", ");
+  const meta = [ruleText(current), current.time ? timeLabel(current.time) : "", current.place ?? ""].filter(Boolean).join(" | ");
   return (
     <div className={series.ended ? "todo-cat-item todo-rep-card todo-cat-closed" : "todo-cat-item todo-rep-card"}>
       <div className="todo-cat-line">

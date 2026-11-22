@@ -4,13 +4,6 @@ import { useEffect, useState } from "react";
 import { useTodoAllowed } from "./feature";
 import { ANDROID_APK_URL, type AndroidApk, fetchAndroidApk } from "./todoApi";
 
-function dayText(value: string | null): string {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return `${date.getMonth() + 1}월 ${date.getDate()}일`;
-}
-
 export default function AndroidWidgetDownload({ device }: { device: "ios" | "android" | "desktop" }) {
   const allowed = useTodoAllowed();
   const [apk, setApk] = useState<AndroidApk | null>(null);
@@ -26,7 +19,6 @@ export default function AndroidWidgetDownload({ device }: { device: "ios" | "and
   }, [allowed, device]);
   if (!allowed || device === "ios" || apk === null) return null;
   const size = apk.size ? `${(apk.size / 1024 / 1024).toFixed(1)}MB` : "";
-  const when = dayText(apk.updated);
   return (
     <div className="install-later install-android">
       <strong>안드로이드 홈 화면 TODO 위젯</strong>
@@ -40,7 +32,7 @@ export default function AndroidWidgetDownload({ device }: { device: "ios" | "and
             <a className="pill-button" href={ANDROID_APK_URL} download="mos-todo-widget.apk">
               APK 받기
             </a>
-            <small>{[size, when ? `${when} 버전` : ""].filter(Boolean).join(", ")}</small>
+            {size && <small>{size}</small>}
           </p>
           <p>설치할 때 '출처를 알 수 없는 앱 설치'를 허용해 달라고 나올 수 있어요.</p>
         </>

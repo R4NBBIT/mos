@@ -71,14 +71,14 @@ export function monthLabel(key: string): string {
 
 export const WEEKDAY_NAMES = WEEKDAYS;
 
-/** 2026-11-22 → 2026. 11. 22. (일) */
+/** 2026-11-22 → 2026.11.22 (일): 끝에 점을 붙이지 않는다(2026-11-23 사용자 요청) */
 export function dateWithWeekday(key: string): string {
-  return `${key.slice(0, 4)}. ${Number(key.slice(5, 7))}. ${Number(key.slice(8, 10))}. (${weekdayName(key)})`;
+  return `${key.slice(0, 4)}.${key.slice(5, 7)}.${key.slice(8, 10)} (${weekdayName(key)})`;
 }
 
-/** 2026-11-23 → 11/23(월): TODO 줄에 붙는 짧은 날짜 */
-export function shortDate(key: string): string {
-  return `${Number(key.slice(5, 7))}/${Number(key.slice(8, 10))}(${weekdayName(key)})`;
+/** 2026-11-23 → 11월 23일 (월): 좁은 머리에 쓰는 짧은 날짜 */
+export function shortDayLabel(key: string): string {
+  return `${Number(key.slice(5, 7))}월 ${Number(key.slice(8, 10))}일 (${weekdayName(key)})`;
 }
 
 /** 15:00 → 15:00, 9:5 → 09:05 (24시간, 어디서나 HH:MM) */

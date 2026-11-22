@@ -3857,3 +3857,98 @@
 .todo-add > .todo-add-button {
   flex: none;
 }
+
+/* 머리 날짜: 넓으면 '11월 23일 월요일', 좁으면 '11월 23일 (월)'(잘리지 않게) */
+.todo-day-short {
+  display: none;
+}
+
+@container todohead (max-width: 440px) {
+  .todo-day-long {
+    display: none;
+  }
+
+  .todo-day-short {
+    display: inline;
+  }
+}
+
+/* TODO 메뉴: 날짜, 시각 글자는 한 줄로, 칸이 좁으면 '일정 변경' 같은 단추가 다음 줄로 */
+.todo-pick-button {
+  white-space: nowrap;
+}
+
+.todo-prop-value {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+@media (max-width: 480px) {
+  .todo-prop {
+    grid-template-columns: 56px 1fr;
+  }
+}
+
+/* Word 테마 휴대폰: 종이 여백을 줄여 글이 넓게 */
+@media (max-width: 640px) {
+  :root[data-theme="word"] .todo-body {
+    width: calc(100% - 16px);
+    margin: 8px auto 24px;
+    padding: 20px 16px;
+    min-height: 0;
+  }
+}
+
+/* 노션, Word 테마는 머리에 '했어요/남음'과 날짜가 한 줄로 나란해서, 좁으면 날짜만 남긴다 */
+@container todohead (max-width: 440px) {
+  :root[data-theme="note"] .todo-header .room-sub,
+  :root[data-theme="word"] .todo-header .room-sub {
+    display: none;
+  }
+}
+
+/* 날짜, 시각 고르기를 칸 모양으로(넣기 칸, 반복 편집). 글자는 우리 형식(2026.11.23 (월), HH:MM) */
+.todo-pick-boxed .todo-pick-button {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.todo-pick-boxed .todo-pick {
+  max-width: 100%;
+}
+
+.todo-pick-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.todo-rep-period {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+
+/* TODO 메뉴 아래 단추 줄(카테고리 편집과 같은 배치) */
+.todo-menu-actions {
+  margin-top: 4px;
+}
+
+.todo-menu-actions .todo-small-button {
+  min-width: 64px;
+}
+
+/* 글자 단추 '삭제'는 테마와 상관없이 빨간 글자(카테고리 편집, TODO 메뉴 왼쪽) */
+:root .todo-text-button.todo-danger-text,
+:root[data-theme] .todo-text-button.todo-danger-text {
+  color: var(--danger, #c03030);
+}
+
+.todo-rep-none {
+  display: inline-block;
+  white-space: nowrap;
+}

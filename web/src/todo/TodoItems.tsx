@@ -1,6 +1,6 @@
 // TODO 한 줄과 TODO 메뉴(SCR-03), 카테고리 묶음의 입력칸(날짜 알아보기, TODO-13~15)
 import { type CSSProperties, Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { dateWithWeekday, longLabel, shortDate, timeLabel, today, WEEKDAY_NAMES } from "./dates";
+import { dateWithWeekday, longLabel, timeLabel, today, WEEKDAY_NAMES } from "./dates";
 import { useEnterKey } from "./enterKey";
 import { TodoReactions } from "./TodoReactions";
 import { parseWhen } from "./parseWhen";
@@ -158,7 +158,7 @@ export function useMemoAudience(category: TodoCategory | undefined): { short: st
 type RuleChoice = "none" | RepeatRule;
 
 /** 날짜, 시각 고르기: 글자(요일 포함)를 누르면 브라우저 고르기 창이 바로 열린다 */
-function PickField({
+export function PickField({
   type,
   value,
   label,
@@ -464,17 +464,21 @@ function TodoMenu({
       />
       {memoWho.detail && <span className="todo-hint todo-memo-who">{memoWho.detail}</span>}
       {error && <p className="todo-error">{error}</p>}
-      <div className="todo-edit-actions">
-        <button type="button" className="todo-small-button todo-primary" disabled={busy} onClick={() => void save()}>
-          저장
-        </button>
-        <button type="button" className="todo-small-button" onClick={cancel}>
-          취소
-        </button>
-        <span className="todo-spacer" />
-        <button type="button" className="todo-small-button todo-danger-text" onClick={() => setConfirming(true)}>
-          삭제
-        </button>
+      {/* 카테고리 편집과 같은 배치: 왼쪽 삭제(글자 단추), 오른쪽 취소, 저장 */}
+      <div className="todo-cat-actions todo-menu-actions">
+        <div className="todo-cat-actions-side">
+          <button type="button" className="todo-text-button todo-danger-text" onClick={() => setConfirming(true)}>
+            삭제
+          </button>
+        </div>
+        <div className="todo-cat-actions-main">
+          <button type="button" className="todo-small-button" onClick={cancel}>
+            취소
+          </button>
+          <button type="button" className="todo-small-button todo-primary" disabled={busy} onClick={() => void save()}>
+            저장
+          </button>
+        </div>
       </div>
       {leaving && (
         <div className="todo-confirm" role="alertdialog" aria-label="취소 확인">
@@ -535,13 +539,12 @@ export function TodoRow({
   const [closeAsk, setCloseAsk] = useState(0);
   const [memoOpen, setMemoOpen] = useState(false);
   const meta = [
-    shortDate(item.day),
     item.time ? timeLabel(item.time) : "",
     item.place ? `@${item.place}` : "",
     item.repeat ? repeatLabel(item.repeat) : "",
   ]
     .filter(Boolean)
-    .join(", ");
+    .join(" | ");
   return (
     <li className={item.done ? "todo-row todo-row-done" : "todo-row"}>
       <div className="todo-row-line">
@@ -690,7 +693,7 @@ export function CategoryBlock({
       <div className="todo-preview" role="status">
         <div className="todo-preview-line">
           <span>
-            {bits.length > 0 ? `${bits.join(", ")}: ` : ""}
+            {bits.length > 0 ? `${bits.join(" | ")}: ` : ""}
             <strong>{shown.title}</strong>
           </span>
           <button type="button" className="todo-preview-raw" aria-label="떼지 않고 쓴 그대로 넣기" onClick={() => setRaw(true)}>
@@ -768,22 +771,34 @@ export function CategoryBlock({
                 : "todo-add-fields"
             }
           >
-            <label className="todo-add-field">
+            <div className="todo-add-field todo-pick-boxed">
               <span>날짜</span>
-              <input
+              <PickField
                 type="date"
+                label="날짜"
                 value={fields.day || shown?.day || viewDay}
-                onChange={(event) => setFields({ ...fields, day: event.target.value })}
+                empty=""
+                required
+                onChange={(value) => value && setFields({ ...fields, day: value })}
               />
-            </label>
-            <label className="todo-add-field">
+            </div>
+            <div className="todo-add-field todo-pick-boxed">
               <span>시각</span>
-              <input
-                type="time"
-                value={fields.time || (shown?.ask ? "" : (shown?.time ?? ""))}
-                onChange={(event) => setFields({ ...fields, time: event.target.value })}
-              />
-            </label>
+              <span className="todo-pick-row">
+                <PickField
+                  type="time"
+                  label="시각"
+                  value={fields.time || (shown?.ask ? "" : (shown?.time ?? ""))}
+                  empty="없음"
+                  onChange={(value) => setFields({ ...fields, time: value })}
+                />
+                {fields.time && (
+                  <button type="button" className="todo-link-button" onClick={() => setFields({ ...fields, time: "" })}>
+                    삭제
+                  </button>
+                )}
+              </span>
+            </div>
             <label className="todo-add-field todo-add-field-wide">
               <span>장소</span>
               <input
