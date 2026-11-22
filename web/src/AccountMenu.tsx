@@ -14,6 +14,8 @@ interface Props {
   onOpenInstall: () => void;
   /** TODO를 쓸 수 있는 계정이면: 어느 화면에서든 TODO로 바로(2026-11-23 사용자 요청) */
   onOpenTodo?: () => void;
+  /** TODO 위젯(안드로이드 APK) 받기 창. TODO 계정, 아이폰이 아닐 때만 */
+  onOpenWidgetApk?: () => void;
 }
 
 function nitroText(account: SessionAccount): string {
@@ -43,6 +45,7 @@ export default function AccountMenu({
   onOpenGuide,
   onOpenInstall,
   onOpenTodo,
+  onOpenWidgetApk,
 }: Props) {
   const [open, setOpen] = useState(false);
   const presence = usePresence(open, 150);
@@ -168,6 +171,18 @@ export default function AccountMenu({
           >
             앱으로 설치
           </button>
+          {onOpenWidgetApk && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onOpenWidgetApk();
+              }}
+            >
+              TODO 위젯 받기(안드로이드)
+            </button>
+          )}
           <button type="button" role="menuitem" onClick={() => void run(lock)}>
             잠그기
           </button>

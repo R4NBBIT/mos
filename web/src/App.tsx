@@ -48,7 +48,9 @@ import {
 import { applyDisguise, applyLook, type BossTemplate, cachedLook, type Settings } from "./theme";
 import type { ChannelInfo, SessionAccount, SessionState, VoiceChannel } from "./types";
 import VoiceRoom from "./VoiceRoom";
+import { platform } from "./appInstall";
 import InstallDialog from "./InstallDialog";
+import AndroidWidgetDialog from "./todo/AndroidWidgetDownload";
 import NotifyToast from "./NotifyToast";
 import { useNotifications } from "./useNotifications";
 import TodoEntry from "./todo/TodoEntry";
@@ -326,6 +328,9 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
   const [showInstall, setShowInstall] = useState(false);
   const installPresence = usePresence(showInstall);
   const closeInstall = useCallback(() => setShowInstall(false), []);
+  const [showWidgetApk, setShowWidgetApk] = useState(false);
+  const widgetApkPresence = usePresence(showWidgetApk);
+  const closeWidgetApk = useCallback(() => setShowWidgetApk(false), []);
   useEffect(() => {
     if (!openAccountId) return;
     let stopped = false;
@@ -472,6 +477,9 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           onOpenSettings={() => go("#/settings")}
           onOpenGuide={() => setShowGuide(true)}
           onOpenInstall={() => setShowInstall(true)}
+          onOpenWidgetApk={
+            active.features?.includes(TODO_FEATURE) && platform() !== "ios" ? () => setShowWidgetApk(true) : undefined
+          }
           onOpenTodo={
             active.features?.includes(TODO_FEATURE)
               ? () => {
@@ -850,6 +858,9 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
         <Guide settings={look} wide={wide} onClose={closeGuide} closing={guidePresence.closing} />
       )}
       {installPresence.shown && <InstallDialog onClose={closeInstall} closing={installPresence.closing} />}
+      {widgetApkPresence.shown && (
+        <AndroidWidgetDialog onClose={closeWidgetApk} closing={widgetApkPresence.closing} />
+      )}
       <NotifyToast toast={notify.toast} onOpen={go} onClose={notify.closeToast} />
       </NotifyPrefsContext.Provider>
     </LookContext.Provider>

@@ -16,7 +16,6 @@ import {
   readAppChoice,
   saveAppChoice,
 } from "./appInstall";
-import AndroidWidgetDownload from "./todo/AndroidWidgetDownload";
 
 const CHANGE_HELP = {
   ios: "홈 화면의 앱 아이콘을 길게 눌러 '앱 삭제'로 지운 뒤, 이 창에서 다시 정하고 홈 화면에 추가하면 돼요.",
@@ -166,7 +165,6 @@ export default function InstallDialog({ onClose, closing }: { onClose: () => voi
                 <strong>나중에 이름이나 아이콘을 바꾸려면</strong>
                 <p>{CHANGE_HELP[device]}</p>
               </div>
-              <AndroidWidgetDownload device={device} />
             </>
           )}
         </div>
