@@ -6808,6 +6808,8 @@ body.sorting * {
 }
 
 .install-open {
+  display: inline-flex;
+  align-items: center;
   text-decoration: none;
 }
 

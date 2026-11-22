@@ -95,18 +95,7 @@ export default function InstallDialog({ onClose, closing }: { onClose: () => voi
                 {inApp.name} 안의 브라우저에서는 설치할 수 없어요. {device === "ios" ? "사파리로" : "크롬으로"} 열어서 다시 눌러
                 주세요.
               </p>
-              {external ? (
-                <a className="pill-button pill-button-strong install-open" href={external}>
-                  {device === "ios" ? "사파리로" : "크롬으로"} 열기
-                </a>
-              ) : (
-                <>
-                  <p>오른쪽 위(또는 아래) 메뉴에서 'Safari로 열기'나 '다른 브라우저로 열기'를 눌러 주세요.</p>
-                  <button type="button" className="pill-button install-open" onClick={() => void copyLink()}>
-                    {copied ? "주소를 복사했어요" : "주소 복사"}
-                  </button>
-                </>
-              )}
+              {!external && <p>오른쪽 위(또는 아래) 메뉴에서 'Safari로 열기'나 '다른 브라우저로 열기'를 눌러 주세요.</p>}
             </div>
           ) : (
             <>
@@ -182,7 +171,17 @@ export default function InstallDialog({ onClose, closing }: { onClose: () => voi
           <button type="button" className="pill-button" onClick={onClose}>
             취소
           </button>
-          {!inApp && (
+          {inApp ? (
+            external ? (
+              <a className="pill-button pill-button-strong install-open" href={external}>
+                {device === "ios" ? "사파리로" : "크롬으로"} 열기
+              </a>
+            ) : (
+              <button type="button" className="pill-button pill-button-strong" onClick={() => void copyLink()}>
+                {copied ? "주소를 복사했어요" : "주소 복사"}
+              </button>
+            )
+          ) : (
             <button type="button" className="pill-button pill-button-strong" onClick={() => void install()}>
               {device === "ios" ? "설치 방법 보기" : "설치하기"}
             </button>
