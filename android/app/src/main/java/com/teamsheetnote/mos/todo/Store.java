@@ -4,7 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import androidx.security.crypto.EncryptedSharedPreferences;
-import androidx.security.crypto.MasterKey;
+import androidx.security.crypto.MasterKeys;
 
 /** 토큰, 클라이언트 ID를 운영체제 열쇠 저장소(Android Keystore)로 암호화해 보관 */
 final class Store {
@@ -15,13 +15,12 @@ final class Store {
 
     static SharedPreferences prefs(Context context) {
         try {
-            MasterKey key = new MasterKey.Builder(context)
-                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                    .build();
+            // security-crypto 1.0.0의 방식(MasterKey 빌더는 1.1.0 알파부터라 1.0.0에는 없음)
+            String keyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
             return EncryptedSharedPreferences.create(
-                    context,
                     NAME,
-                    key,
+                    keyAlias,
+                    context,
                     EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                     EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM);
         } catch (Exception error) {
