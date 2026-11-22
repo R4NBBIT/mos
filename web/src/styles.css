@@ -1203,6 +1203,7 @@ button.tag-chip:disabled {
 
 .msg-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
   margin-top: 4px;
@@ -8166,14 +8167,18 @@ body.sorting * {
 }
 
 /* 디스코드 앱에서 보낸 내 메시지: 고치기 대신 짧은 안내 */
+/* 안내 글: 단추 옆 자리가 14글자쯤보다 좁으면 다음 줄로 내려가고, 낱말 중간에서 끊지 않는다 */
 .msg-actions-note {
-  flex: 1 1 auto;
+  flex: 1 1 14em;
   min-width: 0;
   padding: 0 4px;
   color: var(--sub);
   font-size: 11.5px;
-  line-height: 1.35;
+  line-height: 1.4;
   white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  text-wrap: pretty;
 }
 
 /* 좁은 화면에서 안내 글이 길어도 단추 글자가 세로로 쪼개지지 않게 */
@@ -8185,6 +8190,13 @@ body.sorting * {
 
 .sheet-status-note {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 입력칸 안내 글은 글씨가 커져도 한 줄로(넘치면 …) */
+.composer-input::placeholder {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
