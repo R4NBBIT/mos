@@ -153,7 +153,7 @@ export function Sortable<T extends { id: string }>({
             type="button"
             className="sort-handle"
             aria-label={`${label(item)} 순서 옮기기(위아래 화살표)`}
-            title="끌어서 옮기기"
+            title="끌어서 옮기기(이 사이트에서만 바뀌어요)"
             onPointerDown={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -248,8 +248,8 @@ export function OrderBar({
     );
   }
   return (
+    // 한 줄만: 되돌리기와 완료(설명은 손잡이에 마우스를 올리면)
     <div className="order-bar order-bar-on">
-      <p className="order-hint">손잡이(≡)를 끌어서 순서를 바꿔요. 이 사이트에서만 바뀌고 디스코드는 그대로예요.</p>
       <ResetOrder keys={keys} what={what}>
         <button type="button" className="order-done" onClick={() => onEditing(false)}>
           완료
