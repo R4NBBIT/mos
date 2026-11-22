@@ -4521,3 +4521,39 @@
   width: 28px;
   height: 28px;
 }
+
+/* 위젯 창: 이 기기에서 보일 카테고리 고르기 */
+.tw-pick {
+  flex: none;
+  max-height: 45%;
+  overflow-y: auto;
+  padding: 8px 12px;
+  border-top: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  font-family: "Pretendard", "Malgun Gothic", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.tw-pick-note {
+  word-break: keep-all;
+  margin: 0 0 6px;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.tw-pick-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  cursor: pointer;
+}
+
+.tw-pick-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.tw-float > button:first-child {
+  margin-right: auto;
+}

@@ -11,6 +11,7 @@ import { today } from "./dates";
 import { onTodoRefresh, onTodoSync } from "./todoSync";
 import { type WidgetModel, WidgetLook, widgetLook } from "./TodoWidgetLooks";
 import { fetchTodoDay, type TodoDay, type TodoItem, updateTodo } from "./todoApi";
+import { saveWidgetCategories, useWidgetCategories } from "./widgetFilter";
 import "./todo.css";
 
 const REFRESH_MS = 15_000;
@@ -21,6 +22,9 @@ export default function TodoWidget({ compact = false, theme }: { compact?: boole
   const [failed, setFailed] = useState(false);
   // 항상 위 창으로 옮겼을 때 그 창(위젯은 그 창 안에 그린다)
   const [floatWindow, setFloatWindow] = useState<Window | null>(null);
+  // 이 기기 위젯에 보일 카테고리(빈 목록 = 모두)
+  const chosen = useWidgetCategories();
+  const [picking, setPicking] = useState(false);
 
   const load = useCallback(() => {
     const now = today();
@@ -68,9 +72,11 @@ export default function TodoWidget({ compact = false, theme }: { compact?: boole
     }
   };
 
-  const items = [...(data?.items ?? [])].sort(
-    (a, b) => Number(a.done) - Number(b.done) || (a.time ?? "99").localeCompare(b.time ?? "99"),
-  );
+  const openCategories = (data?.categories ?? []).filter((category) => !category.closed);
+  const known = chosen.filter((id) => openCategories.some((category) => category.id === id));
+  const items = [...(data?.items ?? [])]
+    .filter((item) => known.length === 0 || known.includes(item.category_id))
+    .sort((a, b) => Number(a.done) - Number(b.done) || (a.time ?? "99").localeCompare(b.time ?? "99"));
   const colors = new Map((data?.categories ?? []).map((category) => [category.id, category.color]));
   const model: WidgetModel = {
     day,
@@ -81,7 +87,9 @@ export default function TodoWidget({ compact = false, theme }: { compact?: boole
     note: failed
       ? "불러오지 못했어요. ㅁㅇㅅ가 잠겼으면 잠금을 풀어 주세요."
       : data && items.length === 0
-        ? "오늘 TODO가 없어요."
+        ? known.length > 0
+          ? "고른 카테고리에 오늘 TODO가 없어요."
+          : "오늘 TODO가 없어요."
         : null,
   };
   const look = widgetLook(theme ?? document.documentElement.dataset.theme);
@@ -102,9 +110,31 @@ export default function TodoWidget({ compact = false, theme }: { compact?: boole
   const widget = (
     <div className={`todo-widget tw-${look}${compact ? " todo-widget-compact" : ""}`}>
       <WidgetLook look={look} model={model} />
-      {!compact && canFloat() && (
+      {!compact && picking && (
+        <div className="tw-pick" role="group" aria-label="위젯에 보일 카테고리">
+          <p className="tw-pick-note">이 기기 위젯에만 적용돼요. 아무것도 고르지 않으면 모두 보여요.</p>
+          {openCategories.map((category) => (
+            <label key={category.id} className="tw-pick-row">
+              <input
+                type="checkbox"
+                checked={known.includes(category.id)}
+                onChange={(event) =>
+                  saveWidgetCategories(
+                    event.target.checked ? [...known, category.id] : known.filter((id) => id !== category.id),
+                  )
+                }
+              />
+              <span>{category.name}</span>
+            </label>
+          ))}
+        </div>
+      )}
+      {!compact && (
         <div className="tw-float">
-          {floatWindow ? (
+          <button type="button" aria-expanded={picking} onClick={() => setPicking(!picking)}>
+            {picking ? "닫기" : known.length > 0 ? `카테고리 ${known.length}개만` : "카테고리"}
+          </button>
+          {!canFloat() ? null : floatWindow ? (
             <button type="button" onClick={() => floatWindow.close()}>
               되돌아가기
             </button>
@@ -167,7 +197,10 @@ async function openFloating(onClosed: () => void): Promise<Window | null> {
   }
   let pip: Window;
   try {
-    pip = await api.requestWindow({ width: Math.max(280, window.innerWidth), height: Math.max(360, window.innerHeight) });
+    pip = await api.requestWindow({
+      width: Math.max(280, window.innerWidth),
+      height: Math.max(360, window.innerHeight),
+    });
   } catch {
     return null;
   }

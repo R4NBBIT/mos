@@ -72,7 +72,20 @@ public class TodoWidget extends AppWidgetProvider {
         try {
             String today = LocalDate.now().toString();
             JSONObject data = Api.tool(context, "list_todos", new JSONObject().put("start_day", today));
-            show(context, data.getJSONArray("todos"), null);
+            JSONArray todos = data.getJSONArray("todos");
+            // 이 휴대폰에서 고른 카테고리만(고르지 않았으면 모두)
+            java.util.Set<String> chosen = WidgetFilter.chosen(context);
+            if (!chosen.isEmpty()) {
+                JSONArray kept = new JSONArray();
+                for (int index = 0; index < todos.length(); index++) {
+                    JSONObject item = todos.optJSONObject(index);
+                    if (item != null && chosen.contains(item.optString("category", ""))) {
+                        kept.put(item);
+                    }
+                }
+                todos = kept;
+            }
+            show(context, todos, null);
         } catch (Api.AuthLost lost) {
             show(context, null, "앱을 열어 다시 로그인해 주세요.");
         } catch (Exception error) {

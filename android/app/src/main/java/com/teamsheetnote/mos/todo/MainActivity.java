@@ -14,6 +14,8 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
+import android.widget.CheckBox;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import org.json.JSONArray;
@@ -22,11 +24,15 @@ import org.json.JSONObject;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.util.Set;
 
 /** 로그인(ㅁㅇㅅ 사이트에서 승인)과 위젯 안내. 토큰은 TODO 전용이라 ㅁㅇㅅ 메시지는 못 본다 */
 public class MainActivity extends Activity {
     private TextView status;
     private Button action;
+    /** 위젯에 보일 카테고리 고르기(로그인했을 때만) */
+    private LinearLayout categoryBox;
+
     /** 토큰을 받는 중(이때는 화면을 다시 그리지 않는다) */
     private volatile boolean loggingIn;
 
@@ -49,7 +55,15 @@ public class MainActivity extends Activity {
         layout.addView(status);
         layout.addView(action);
         layout.addView(lookPicker(pad));
-        setContentView(layout);
+        categoryBox = new LinearLayout(this);
+        categoryBox.setOrientation(LinearLayout.VERTICAL);
+        categoryBox.setPadding(0, pad, 0, 0);
+        layout.addView(categoryBox);
+        // 내용이 길어져도 넘치지 않게 스크롤
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.addView(layout);
+        setContentView(scroll);
         handle(getIntent());
         if (!loggingIn) {
             render();
@@ -80,10 +94,70 @@ public class MainActivity extends Activity {
                 TodoWidget.refreshAll(this);
                 render();
             });
+            loadCategories();
         } else {
             status.setText("아직 로그인하지 않았어요. ㅁㅇㅅ에 로그인하면 오늘 TODO가 위젯에 보여요. 브라우저에서 '연결'을 누르면 이 앱으로 돌아와요.");
             action.setText("ㅁㅇㅅ로 로그인");
             action.setOnClickListener(view -> startLogin());
+            categoryBox.removeAllViews();
+        }
+    }
+
+    /** 위젯에 보일 카테고리(이 휴대폰에서만). 카테고리 이름은 서버에서 받아 온다 */
+    private void loadCategories() {
+        new Thread(() -> {
+            JSONArray names;
+            try {
+                names = Api.tool(this, "list_categories", new JSONObject()).optJSONArray("categories");
+            } catch (Exception error) {
+                names = null;
+            }
+            JSONArray loaded = names;
+            runOnUiThread(() -> showCategories(loaded));
+        }).start();
+    }
+
+    private void showCategories(JSONArray names) {
+        if (isFinishing()) {
+            return;
+        }
+        categoryBox.removeAllViews();
+        TextView label = new TextView(this);
+        label.setText("위젯에 보일 카테고리");
+        label.setTextSize(16);
+        categoryBox.addView(label);
+        TextView note = new TextView(this);
+        note.setText("이 휴대폰 위젯에만 적용돼요. 아무것도 고르지 않으면 모두 보여요.");
+        note.setTextSize(13);
+        categoryBox.addView(note);
+        if (names == null) {
+            TextView failed = new TextView(this);
+            failed.setText("카테고리를 불러오지 못했어요. 앱을 다시 열어 주세요.");
+            failed.setTextSize(14);
+            categoryBox.addView(failed);
+            return;
+        }
+        Set<String> chosen = WidgetFilter.chosen(this);
+        for (int index = 0; index < names.length(); index++) {
+            String name = names.optString(index, "");
+            if (name.isEmpty()) {
+                continue;
+            }
+            CheckBox box = new CheckBox(this);
+            box.setText(name);
+            box.setTextSize(15);
+            box.setChecked(chosen.contains(name));
+            box.setOnCheckedChangeListener((button, checked) -> {
+                Set<String> now = WidgetFilter.chosen(this);
+                if (checked) {
+                    now.add(name);
+                } else {
+                    now.remove(name);
+                }
+                WidgetFilter.save(this, now);
+                TodoWidget.refreshAll(this);
+            });
+            categoryBox.addView(box);
         }
     }
 
