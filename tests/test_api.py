@@ -59,6 +59,7 @@ class FakeDirectory:
     def __init__(self) -> None:
         self.ready = True
         self.thread_lookups = 0
+        self.pins: dict[int, list[int]] = {}
         self.member_lists = 0
         self.thread_members: set[tuple[int, int]] = set()  # 비공개 스레드 참여자
         self.thread_edits: list[tuple[int, str, tuple[int, ...]]] = []
@@ -222,6 +223,9 @@ class FakeDirectory:
     async def fetch_older(self, channel_id: int, before_id: int, limit: int) -> int:
         self.older_calls.append((channel_id, before_id))
         return 0
+
+    async def pinned_ids(self, channel_id: int) -> list[int]:
+        return list(self.pins.get(channel_id, []))
 
 
 class FakeMessenger:
@@ -1970,3 +1974,48 @@ def test_app_manifest_uses_checked_name_and_icon(env: Env) -> None:
     assert odd["name"] == "가" * 20  # 20자까지
     assert odd["icons"][0]["src"] == "/app-icons/h-192.png"  # 모르는 아이콘은 기본
     assert env.client.get("/api/app/manifest", params={"name": "   "}).json()["name"] == "ㅁㅇㅅ"
+
+
+def snowflake_at(seconds: float) -> int:
+    return (int(seconds * 1000) - 1_420_070_400_000) << 22
+
+
+def test_search_files_and_pins_in_drawer(env: Env) -> None:
+    signed_up(env, "latte")  # 43: 비밀 채널은 못 봄
+    now = env.clock[0]
+    old = make_row(snowflake_at(now - 91 * 86400), channel_id=CHANNEL, content="점심 메뉴 옛날")
+    lunch = make_row(snowflake_at(now - 3600), channel_id=CHANNEL, content="오늘 점심 메뉴 정해요")
+    other = make_row(snowflake_at(now - 1800), channel_id=CHANNEL, content="100% 확실")
+    photo = make_row(snowflake_at(now - 60), channel_id=CHANNEL, content="")
+    photo["attachments_json"] = json.dumps(
+        [{"id": "1", "filename": "메뉴판.png", "size": 10, "url": "https://cdn.discordapp.com/a"}]
+    )
+    secret = make_row(snowflake_at(now - 30), channel_id=SECRET, content="점심 비밀")
+    env.client.portal.call(env.repo.upsert_many, [old, lunch, other, photo, secret])
+
+    def search(q: str, channel: int = CHANNEL) -> Any:
+        return env.client.get(f"/api/channels/{channel}/search", params={"q": q})
+
+    # 낱말이 모두 들어간 것만, 90일 지난 것은 빼고, 첨부 파일 이름도 찾는다
+    found = search("점심 메뉴").json()
+    assert [m["id"] for m in found["messages"]] == [str(lunch["id"])]
+    assert found["days"] == 90 and found["has_more"] is False
+    assert [m["id"] for m in search("메뉴판").json()["messages"]] == [str(photo["id"])]
+    # %, _ 는 글자 그대로
+    assert [m["id"] for m in search("100%").json()["messages"]] == [str(other["id"])]
+    assert [m["id"] for m in search("%").json()["messages"]] == [str(other["id"])]
+    assert len(search("_").json()["messages"]) == 0
+    # 볼 수 없는 채널, 빈 말
+    assert search("점심", SECRET).status_code == 404
+    assert search("   ").status_code == 400
+
+    files = env.client.get(f"/api/channels/{CHANNEL}/files").json()
+    assert [m["id"] for m in files["messages"]] == [str(photo["id"])]
+
+    env.bot.pins[CHANNEL] = [lunch["id"], secret["id"]]  # 다른 채널 메시지는 섞이지 않는다
+    pins = env.client.get(f"/api/channels/{CHANNEL}/pins").json()
+    assert [m["id"] for m in pins["messages"]] == [str(lunch["id"])]
+
+    # 너무 자주 찾으면 잠시 막는다
+    codes = {search("점심").status_code for _ in range(20)}
+    assert 429 in codes

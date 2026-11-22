@@ -65,6 +65,16 @@ async def backfill_channel(bot: MosBot, channel_id: int) -> int:
     return total
 
 
+async def fetch_pinned_messages(bot: MosBot, channel_id: int) -> list[int]:
+    channel = await _messageable(bot, channel_id)
+    if channel is None:
+        return []
+    pinned = await channel.pins()
+    rows = [message_to_row(message) for message in pinned]
+    await bot.repo.upsert_many(rows)
+    return [int(row["id"]) for row in rows]
+
+
 async def fetch_older_messages(bot: MosBot, channel_id: int, before_id: int, limit: int) -> int:
     channel = await _messageable(bot, channel_id)
     if channel is None:

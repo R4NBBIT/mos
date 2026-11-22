@@ -54,6 +54,7 @@ from mos.services.messages import row_to_api
 from mos.services.permissions import ADD_REACTIONS, ChannelAccess, PermissionService, is_private
 from mos.services.push import PushError, PushService
 from mos.services.realtime import MAX_VOICE_GROUPS, RealtimeHub, Subscriber
+from mos.services.retention import RETENTION_DAYS, cutoff_snowflake
 from mos.services.sender import (
     MAX_FILES,
     MAX_FILES_BYTES,
@@ -95,6 +96,10 @@ DEFAULT_TITLES = {
 SNOWFLAKE_PATTERN = r"^[0-9]{15,21}$"
 UPLOAD_CHUNK = 64 * 1024
 THREAD_PAGE = 25
+SEARCH_PAGE = 25
+SEARCH_MAX_WORDS = 5
+SEARCH_MAX_LEN = 100
+FILES_PAGE = 40
 DISCORD_EPOCH_MS = 1420070400000
 
 
@@ -440,6 +445,7 @@ def create_app(
     connect_limiter = RateLimiter(limit=20, window_sec=600)
     send_limiter = RateLimiter(limit=2, window_sec=1, clock=clock)  # 계정당 1초 2번(설계서 11장)
     reaction_limiter = RateLimiter(limit=4, window_sec=2, clock=clock)  # 디스코드 반응 한도에 맞춰
+    search_limiter = RateLimiter(limit=20, window_sec=10, clock=clock)  # 찾기, 서랍(계정당)
     unlock_limiter = RateLimiter(limit=10, window_sec=60)
 
     @asynccontextmanager
@@ -966,6 +972,67 @@ def create_app(
             ):
                 rows = await repo.list_page(channel_id, before_id=before, limit=limit)
         return {"messages": [row_to_api(row) for row in rows], "has_more": len(rows) == limit}
+
+    async def drawer_channel(request: Request, channel_id: int) -> ChannelAccess:
+        """찾기와 서랍: 볼 수 있는 채널(포럼 목록 제외)인지, 너무 자주 묻지 않는지."""
+        account = await require_account(request)
+        require_ready()
+        access = await require_channel(account, channel_id)
+        if access.channel.kind == "forum":
+            raise HTTPException(status_code=404, detail="not found")
+        if not search_limiter.allow(f"account:{account.account_id}"):
+            raise HTTPException(status_code=429, detail="too_fast")
+        return access
+
+    @app.get("/api/channels/{channel_id}/search")
+    async def search_messages(
+        request: Request,
+        channel_id: int,
+        q: str = Query(min_length=1, max_length=SEARCH_MAX_LEN),
+        before: int | None = Query(default=None, ge=1),
+    ) -> dict[str, Any]:
+        """이 채널에서 받아 둔 메시지(보관 기간 안) 찾기. 낱말은 모두 들어가야 한다."""
+        await drawer_channel(request, channel_id)
+        words = q.split()[:SEARCH_MAX_WORDS]
+        if not words:
+            raise HTTPException(status_code=400, detail="empty_query")
+        rows = await repo.search(
+            channel_id, words, cutoff_snowflake(clock()), before, SEARCH_PAGE + 1
+        )
+        return {
+            "messages": [row_to_api(row) for row in rows[:SEARCH_PAGE]],
+            "has_more": len(rows) > SEARCH_PAGE,
+            "days": RETENTION_DAYS,
+        }
+
+    @app.get("/api/channels/{channel_id}/pins")
+    async def pinned_messages(request: Request, channel_id: int) -> dict[str, Any]:
+        """서랍: 고정된 메시지(봇이 디스코드에서 받아 옴)."""
+        await drawer_channel(request, channel_id)
+        try:
+            ids = await directory.pinned_ids(channel_id)
+        except DirectoryError as error:
+            raise HTTPException(status_code=502, detail="discord_unavailable") from error
+        messages = []
+        for message_id in ids:
+            row = await repo.get(message_id)
+            if row is not None and int(row["channel_id"]) == channel_id:
+                messages.append(row_to_api(row))
+        return {"messages": messages}
+
+    @app.get("/api/channels/{channel_id}/files")
+    async def channel_files(
+        request: Request,
+        channel_id: int,
+        before: int | None = Query(default=None, ge=1),
+    ) -> dict[str, Any]:
+        """서랍: 사진과 파일이 붙은 메시지(받아 둔 것, 최신부터)."""
+        await drawer_channel(request, channel_id)
+        rows = await repo.with_files(channel_id, before, FILES_PAGE + 1)
+        return {
+            "messages": [row_to_api(row) for row in rows[:FILES_PAGE]],
+            "has_more": len(rows) > FILES_PAGE,
+        }
 
     @app.post("/api/channels/{channel_id}/messages")
     async def send_message(channel_id: int, body: SendBody, request: Request) -> dict[str, Any]:

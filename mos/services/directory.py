@@ -195,3 +195,7 @@ class Directory(Protocol):
     async def fetch_older(self, channel_id: int, before_id: int, limit: int) -> int:
         """before_id보다 오래된 메시지를 디스코드에서 받아 저장. 받은 개수."""
         ...
+
+    async def pinned_ids(self, channel_id: int) -> list[int]:
+        """채널에 고정된 메시지(디스코드에서 받아 저장해 두고 ID만, 최근 고정부터)."""
+        ...

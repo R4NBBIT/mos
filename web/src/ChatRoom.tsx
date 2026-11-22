@@ -20,6 +20,7 @@ import { useLook } from "./lookContext";
 import { compareIds, dayKey, formatDay, formatTime } from "./format";
 import MessageItem, { Avatar, MessageBody, paraColor, personId, type ReplyPreview } from "./MessageItem";
 import SheetView, { plainText } from "./SheetView";
+import Drawer, { drawerTitle, type DrawerTab } from "./Drawer";
 import type { Theme } from "./theme";
 import type { ChannelInfo, Message, RealtimeEvent } from "./types";
 import PostEditor from "./PostEditor";
@@ -27,6 +28,11 @@ import { useRealtime } from "./useRealtime";
 import { isHiddenMessage, isSystemMessage } from "./systemMessage";
 
 const GROUP_GAP_MS = 5 * 60 * 1000;
+// 서랍에서 고른 메시지로 갈 때: 이전 메시지를 100개씩 최대 15번(1500개)까지 더 받는다
+const JUMP_PAGE_SIZE = 100;
+const JUMP_MAX_PAGES = 15;
+const JUMP_FLASH_MS = 2200;
+const NARROW_QUERY = "(max-width: 760px)";
 const NEAR_BOTTOM_PX = 120;
 
 interface Props {
@@ -378,13 +384,93 @@ export default function ChatRoom({
       list.scrollTop = Math.max(0, top - 16);
     }
   }, [messages, readAtOpen]);
+  // 서랍(찾기, 고정, 사진, 파일, 사람)과 거기서 고른 메시지로 가기
+  const [drawerTab, setDrawerTab] = useState<DrawerTab | null>(null);
+  const [jumpedId, setJumpedId] = useState<string | null>(null);
+  const [jumpNote, setJumpNote] = useState("");
+  const pendingJump = useRef<string | null>(null);
+  const [jumpTick, setJumpTick] = useState(0);
+  useLayoutEffect(() => {
+    const id = pendingJump.current;
+    const list = listRef.current;
+    if (!id || !list) return;
+    const row = list.querySelector<HTMLElement>(`[data-mid="${id}"]`);
+    if (!row) return;
+    pendingJump.current = null;
+    stickToBottom.current = false;
+    row.scrollIntoView({ block: "center" });
+    setJumpedId(id);
+  }, [messages, jumpTick]);
+  useEffect(() => {
+    if (!jumpedId) return;
+    const timer = window.setTimeout(() => setJumpedId(null), JUMP_FLASH_MS);
+    return () => window.clearTimeout(timer);
+  }, [jumpedId]);
+  const jumpTo = async (id: string) => {
+    if (!channel || !/^[0-9]{15,21}$/.test(id)) return;
+    setJumpNote("");
+    if (window.matchMedia(NARROW_QUERY).matches) setDrawerTab(null); // 휴대폰은 서랍이 대화를 가린다
+    if (isThread && id === channel.id) {
+      listRef.current?.scrollTo({ top: 0 }); // 글의 본문(맨 위 카드)
+      return;
+    }
+    let loaded = messages;
+    let more = hasMore;
+    // 아직 안 받은 옛 메시지면 거기까지 이전 메시지를 더 받는다(너무 멀면 멈춘다)
+    for (let page = 0; page < JUMP_MAX_PAGES && more && !loaded.some((item) => item.id === id); page += 1) {
+      const oldest = loaded[0];
+      if (!oldest) break;
+      try {
+        const older = await fetchMessages(channel.id, oldest.id, JUMP_PAGE_SIZE);
+        loaded = mergeMessages(loaded, older.messages);
+        more = older.has_more;
+      } catch (caught) {
+        if (!handleAuthError(caught)) setJumpNote("메시지를 불러오지 못했어요.");
+        return;
+      }
+    }
+    if (!loaded.some((item) => item.id === id)) {
+      setJumpNote("너무 예전 메시지라 여기서 바로 갈 수 없어요.");
+      return;
+    }
+    pendingJump.current = id;
+    keepOffset.current = null;
+    stickToBottom.current = false;
+    if (loaded !== messages) {
+      setMessages(loaded);
+      setHasMore(more);
+    }
+    setJumpTick((tick) => tick + 1);
+  };
+  const drawer =
+    channel && drawerTab ? (
+      <Drawer
+        channel={channel}
+        tab={drawerTab}
+        onTab={setDrawerTab}
+        onJump={(id) => void jumpTo(id)}
+        onClose={() => setDrawerTab(null)}
+        onAuthLost={onAuthLost}
+      />
+    ) : null;
+  const jumpNotice = jumpNote ? (
+    <div className="room-notice room-notice-quiet" role="status">
+      <span>{jumpNote}</span>
+      <button type="button" className="text-button" onClick={() => setJumpNote("")}>
+        닫기
+      </button>
+    </div>
+  ) : null;
   const isNewMessage = (message: Message) =>
     Boolean(readAtOpen) &&
     BigInt(message.id) > BigInt(readAtOpen as string) &&
     !isSystemMessage(message) &&
     message.author.id !== myUserId &&
     message.web_sender_id !== myUserId;
-  const newMarks: { first: string | null; count: number } = { first: null, count: 0 };
+  const newMarks: { first: string | null; count: number } = {
+    first: null,
+    count: 0,
+  };
   const shownMessages = (isThread ? messages.filter((message) => message.id !== channel?.id) : messages).filter(
     (message) => !isHiddenMessage(message),
   );
@@ -479,48 +565,54 @@ export default function ChatRoom({
     />
   ) : null;
 
+  const toggleDrawer = () => setDrawerTab((current) => (current ? null : "search"));
   if (theme === "sheet") {
     return (
-      <SheetView
-        channel={channel}
-        rows={isThread && starter ? [starter, ...shownMessages] : shownMessages}
-        myUserId={myUserId}
-        hasMore={hasMore}
-        loadingOlder={loadingOlder}
-        onLoadOlder={() => void loadOlder()}
-        error={error}
-        notice={notice}
-        onNoticeClose={onNoticeClose}
-        unseen={unseen}
-        onScrollToBottom={scrollToBottom}
-        connected={connected}
-        listRef={listRef}
-        onScroll={onScroll}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-        replyPreview={replyPreview}
-        onReply={(target) => {
-          setEditing(null);
-          setReplyTo(target);
-          setSelectedId(null);
-        }}
-        onEdit={(target) => {
-          setReplyTo(null);
-          setEditing(target);
-          setSelectedId(null);
-        }}
-        onDelete={remove}
-        onReact={react}
-        reactError={reactError}
-        composer={composer}
-        isNewMessage={isNewMessage}
-        onPostEdited={(changes) => setChannel((current) => (current ? { ...current, ...changes } : current))}
-        showBack={Boolean(showBack)}
-        onBack={onBack}
-        onOpenThreads={onOpenThreads}
-        onOpenTab={onOpenChannel}
-        menu={menu}
-      />
+      <>
+        <SheetView
+          channel={channel}
+          rows={isThread && starter ? [starter, ...shownMessages] : shownMessages}
+          myUserId={myUserId}
+          hasMore={hasMore}
+          loadingOlder={loadingOlder}
+          onLoadOlder={() => void loadOlder()}
+          error={error}
+          notice={jumpNote || notice}
+          onNoticeClose={jumpNote ? () => setJumpNote("") : onNoticeClose}
+          unseen={unseen}
+          onScrollToBottom={scrollToBottom}
+          connected={connected}
+          listRef={listRef}
+          onScroll={onScroll}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          replyPreview={replyPreview}
+          onReply={(target) => {
+            setEditing(null);
+            setReplyTo(target);
+            setSelectedId(null);
+          }}
+          onEdit={(target) => {
+            setReplyTo(null);
+            setEditing(target);
+            setSelectedId(null);
+          }}
+          onDelete={remove}
+          onReact={react}
+          reactError={reactError}
+          composer={composer}
+          isNewMessage={isNewMessage}
+          onPostEdited={(changes) => setChannel((current) => (current ? { ...current, ...changes } : current))}
+          showBack={Boolean(showBack)}
+          onBack={onBack}
+          onOpenThreads={onOpenThreads}
+          onOpenDrawer={channel ? toggleDrawer : undefined}
+        jumpedId={jumpedId}
+          onOpenTab={onOpenChannel}
+          menu={menu}
+        />
+        {drawer}
+      </>
     );
   }
 
@@ -545,6 +637,16 @@ export default function ChatRoom({
             {channel?.archived ? " (보관됨, 쓰면 다시 열려요)" : ""}
           </span>
         </div>
+        {channel && (
+          <button
+            type="button"
+            className="text-button header-link"
+            aria-expanded={Boolean(drawerTab)}
+            onClick={toggleDrawer}
+          >
+            {drawerTitle(theme)}
+          </button>
+        )}
         {onOpenThreads && channel && channel.kind !== "thread" && (
           <button type="button" className="text-button header-link" onClick={onOpenThreads}>
             스레드
@@ -558,6 +660,7 @@ export default function ChatRoom({
           <span>{reactError}</span>
         </div>
       )}
+      {jumpNotice}
       {lostLong && (
         <div className="room-notice room-notice-quiet" role="status">
           <span>연결이 끊겨 다시 연결하는 중이에요. 그동안 새 글이 늦게 보일 수 있어요.</span>
@@ -729,7 +832,14 @@ export default function ChatRoom({
               GROUP_GAP_MS;
           const fresh = theme === "note" && isNewMessage(message);
           return (
-            <div key={message.id} className={fresh ? "msg-new" : undefined}>
+            <div
+              key={message.id}
+              data-mid={message.id}
+              className={
+                [fresh ? "msg-new" : "", message.id === jumpedId ? "msg-jump" : ""].filter(Boolean).join(" ") ||
+                undefined
+              }
+            >
               {newDay && <div className="day-divider">{formatDay(message.created_at)}</div>}
               {message.id === newMarks.first && <NewDivider theme={theme} first={message} count={newMarks.count} />}
               <MessageItem
@@ -778,6 +888,7 @@ export default function ChatRoom({
         </button>
       )}
       {composer}
+      {drawer}
     </div>
   );
 }

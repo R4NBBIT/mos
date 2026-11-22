@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 import discord
 from discord import app_commands
 
-from mos.bot.backfill import backfill_channel, fetch_older_messages
+from mos.bot.backfill import backfill_channel, fetch_older_messages, fetch_pinned_messages
 from mos.config import Settings
 from mos.db.repo import MessageRepo
 from mos.services import reactions
@@ -52,6 +52,8 @@ DELETE_COMMAND_NAME = "ㅁㅇㅅ 메시지 삭제"
 UNKNOWN_WEBHOOK = 10015
 UNKNOWN_MESSAGE = 10008
 WEB_SENT_GRACE_SEC = 2.0  # 웹훅 메시지의 '웹에서 보낸 기록'을 기다리는 시간
+PINS_CACHE_SEC = 60  # 고정 메시지 목록을 다시 묻지 않는 시간(바뀌면 이벤트로 바로 지움)
+MAX_PINS_CACHE = 500
 
 
 def build_intents() -> discord.Intents:
@@ -222,6 +224,8 @@ class MosBot(discord.Client):
         self._backfill_lock = asyncio.Lock()
         self._synced: set[int] = set()
         self._history_done: set[int] = set()
+        # 채널 → (받은 시각, 고정 메시지 ID). 고정이 바뀌면 이벤트로 지운다
+        self._pins: dict[int, tuple[float, list[int]]] = {}
         self._sync_locks: dict[int, asyncio.Lock] = {}
         self._thread_cache: dict[int, tuple[float, ChannelInfo]] = {}
         self._notify_tasks: set[asyncio.Task[None]] = set()
@@ -509,6 +513,24 @@ class MosBot(discord.Client):
         if count < limit:
             self._history_done.add(channel_id)  # 더 오래된 메시지가 없다
         return count
+
+    async def pinned_ids(self, channel_id: int) -> list[int]:
+        cached = self._pins.get(channel_id)
+        if cached is not None and time.monotonic() - cached[0] < PINS_CACHE_SEC:
+            return cached[1]
+        try:
+            ids = await fetch_pinned_messages(self, channel_id)
+        except discord.Forbidden:
+            ids = []  # 봇이 기록을 못 읽는 채널
+        except discord.HTTPException as error:
+            raise DirectoryError(f"pins failed: HTTP {error.status}") from error
+        if len(self._pins) >= MAX_PINS_CACHE:
+            self._pins.clear()
+        self._pins[channel_id] = (time.monotonic(), ids)
+        return ids
+
+    async def on_guild_channel_pins_update(self, channel: Any, last_pin: Any) -> None:
+        self._pins.pop(channel.id, None)
 
     # ------------------------------------------------------------ 이벤트
 
@@ -969,3 +991,6 @@ class BotDirectory:
 
     async def fetch_older(self, channel_id: int, before_id: int, limit: int) -> int:
         return await self.bot.fetch_older(channel_id, before_id, limit)
+
+    async def pinned_ids(self, channel_id: int) -> list[int]:
+        return await self.bot.pinned_ids(channel_id)

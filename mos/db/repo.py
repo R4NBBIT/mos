@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from typing import Any
 
 from mos.db.database import Database
@@ -32,6 +32,13 @@ MESSAGE_COLUMNS = (
     "edited_at",
 )
 MAX_PAGE_SIZE = 100
+
+
+def _like_escape(text: str) -> str:
+    """LIKE의 %, _ 를 글자 그대로 찾게(ESCAPE '\\')."""
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 # 나중에 생긴 열의 기본값(보통 메시지, 스티커 없음)
 _LATE_DEFAULTS: dict[str, Any] = {"kind": 0, "stickers_json": "[]", "reactions_json": "[]"}
 
@@ -227,6 +234,47 @@ class MessageRepo:
             (channel_id, author_id),
         )
         return row["last_id"] if row and row["last_id"] is not None else None
+
+    async def search(
+        self,
+        channel_id: int,
+        words: Sequence[str],
+        min_id: int,
+        before_id: int | None,
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        """내용, 보낸 사람 이름, 첨부 파일 이름에 낱말이 모두 들어간 메시지. 최신부터."""
+        sql = _select_sql + " WHERE m.channel_id = ? AND m.id >= ?"
+        params: list[Any] = [channel_id, min_id]
+        if before_id is not None:
+            sql += " AND m.id < ?"
+            params.append(before_id)
+        for word in words:
+            pattern = "%" + _like_escape(word) + "%"
+            sql += (
+                " AND (m.content LIKE ? ESCAPE '\\' OR m.author_name LIKE ? ESCAPE '\\'"
+                " OR EXISTS (SELECT 1 FROM json_each(m.attachments_json) f"
+                " WHERE json_extract(f.value, '$.filename') LIKE ? ESCAPE '\\'))"
+            )
+            params.extend([pattern, pattern, pattern])
+        sql += " ORDER BY m.id DESC LIMIT ?"
+        params.append(max(1, min(limit, MAX_PAGE_SIZE)))
+        rows = await self.db.fetch_all(sql, params)
+        return await self._with_reactions([dict(row) for row in rows])
+
+    async def with_files(
+        self, channel_id: int, before_id: int | None, limit: int
+    ) -> list[dict[str, Any]]:
+        """첨부가 있는 메시지(서랍의 사진과 파일). 최신부터."""
+        sql = _select_sql + " WHERE m.channel_id = ? AND m.attachments_json NOT IN ('[]', '')"
+        params: list[Any] = [channel_id]
+        if before_id is not None:
+            sql += " AND m.id < ?"
+            params.append(before_id)
+        sql += " ORDER BY m.id DESC LIMIT ?"
+        params.append(max(1, min(limit, MAX_PAGE_SIZE)))
+        rows = await self.db.fetch_all(sql, params)
+        return [dict(row) for row in rows]
 
     async def latest_id(self, channel_id: int) -> int | None:
         row = await self.db.fetch_one(

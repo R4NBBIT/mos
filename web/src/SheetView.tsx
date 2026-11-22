@@ -86,6 +86,10 @@ interface Props {
   onReact: (message: Message, emoji: string) => void;
   reactError: string;
   composer: ReactNode;
+  /** 서랍에서 골라 막 이동한 메시지(잠깐 빛남) */
+  jumpedId?: string | null;
+  /** 메뉴 줄 오른쪽 '찾기'(서랍 열기) */
+  onOpenDrawer?: () => void;
   /** 새 메시지(이 ID보다 뒤, 남이 쓴 것)의 행 번호를 연한 초록으로(시안 A) */
   isNewMessage?: (message: Message) => boolean;
   /** 글 제목, 태그를 고친 뒤 */
@@ -235,6 +239,7 @@ export default function SheetView(props: Props) {
     const isStarter = isThread && message.id === channel?.id;
     if (isStarter) classes.push("sheet-row-starter");
     if (props.isNewMessage?.(message)) classes.push("sheet-row-new");
+    if (message.id === props.jumpedId) classes.push("msg-jump");
     const text = plainText(message);
     const pictures = message.attachments.filter(isPicture);
     const stickers = message.stickers ?? [];
@@ -294,7 +299,12 @@ export default function SheetView(props: Props) {
       rowNumber += 1;
       rowNumberOf.set(message.id, rowNumber);
       body.push(
-        <div className={[...classes, "sheet-row-top"].join(" ")} key={`${message.id}-top`} onClick={select}>
+        <div
+          className={[...classes, "sheet-row-top"].join(" ")}
+          key={`${message.id}-top`}
+          data-mid={message.id}
+          onClick={select}
+        >
           <span className="sheet-rownum">{topRow}</span>
           <span className="sheet-cell">{cellTime(message.created_at)}</span>
           <span className="sheet-cell sheet-author sheet-author-line" title={message.author.name}>
@@ -312,7 +322,7 @@ export default function SheetView(props: Props) {
       return;
     }
     body.push(
-      <div className={classes.join(" ")} key={message.id} onClick={select}>
+      <div className={classes.join(" ")} key={message.id} data-mid={message.id} onClick={select}>
         <span className="sheet-rownum">{rowNumber}</span>
         <span className="sheet-cell">{cellTime(message.created_at)}</span>
         <span className="sheet-cell sheet-author" title={message.author.name}>
@@ -364,11 +374,18 @@ export default function SheetView(props: Props) {
 
       menu={props.menu}
       menuExtra={
-        props.onOpenThreads && channel && channel.kind !== "thread" ? (
-          <button type="button" className="sheet-menu sheet-menu-link" onClick={props.onOpenThreads}>
-            스레드
-          </button>
-        ) : null
+        <>
+          {props.onOpenDrawer && (
+            <button type="button" className="sheet-menu sheet-menu-link" onClick={props.onOpenDrawer}>
+              찾기
+            </button>
+          )}
+          {props.onOpenThreads && channel && channel.kind !== "thread" && (
+            <button type="button" className="sheet-menu sheet-menu-link" onClick={props.onOpenThreads}>
+              스레드
+            </button>
+          )}
+        </>
       }
       nameBox={nameBox}
       formula={

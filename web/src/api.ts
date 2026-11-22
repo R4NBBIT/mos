@@ -123,8 +123,8 @@ export async function fetchChannel(channelId: string): Promise<ChannelInfo> {
   return (await request(`/api/channels/${encodeURIComponent(channelId)}`)).json() as Promise<ChannelInfo>;
 }
 
-export async function fetchMessages(channelId: string, beforeId?: string): Promise<MessagePage> {
-  const params = new URLSearchParams({ limit: "50" });
+export async function fetchMessages(channelId: string, beforeId?: string, limit = 50): Promise<MessagePage> {
+  const params = new URLSearchParams({ limit: String(limit) });
   if (beforeId) {
     params.set("before", beforeId);
   }
@@ -277,4 +277,31 @@ export async function updateSettings(changes: SettingsChanges): Promise<import("
     body: JSON.stringify(changes),
   });
   return response.json() as Promise<import("./theme").Settings>;
+}
+
+/** 채팅방 찾기: 받아 둔 메시지(보관 기간 days일 안)에서 낱말이 모두 들어간 것, 최신부터 */
+export async function searchMessages(
+  channelId: string,
+  query: string,
+  beforeId?: string,
+): Promise<MessagePage & { days: number }> {
+  const params = new URLSearchParams({ q: query });
+  if (beforeId) params.set("before", beforeId);
+  const path = `/api/channels/${encodeURIComponent(channelId)}/search?${params.toString()}`;
+  return (await request(path)).json() as Promise<MessagePage & { days: number }>;
+}
+
+/** 서랍: 고정된 메시지 */
+export async function fetchPinnedMessages(channelId: string): Promise<{ messages: Message[] }> {
+  return (await request(`/api/channels/${encodeURIComponent(channelId)}/pins`)).json() as Promise<{
+    messages: Message[];
+  }>;
+}
+
+/** 서랍: 사진과 파일이 붙은 메시지, 최신부터 */
+export async function fetchFileMessages(channelId: string, beforeId?: string): Promise<MessagePage> {
+  const params = new URLSearchParams();
+  if (beforeId) params.set("before", beforeId);
+  const path = `/api/channels/${encodeURIComponent(channelId)}/files?${params.toString()}`;
+  return (await request(path)).json() as Promise<MessagePage>;
 }

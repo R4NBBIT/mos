@@ -7269,3 +7269,346 @@ body.sorting * {
 :root[data-theme="note"] .hidden-folder-tree .hidden-folder-list .list-item {
   padding-left: 46px;
 }
+
+/* ------------------------------------------------------------ 서랍(찾기, 고정, 사진, 파일, 사람)
+   PC: 오른쪽 작업 창, 휴대폰: 화면 전체 */
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  width: min(380px, 100vw);
+  background: var(--surface);
+  color: var(--ink);
+  border-left: 1px solid var(--line);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.08);
+  animation: drawer-in 0.16s ease-out;
+}
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer {
+    animation: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .drawer {
+    width: 100vw;
+    height: 100dvh;
+    border-left: 0;
+    box-shadow: none;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  padding: 0 8px 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.drawer-close {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--sub);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.drawer-close:hover {
+  background: var(--tint);
+  color: var(--ink);
+}
+
+.drawer-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+
+.drawer-tab {
+  flex-shrink: 0;
+  min-width: 52px;
+  height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--sub);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.drawer-tab-on {
+  border-bottom-color: var(--honey);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px 24px;
+}
+
+.drawer-search input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--tint);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+}
+
+.drawer-search input:focus {
+  border-color: var(--honey);
+}
+
+@media (hover: none) {
+  .drawer-search input {
+    font-size: 16px;
+  }
+}
+
+.drawer-note {
+  margin: 8px 2px 10px;
+  color: var(--sub);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.drawer-empty {
+  margin: 24px 0;
+  color: var(--sub);
+  font-size: 13px;
+  text-align: center;
+}
+
+.drawer-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.drawer-hit {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 9px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.drawer-hit:hover {
+  background: var(--tint);
+}
+
+.drawer-hit-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.drawer-hit-head time,
+.drawer-hit-head > span {
+  flex-shrink: 0;
+  color: var(--sub);
+  font-size: 11.5px;
+}
+
+.drawer-hit-text {
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.drawer-hit-text mark {
+  padding: 0 1px;
+  border-radius: 3px;
+  background: rgba(240, 180, 41, 0.35);
+  color: inherit;
+}
+
+.drawer-file {
+  display: flex;
+  align-items: center;
+}
+
+.drawer-file .drawer-hit {
+  flex: 1;
+  min-width: 0;
+}
+
+.drawer-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawer-download {
+  flex-shrink: 0;
+  margin-left: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.drawer-download:hover {
+  background: var(--tint);
+}
+
+.drawer-photos {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.drawer-photo {
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--tint);
+  cursor: pointer;
+}
+
+.drawer-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.drawer-more {
+  display: block;
+  margin: 12px auto 0;
+}
+
+.drawer-people {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 고른 메시지로 갔을 때 잠깐 빛나게 */
+.msg-jump,
+.msg-jump .db-row,
+.sheet-row.msg-jump .sheet-cell {
+  animation: msg-jump 2.2s ease-out;
+}
+
+@keyframes msg-jump {
+  0%,
+  40% {
+    background: rgba(240, 180, 41, 0.28);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* 테마마다 그 프로그램의 작업 창처럼 */
+:root[data-theme="night"] .drawer {
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme="sheet"] .drawer,
+:root[data-theme="word"] .drawer,
+:root[data-theme="memo"] .drawer {
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.12);
+}
+
+:root[data-theme="sheet"] .drawer-header {
+  height: 40px;
+  font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+}
+
+:root[data-theme="sheet"] .drawer-tab-on {
+  border-bottom-color: #1f6e43;
+  color: #1f6e43;
+}
+
+:root[data-theme="sheet"] .drawer-search input,
+:root[data-theme="memo"] .drawer-search input,
+:root[data-theme="word"] .drawer-search input {
+  border-radius: 2px;
+  background: #ffffff;
+}
+
+:root[data-theme="sheet"] .drawer-search input:focus {
+  border-color: #1f6e43;
+}
+
+:root[data-theme="memo"] .drawer {
+  font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+}
+
+:root[data-theme="memo"] .drawer-tab-on,
+:root[data-theme="word"] .drawer-tab-on {
+  border-bottom-color: #185abd;
+  color: #185abd;
+}
+
+:root[data-theme="memo"] .drawer-search input:focus,
+:root[data-theme="word"] .drawer-search input:focus {
+  border-color: #185abd;
+}
+
+:root[data-theme="note"] .drawer {
+  border-left: 0;
+  box-shadow:
+    rgba(15, 15, 15, 0.05) 0 0 0 1px,
+    rgba(15, 15, 15, 0.1) 0 3px 6px,
+    rgba(15, 15, 15, 0.2) 0 9px 24px;
+}
+
+:root[data-theme="note"] .drawer-tab-on {
+  border-bottom-color: #37352f;
+}
+
+:root[data-theme="note"] .drawer-search input {
+  border-radius: 6px;
+  background: rgba(55, 53, 47, 0.06);
+}
+
+:root[data-theme="note"] .drawer-search input:focus {
+  border-color: rgba(35, 131, 226, 0.6);
+}
