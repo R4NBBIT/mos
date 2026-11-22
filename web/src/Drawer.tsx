@@ -10,13 +10,17 @@ import type { Attachment, ChannelInfo, GroupMember, Message } from "./types";
 
 export type DrawerTab = "search" | "pins" | "photos" | "files" | "people";
 
-const TABS: { id: DrawerTab; label: string }[] = [
-  { id: "search", label: "찾기" },
-  { id: "pins", label: "고정" },
-  { id: "photos", label: "사진" },
-  { id: "files", label: "파일" },
-  { id: "people", label: "사람" },
-];
+/** 테마마다 탭 이름. 마지막 탭은 문서 프로그램이면 '공유 대상', 나머지는 '멤버' */
+function tabsFor(theme: string): { id: DrawerTab; label: string }[] {
+  const people = theme === "sheet" || theme === "memo" || theme === "word" ? "공유 대상" : "멤버";
+  return [
+    { id: "search", label: "찾기" },
+    { id: "pins", label: "고정" },
+    { id: "photos", label: "사진" },
+    { id: "files", label: "파일" },
+    { id: "people", label: people },
+  ];
+}
 
 /** 테마마다 그 프로그램의 작업 창 이름 */
 export function drawerTitle(theme: string): string {
@@ -291,26 +295,38 @@ function PhotosTab({ files, onJump }: { files: Files; onJump: (id: string) => vo
         ) : (
           <div className="drawer-photos">
             {photos.map(({ message, attachment }) => (
-              <button
+              <PhotoTile
                 key={attachment.id}
-                type="button"
-                className="drawer-photo"
+                attachment={attachment}
                 title={`${message.author.name}, ${when(message.created_at)}`}
                 onClick={() => onJump(message.id)}
-              >
-                <img
-                  src={thumbnailUrl(attachment.proxy_url, 240)}
-                  alt={attachment.filename}
-                  loading="lazy"
-                  referrerPolicy="no-referrer"
-                  className={attachment.spoiler ? "spoiler" : undefined}
-                />
-              </button>
+              />
             ))}
           </div>
         ))}
       <MoreButton files={files} />
     </>
+  );
+}
+
+/** 사진 한 칸. 못 받으면(디스코드에서 지운 사진 등) 깨진 그림 대신 파일 이름 */
+function PhotoTile({ attachment, title, onClick }: { attachment: Attachment; title: string; onClick: () => void }) {
+  const [broken, setBroken] = useState(false);
+  return (
+    <button type="button" className="drawer-photo" title={title} onClick={onClick}>
+      {broken ? (
+        <span className="drawer-photo-name">{attachment.filename}</span>
+      ) : (
+        <img
+          src={thumbnailUrl(attachment.proxy_url, 240)}
+          alt={attachment.filename}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          className={attachment.spoiler ? "spoiler" : undefined}
+          onError={() => setBroken(true)}
+        />
+      )}
+    </button>
   );
 }
 
@@ -379,8 +395,8 @@ function PeopleTab({ channel, onAuthLost }: TabProps) {
     <>
       <p className="drawer-note">
         {people.list.length === people.all
-          ? `서버 사람 모두(${people.all}명) 볼 수 있어요.`
-          : `${people.list.length}명만 볼 수 있어요(서버 전체 ${people.all}명).`}
+          ? `서버 멤버 ${people.all}명 모두 이 채널을 볼 수 있어요.`
+          : `서버 멤버 ${people.all}명 중 ${people.list.length}명만 이 채널을 볼 수 있어요.`}
       </p>
       <ul className="drawer-people">
         {people.list.map((member) => (
@@ -437,7 +453,7 @@ export default function Drawer({
         </button>
       </header>
       <div className="drawer-tabs" role="tablist">
-        {TABS.map((item) => (
+        {tabsFor(theme).map((item) => (
           <button
             key={item.id}
             type="button"

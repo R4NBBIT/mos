@@ -60,6 +60,7 @@ class FakeDirectory:
         self.ready = True
         self.thread_lookups = 0
         self.pins: dict[int, list[int]] = {}
+        self.refreshed: list[list[str]] = []
         self.member_lists = 0
         self.thread_members: set[tuple[int, int]] = set()  # 비공개 스레드 참여자
         self.thread_edits: list[tuple[int, str, tuple[int, ...]]] = []
@@ -223,6 +224,10 @@ class FakeDirectory:
     async def fetch_older(self, channel_id: int, before_id: int, limit: int) -> int:
         self.older_calls.append((channel_id, before_id))
         return 0
+
+    async def refresh_attachment_urls(self, urls: list[str]) -> dict[str, str]:
+        self.refreshed.append(list(urls))
+        return {url: url.replace("ex=1", "ex=7fffffff") for url in urls if "gone" not in url}
 
     async def pinned_ids(self, channel_id: int) -> list[int]:
         return list(self.pins.get(channel_id, []))
@@ -2019,3 +2024,44 @@ def test_search_files_and_pins_in_drawer(env: Env) -> None:
     # 너무 자주 찾으면 잠시 막는다
     codes = {search("점심").status_code for _ in range(20)}
     assert 429 in codes
+
+
+def test_expired_attachment_urls_are_refreshed(env: Env) -> None:
+    signed_up(env, "latte")
+    now = env.clock[0]
+
+    def attachment(name: str, ex: str) -> dict[str, Any]:
+        query = f"ex={ex}&is=1&hm=ab"
+        return {
+            "id": name,
+            "filename": f"{name}.png",
+            "size": 1,
+            "content_type": "image/png",
+            "url": f"https://cdn.discordapp.com/attachments/1/2/{name}.png?{query}",
+            "proxy_url": f"https://media.discordapp.net/attachments/1/2/{name}.png?{query}",
+        }
+
+    old = make_row(snowflake_at(now - 3 * 86400), channel_id=CHANNEL, content="")
+    old["attachments_json"] = json.dumps([attachment("old", "1"), attachment("gone", "1")])
+    fresh = make_row(snowflake_at(now - 60), channel_id=CHANNEL, content="")
+    fresh["attachments_json"] = json.dumps([attachment("new", format(int(now) + 86400, "x"))])
+    env.client.portal.call(env.repo.upsert_many, [old, fresh])
+
+    listed = env.client.get(f"/api/channels/{CHANNEL}/messages").json()["messages"]
+    files = {item["filename"]: item for m in listed for item in m["attachments"]}
+    # 끝난 주소만 50개씩 묻고, 새 서명을 media 주소에도 붙인다. 아직 안 끝난 것은 묻지 않는다
+    assert env.bot.refreshed == [
+        [
+            "https://cdn.discordapp.com/attachments/1/2/old.png?ex=1&is=1&hm=ab",
+            "https://cdn.discordapp.com/attachments/1/2/gone.png?ex=1&is=1&hm=ab",
+        ]
+    ]
+    assert "ex=7fffffff" in files["old.png"]["url"]
+    assert files["old.png"]["proxy_url"].startswith("https://media.discordapp.net/")
+    assert "ex=7fffffff" in files["old.png"]["proxy_url"]
+    assert "ex=1&" in files["gone.png"]["url"]  # 못 받은 것은 그대로
+    # DB에도 저장돼 다음에는 묻지 않는다(못 받은 것은 10분 동안 다시 묻지 않음)
+    env.client.get(f"/api/channels/{CHANNEL}/messages")
+    assert len(env.bot.refreshed) == 1
+    stored = env.client.portal.call(env.repo.get, old["id"])
+    assert "ex=7fffffff" in stored["attachments_json"]

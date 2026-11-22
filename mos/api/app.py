@@ -50,6 +50,7 @@ from mos.services.directory import (
 from mos.services.discord_oauth import DiscordOAuth, OAuthClient
 from mos.services.egress import EgressMeter
 from mos.services.emojis import EmojiService
+from mos.services.media_urls import AttachmentRefresher
 from mos.services.messages import row_to_api
 from mos.services.permissions import ADD_REACTIONS, ChannelAccess, PermissionService, is_private
 from mos.services.push import PushError, PushService
@@ -327,6 +328,7 @@ def create_app(
     boss_files = BossFiles(db, BytesCipher(cipher), clock=clock)
     emojis = EmojiService(directory, perms)
     lists = ListsRepo(db)
+    attachments = AttachmentRefresher(directory, repo, clock=clock)
 
     async def notify_rule(
         subscriber: Subscriber, channel_id: int, message: dict[str, Any]
@@ -925,6 +927,8 @@ def create_app(
                 sender is not None and await sender.can_edit_post(account.discord_user_id, access)
             )
             starter = await repo.get(channel.id)
+            if starter is not None:
+                await attachments.fresh([starter])
             allowed_homes = {channel.id, channel.parent_id}
             data["starter"] = (
                 row_to_api(starter)
@@ -971,6 +975,7 @@ def create_app(
                 channel_id, oldest, OLDER_FETCH_LIMIT
             ):
                 rows = await repo.list_page(channel_id, before_id=before, limit=limit)
+        await attachments.fresh(rows)
         return {"messages": [row_to_api(row) for row in rows], "has_more": len(rows) == limit}
 
     async def drawer_channel(request: Request, channel_id: int) -> ChannelAccess:
@@ -999,6 +1004,7 @@ def create_app(
         rows = await repo.search(
             channel_id, words, cutoff_snowflake(clock()), before, SEARCH_PAGE + 1
         )
+        await attachments.fresh(rows[:SEARCH_PAGE])
         return {
             "messages": [row_to_api(row) for row in rows[:SEARCH_PAGE]],
             "has_more": len(rows) > SEARCH_PAGE,
@@ -1013,12 +1019,13 @@ def create_app(
             ids = await directory.pinned_ids(channel_id)
         except DirectoryError as error:
             raise HTTPException(status_code=502, detail="discord_unavailable") from error
-        messages = []
+        rows = []
         for message_id in ids:
             row = await repo.get(message_id)
             if row is not None and int(row["channel_id"]) == channel_id:
-                messages.append(row_to_api(row))
-        return {"messages": messages}
+                rows.append(row)
+        await attachments.fresh(rows)
+        return {"messages": [row_to_api(row) for row in rows]}
 
     @app.get("/api/channels/{channel_id}/files")
     async def channel_files(
@@ -1029,6 +1036,7 @@ def create_app(
         """서랍: 사진과 파일이 붙은 메시지(받아 둔 것, 최신부터)."""
         await drawer_channel(request, channel_id)
         rows = await repo.with_files(channel_id, before, FILES_PAGE + 1)
+        await attachments.fresh(rows[:FILES_PAGE])
         return {
             "messages": [row_to_api(row) for row in rows[:FILES_PAGE]],
             "has_more": len(rows) > FILES_PAGE,

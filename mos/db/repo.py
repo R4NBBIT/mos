@@ -276,6 +276,14 @@ class MessageRepo:
         rows = await self.db.fetch_all(sql, params)
         return [dict(row) for row in rows]
 
+    async def set_attachments(self, message_id: int, attachments_json: str) -> None:
+        """첨부 주소를 새로 받은 뒤(서명이 하루쯤 지나면 끝난다)."""
+        async with self.db.writing() as conn:
+            await conn.execute(
+                "UPDATE message SET attachments_json = ? WHERE id = ?",
+                (attachments_json, message_id),
+            )
+
     async def latest_id(self, channel_id: int) -> int | None:
         row = await self.db.fetch_one(
             "SELECT MAX(id) AS last_id FROM message WHERE channel_id = ?", (channel_id,)

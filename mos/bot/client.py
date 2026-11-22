@@ -529,6 +529,16 @@ class MosBot(discord.Client):
         self._pins[channel_id] = (time.monotonic(), ids)
         return ids
 
+    async def refresh_attachment_urls(self, urls: list[str]) -> dict[str, str]:
+        route = discord.http.Route("POST", "/attachments/refresh-urls")
+        data = await self.http.request(route, json={"attachment_urls": urls[:50]})
+        result: dict[str, str] = {}
+        for item in (data or {}).get("refreshed_urls", []):
+            original, refreshed = item.get("original"), item.get("refreshed")
+            if isinstance(original, str) and isinstance(refreshed, str):
+                result[original] = refreshed
+        return result
+
     async def on_guild_channel_pins_update(self, channel: Any, last_pin: Any) -> None:
         self._pins.pop(channel.id, None)
 
@@ -994,3 +1004,6 @@ class BotDirectory:
 
     async def pinned_ids(self, channel_id: int) -> list[int]:
         return await self.bot.pinned_ids(channel_id)
+
+    async def refresh_attachment_urls(self, urls: list[str]) -> dict[str, str]:
+        return await self.bot.refresh_attachment_urls(urls)

@@ -192,6 +192,9 @@ function VideoView({ attachment, small }: { attachment: Attachment; small: boole
 
 export function AttachmentView({ attachment }: { attachment: Attachment }) {
   const view = useLook().settings.media_view;
+  const [broken, setBroken] = useState(false);
+  // 디스코드에서 지웠거나 받을 수 없는 그림: 깨진 그림 대신 '[사진] 이름' 글자
+  if (broken) return <AttachmentText attachment={attachment} />;
   const type = attachment.content_type ?? "";
   const isImage = type.startsWith("image/");
   if (view === "hidden" && (isImage || type.startsWith("video/"))) return <AttachmentText attachment={attachment} />;
@@ -213,6 +216,7 @@ export function AttachmentView({ attachment }: { attachment: Attachment }) {
           loading="lazy"
           referrerPolicy="no-referrer"
           className={attachment.spoiler ? "spoiler" : undefined}
+          onError={() => setBroken(true)}
         />
       </a>
     );

@@ -196,6 +196,10 @@ class Directory(Protocol):
         """before_id보다 오래된 메시지를 디스코드에서 받아 저장. 받은 개수."""
         ...
 
+    async def refresh_attachment_urls(self, urls: list[str]) -> dict[str, str]:
+        """끝나 가는 첨부 주소를 디스코드에서 새로(원래 주소 → 새 주소, 50개까지)."""
+        ...
+
     async def pinned_ids(self, channel_id: int) -> list[int]:
         """채널에 고정된 메시지(디스코드에서 받아 저장해 두고 ID만, 최근 고정부터)."""
         ...

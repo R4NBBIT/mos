@@ -7523,9 +7523,40 @@ body.sorting * {
 }
 
 .drawer-people {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.drawer-people .member-row {
+  min-height: 44px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.drawer-people .member-row .author-avatar {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  font-size: 13px;
+  line-height: 32px;
+}
+
+.drawer-photo-name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 6px;
+  overflow: hidden;
+  color: var(--sub);
+  font-size: 11px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 /* 고른 메시지로 갔을 때 잠깐 빛나게 */
