@@ -480,14 +480,6 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           onOpenWidgetApk={
             active.features?.includes(TODO_FEATURE) && platform() !== "ios" ? () => setShowWidgetApk(true) : undefined
           }
-          onOpenTodo={
-            active.features?.includes(TODO_FEATURE)
-              ? () => {
-                  setBrowse(null);
-                  go("#/todo");
-                }
-              : undefined
-          }
         />
       ),
       onAuthLost: changed,

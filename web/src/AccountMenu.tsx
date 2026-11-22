@@ -12,8 +12,6 @@ interface Props {
   onOpenSettings: () => void;
   onOpenGuide: () => void;
   onOpenInstall: () => void;
-  /** TODO를 쓸 수 있는 계정이면: 어느 화면에서든 TODO로 바로(2026-11-23 사용자 요청) */
-  onOpenTodo?: () => void;
   /** TODO 위젯(안드로이드 APK) 받기 창. TODO 계정, 아이폰이 아닐 때만 */
   onOpenWidgetApk?: () => void;
 }
@@ -44,7 +42,6 @@ export default function AccountMenu({
   onOpenSettings,
   onOpenGuide,
   onOpenInstall,
-  onOpenTodo,
   onOpenWidgetApk,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -129,18 +126,6 @@ export default function AccountMenu({
             <strong>{account.name}</strong>
             {account.kept && <span className="account-state">로그인 유지 중</span>}
           </div>
-          {onOpenTodo && (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                onOpenTodo();
-              }}
-            >
-              TODO
-            </button>
-          )}
           <button
             type="button"
             role="menuitem"
@@ -161,6 +146,8 @@ export default function AccountMenu({
           >
             사용 방법
           </button>
+          <div className="menu-divider" role="separator" />
+          <div className="menu-section-title">설치</div>
           <button
             type="button"
             role="menuitem"
@@ -183,6 +170,8 @@ export default function AccountMenu({
               TODO 위젯 받기(안드로이드)
             </button>
           )}
+          <div className="menu-divider" role="separator" />
+          <div className="menu-section-title">이 계정</div>
           <button type="button" role="menuitem" onClick={() => void run(lock)}>
             잠그기
           </button>
@@ -203,6 +192,7 @@ export default function AccountMenu({
             <span className={account.nitro !== "none" ? "switch-look switch-look-on" : "switch-look"} aria-hidden="true" />
           </button>
           <div className="menu-divider" role="separator" />
+          <div className="menu-section-title">계정 관리</div>
           {session.accounts.length < session.max_accounts && (
             <button type="button" role="menuitem" onClick={() => startConnect("add")}>
               다른 계정 추가
