@@ -101,6 +101,8 @@ export interface ChannelInfo {
   /** 카테고리 순서(음성 채널을 같은 묶음에 끼울 때 쓴다) */
   category_position?: number;
   can_send: boolean;
+  /** 나에게 걸리는 슬로우 모드(초). 0이면 없음 */
+  slowmode?: number;
   pinned?: boolean;
   unread?: number;
   mentions?: number;
@@ -117,6 +119,8 @@ export interface ChannelInfo {
   parent_name?: string;
   parent_kind?: ChannelKind;
   applied_tags?: ForumTag[];
+  /** 글, 스레드: 내가 제목과 태그를 고칠 수 있는지(글쓴이나 스레드 관리 권한) */
+  can_edit_post?: boolean;
   starter?: Message | null;
 }
 

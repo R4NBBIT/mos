@@ -10,7 +10,8 @@ import { type CSSProperties, type ReactNode, type RefObject, useEffect, useMemo,
 import { fetchGroupChannels } from "./api";
 import { dayKey, formatDay } from "./format";
 import { AttachmentText, AttachmentView, Avatar, isPicture, MessageTextOnly, StickerView, type ReplyPreview } from "./MessageItem";
-import type { ChannelInfo, Message } from "./types";
+import PostEditor from "./PostEditor";
+import type { ChannelInfo, ForumTag, Message } from "./types";
 import { isSystemMessage, systemText } from "./systemMessage";
 import MessageContent from "./MessageContent";
 
@@ -85,6 +86,8 @@ interface Props {
   onReact: (message: Message, emoji: string) => void;
   reactError: string;
   composer: ReactNode;
+  /** 글 제목, 태그를 고친 뒤 */
+  onPostEdited?: (changes: { name: string; applied_tags: ForumTag[] }) => void;
   showBack: boolean;
   onBack: () => void;
   onOpenThreads?: () => void;
@@ -452,6 +455,7 @@ export default function SheetView(props: Props) {
               {channel.parent_name ?? ""}의 {forumPost ? "글" : "스레드"}
               {channel.archived ? " (보관됨, 쓰면 다시 열려요)" : ""}
             </span>
+            {props.onPostEdited && <PostEditor channel={channel} onSaved={props.onPostEdited} />}
           </span>
         </div>
       )}

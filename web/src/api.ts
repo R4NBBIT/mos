@@ -111,6 +111,14 @@ export async function fetchGroupVoice(groupId: string): Promise<{ channels: Voic
   }>;
 }
 
+export async function editPost(threadId: string, changes: { title?: string; tag_ids?: string[] }): Promise<void> {
+  await request(`/api/threads/${encodeURIComponent(threadId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(changes),
+  });
+}
+
 export async function fetchChannel(channelId: string): Promise<ChannelInfo> {
   return (await request(`/api/channels/${encodeURIComponent(channelId)}`)).json() as Promise<ChannelInfo>;
 }

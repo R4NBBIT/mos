@@ -220,6 +220,14 @@ class MessageRepo:
                     (message_id, key, user_id, via),
                 )
 
+    async def latest_by_author(self, channel_id: int, author_id: int) -> int | None:
+        """그 채널에서 그 사람(디스코드 앱으로 보낸 것)의 마지막 메시지 ID."""
+        row = await self.db.fetch_one(
+            "SELECT MAX(id) AS last_id FROM message WHERE channel_id = ? AND author_id = ?",
+            (channel_id, author_id),
+        )
+        return row["last_id"] if row and row["last_id"] is not None else None
+
     async def latest_id(self, channel_id: int) -> int | None:
         row = await self.db.fetch_one(
             "SELECT MAX(id) AS last_id FROM message WHERE channel_id = ?", (channel_id,)

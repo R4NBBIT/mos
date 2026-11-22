@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import re
 import time
 from collections.abc import Callable, Sequence
@@ -24,6 +25,8 @@ from mos.services.emojis import EmojiService
 from mos.services.messages import REPLY_QUOTE_MARK, row_to_api
 from mos.services.permissions import PermissionService
 from mos.services.realtime import RealtimeHub
+
+DISCORD_EPOCH_MS = 1_420_070_400_000
 
 log = logging.getLogger(__name__)
 
@@ -43,10 +46,11 @@ _BLOCKED_NAME_WORDS = re.compile(r"discord|clyde|everyone|here", re.IGNORECASE)
 
 
 class SendError(Exception):
-    def __init__(self, code: str, status: int = 400) -> None:
+    def __init__(self, code: str, status: int = 400, retry_after: int | None = None) -> None:
         super().__init__(code)
         self.code = code
         self.status = status
+        self.retry_after = retry_after
 
 
 class WebhookGoneError(Exception):
@@ -152,6 +156,8 @@ class SenderService:
         self.clock = clock
         self.emojis = emojis or EmojiService(directory, permissions)
         self._in_flight: set[tuple[int, str]] = set()
+        # 슬로우 모드: (사람, 채널) → 이 사이트로 마지막 보낸 때(재시작 사이에는 DB로 다시 셈)
+        self._last_sent: dict[tuple[int, int], float] = {}
 
     # ------------------------------------------------------------ 웹훅
 
@@ -191,6 +197,29 @@ class SenderService:
         if not access.can_send:
             raise SendError("cannot_send", 403)
         return access
+
+    async def _check_slowmode(self, user_id: int, access: Any) -> None:
+        """디스코드는 웹훅에 슬로우 모드를 걸지 않아서 여기서 막는다.
+        디스코드 앱으로 보낸 것도 센다."""
+        delay = access.slowmode
+        if delay <= 0:
+            return
+        channel_id = access.channel.id
+        last = self._last_sent.get((user_id, channel_id), 0.0)
+        web = await self.repo.last_web_send(user_id, channel_id)
+        if web is not None:
+            last = max(last, float(web))
+        own = await self.messages.latest_by_author(channel_id, user_id)
+        if own is not None:
+            last = max(last, ((int(own) >> 22) + DISCORD_EPOCH_MS) / 1000)
+        wait = last + delay - self.clock()
+        if wait > 0:
+            raise SendError("slowmode", 429, retry_after=math.ceil(wait))
+
+    def _mark_sent(self, user_id: int, channel_id: int) -> None:
+        if len(self._last_sent) > 10_000:
+            self._last_sent.clear()
+        self._last_sent[(user_id, channel_id)] = self.clock()
 
     @staticmethod
     def _check_content(content: str, prefix: str = "", has_files: bool = False) -> str:
@@ -247,6 +276,7 @@ class SenderService:
             return await self._publish(channel_id, int(done["message_id"]), "message_update")
         if key in self._in_flight:
             raise SendError("duplicate", 409)
+        await self._check_slowmode(user_id, access)
         self._in_flight.add(key)
         try:
             prefix = ""
@@ -283,6 +313,7 @@ class SenderService:
             await self.repo.record_sent(
                 message_id, account_id, channel_id, reply_to_id, nonce, int(self.clock())
             )
+            self._mark_sent(user_id, channel_id)
         finally:
             self._in_flight.discard(key)
         return await self._publish(channel_id, message_id, "message_update")
@@ -386,6 +417,7 @@ class SenderService:
             return {"thread_id": str(done["channel_id"])}
         if key in self._in_flight:
             raise SendError("duplicate", 409)
+        await self._check_slowmode(user_id, access)
         self._in_flight.add(key)
         try:
             member = await self.permissions.member(forum.guild_id, user_id)
@@ -412,9 +444,58 @@ class SenderService:
             await self.repo.record_sent(
                 int(row["id"]), account_id, thread_id, None, nonce, int(self.clock())
             )
+            self._mark_sent(user_id, forum.id)
         finally:
             self._in_flight.discard(key)
         return {"thread_id": str(thread_id)}
+
+    async def can_edit_post(self, user_id: int, access: Any) -> bool:
+        """포럼 글, 스레드의 제목과 태그를 고칠 수 있는지.
+        글쓴이(이 사이트로 썼으면 보낸 기록, 디스코드 앱이면 만든 사람) 또는 스레드 관리 권한."""
+        channel = access.channel
+        if channel.kind != "thread":
+            return False
+        if access.can_use_moderated_tags:
+            return True
+        if channel.owner_id == user_id:
+            return True
+        sent = await self.repo.sent(channel.id)  # 글 ID = 첫 메시지 ID
+        return sent is not None and int(sent["discord_user_id"]) == user_id
+
+    async def edit_post(
+        self, user_id: int, thread_id: int, title: str | None, tag_ids: Sequence[int] | None
+    ) -> None:
+        access = await self.permissions.channel_access(user_id, thread_id)
+        if access is None:
+            raise SendError("not_found", 404)
+        thread = access.channel
+        if not await self.can_edit_post(user_id, access):
+            raise SendError("cannot_edit_post", 403)
+        name = thread.name if title is None else " ".join(title.split())
+        if not 1 <= len(name) <= MAX_POST_TITLE:
+            raise SendError("bad_title")
+        tags = list(thread.applied_tag_ids) if tag_ids is None else list(dict.fromkeys(tag_ids))
+        parent = self.directory.channel(thread.parent_id) if thread.parent_id else None
+        if tag_ids is not None:
+            known = {tag.id: tag for tag in (parent.forum_tags if parent else ())}
+            if len(tags) > MAX_POST_TAGS or any(tag not in known for tag in tags):
+                raise SendError("bad_tags")
+            if parent is not None and parent.require_tag and not tags:
+                raise SendError("tag_required")
+            before = set(thread.applied_tag_ids)
+            changed = {tag for tag in tags if tag not in before} | (before - set(tags))
+            if any(known[tag].moderated for tag in changed if tag in known) and not (
+                access.can_use_moderated_tags
+            ):
+                raise SendError("tag_not_allowed", 403)
+        try:
+            await self.directory.edit_thread(thread.id, name, tuple(tags))
+        except PermissionError as error:
+            raise SendError("bot_cannot_manage_threads", 403) from error
+        if thread.parent_id:
+            await self.hub.publish(
+                thread.parent_id, "threads_changed", {"channel_id": str(thread.parent_id)}
+            )
 
     async def sender_of(self, message_id: int) -> int | None:
         """디스코드 앱 메시지 명령용: 웹에서 보낸 사람의 디스코드 ID."""

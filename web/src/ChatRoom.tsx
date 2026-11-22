@@ -22,6 +22,7 @@ import MessageItem, { Avatar, MessageBody, paraColor, personId, type ReplyPrevie
 import SheetView, { plainText } from "./SheetView";
 import type { Theme } from "./theme";
 import type { ChannelInfo, Message, RealtimeEvent } from "./types";
+import PostEditor from "./PostEditor";
 import { useRealtime } from "./useRealtime";
 import { isHiddenMessage, isSystemMessage } from "./systemMessage";
 
@@ -434,6 +435,7 @@ export default function ChatRoom({
       channelId={channel.id}
       groupId={channel.group_id}
       viewChannelId={channel.parent_id ?? channel.id}
+      slowmode={channel.slowmode ?? 0}
       canSend={channel.can_send}
       replyTo={replyTo}
       editing={editing}
@@ -485,6 +487,7 @@ export default function ChatRoom({
         onReact={react}
         reactError={reactError}
         composer={composer}
+        onPostEdited={(changes) => setChannel((current) => (current ? { ...current, ...changes } : current))}
         showBack={Boolean(showBack)}
         onBack={onBack}
         onOpenThreads={onOpenThreads}
@@ -576,6 +579,10 @@ export default function ChatRoom({
                 ))}
               </div>
             )}
+            <PostEditor
+              channel={channel}
+              onSaved={(changes) => setChannel((current) => (current ? { ...current, ...changes } : current))}
+            />
             {starter ? (
               <>
                 <div className="post-card-author">

@@ -128,6 +128,7 @@ def channel_to_info(channel: Any) -> ChannelInfo | None:
             owner_id=channel.owner_id,
             last_message_id=channel.last_message_id,
             archive_ts=channel.archive_timestamp.timestamp() if channel.archive_timestamp else None,
+            slowmode=int(channel.slowmode_delay or 0),
         )
     if isinstance(channel, discord.TextChannel):
         kind = "news" if channel.is_news() else "text"
@@ -162,6 +163,7 @@ def channel_to_info(channel: Any) -> ChannelInfo | None:
         bot_can_read=_bot_can_read(channel),
         forum_tags=tags,
         require_tag=require_tag,
+        slowmode=int(getattr(channel, "slowmode_delay", 0) or 0),
     )
 
 
@@ -359,6 +361,30 @@ class MosBot(discord.Client):
         if info is not None:
             self._remember_thread(info)
         return info
+
+    async def edit_thread(self, thread_id: int, name: str, tag_ids: tuple[int, ...]) -> None:
+        thread: Any = None
+        for guild in self.guilds:
+            thread = guild.get_thread(thread_id)
+            if thread is not None:
+                break
+        try:
+            if thread is None:
+                thread = await self.fetch_channel(thread_id)
+            if not isinstance(thread, discord.Thread):
+                raise DirectoryError("thread not found")
+            changes: dict[str, Any] = {"name": name}
+            if isinstance(thread.parent, discord.ForumChannel):
+                wanted = set(tag_ids)
+                available = thread.parent.available_tags
+                changes["applied_tags"] = [tag for tag in available if tag.id in wanted]
+            if thread.archived:
+                changes["archived"] = False  # 보관된 글은 다시 열어야 고칠 수 있다
+            await thread.edit(**changes)
+        except discord.Forbidden as error:
+            raise PermissionError("bot needs manage threads") from error
+        except discord.HTTPException as error:
+            raise DirectoryError(f"thread edit failed: HTTP {error.status}") from error
 
     async def is_thread_member(self, thread_id: int, user_id: int) -> bool:
         thread: Any = None
@@ -923,6 +949,9 @@ class BotDirectory:
 
     async def is_thread_member(self, thread_id: int, user_id: int) -> bool:
         return await self.bot.is_thread_member(thread_id, user_id)
+
+    async def edit_thread(self, thread_id: int, name: str, tag_ids: tuple[int, ...]) -> None:
+        await self.bot.edit_thread(thread_id, name, tag_ids)
 
     async def list_threads(
         self, parent_id: int, before: float | None, limit: int

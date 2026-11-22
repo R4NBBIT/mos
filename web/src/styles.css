@@ -6956,3 +6956,67 @@ body.sorting * {
   height: 16px;
   accent-color: var(--btn-bg);
 }
+
+/* 글 제목, 태그 고치기 */
+.post-edit-open {
+  margin: 4px 0;
+  font-size: 12.5px;
+}
+
+.post-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 13.5px;
+}
+
+.post-edit-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.post-edit-tags .tag-chip {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.post-edit-tags .tag-chip-on {
+  border-color: var(--btn-bg);
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+}
+
+.post-edit-note {
+  margin: 0;
+  color: var(--sub);
+}
+
+.post-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 스프레드시트: 제목 행 안에서 고치기 칸은 다음 줄에 가득 */
+.sheet-title-row .sheet-merged {
+  flex-wrap: wrap;
+}
+
+.sheet-title-row .post-edit {
+  flex: 1 0 100%;
+  font-weight: 400;
+  font-size: 13px;
+}
+
+.sheet-title-row .post-edit-open {
+  font-weight: 400;
+}

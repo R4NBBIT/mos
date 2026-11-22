@@ -61,6 +61,8 @@ class FakeDirectory:
         self.thread_lookups = 0
         self.member_lists = 0
         self.thread_members: set[tuple[int, int]] = set()  # 비공개 스레드 참여자
+        self.thread_edits: list[tuple[int, str, tuple[int, ...]]] = []
+        self.bot_cannot_manage = False
         self.guild_map = {
             GUILD: GuildInfo(
                 GUILD,
@@ -155,6 +157,16 @@ class FakeDirectory:
 
     async def fetch_channel(self, channel_id: int) -> ChannelInfo | None:
         return self.archived_map.get(channel_id)  # 캐시에 없는 보관 스레드
+
+    async def edit_thread(self, thread_id: int, name: str, tag_ids: tuple[int, ...]) -> None:
+        import dataclasses
+
+        if self.bot_cannot_manage:
+            raise PermissionError("no manage threads")
+        self.thread_edits.append((thread_id, name, tag_ids))
+        self.channel_map[thread_id] = dataclasses.replace(
+            self.channel_map[thread_id], name=name, applied_tag_ids=tag_ids
+        )
 
     def stickers(self, guild_id: int) -> list:
         from mos.services.directory import StickerInfo
@@ -1254,6 +1266,38 @@ def test_send_rate_limit(env: Env) -> None:
     assert codes[2] == 429
 
 
+def test_slowmode_counts_site_and_app_messages(env: Env) -> None:
+    import dataclasses
+
+    env.bot.channel_map[CHANNEL] = dataclasses.replace(env.bot.channel_map[CHANNEL], slowmode=10)
+    signed_up(env, "latte")  # 관리 권한 없음
+    info = env.client.get(f"/api/groups/{GUILD}/channels").json()["channels"]
+    assert next(c for c in info if c["id"] == str(CHANNEL))["slowmode"] == 10
+    assert send(env, "처음").status_code == 200
+    env.tick(3)
+    blocked = send(env, "또")
+    assert (blocked.status_code, blocked.json()["detail"]) == (429, "slowmode")
+    assert blocked.headers["Retry-After"] == "7"
+    env.tick(7)
+    assert send(env, "이제").status_code == 200
+
+    # 디스코드 앱으로 방금 보낸 것도 센다
+    env.tick(20)
+    now_ms = int(env.clock[0] * 1000)
+    app_row = make_row(((now_ms - 1_420_070_400_000) << 22), channel_id=CHANNEL)
+    app_row["author_id"] = 43
+    env.client.portal.call(env.repo.upsert, app_row)
+    assert send(env, "앱 다음").json()["detail"] == "slowmode"
+
+    # 메시지 관리 권한이 있으면 걸리지 않는다
+    guild = env.bot.guild_map[GUILD]
+    roles = {**guild.role_permissions, GUILD: guild.role_permissions[GUILD] | (1 << 13)}
+    env.bot.guild_map[GUILD] = dataclasses.replace(guild, role_permissions=roles)
+    env.permissions.forget_member(GUILD)
+    env.tick(2)
+    assert send(env, "관리자").status_code == 200
+
+
 def test_recreates_deleted_webhook_once(env: Env) -> None:
     signed_up(env)
     send(env)
@@ -1701,6 +1745,40 @@ def test_create_forum_post(env: Env) -> None:
     assert with_file.status_code == 200
     env.tick(2)
     assert post(env, channel=CHANNEL).status_code == 403  # 일반 채널에는 글을 만들 수 없음
+
+
+def test_edit_post_title_and_tags(env: Env) -> None:
+    signed_up(env, "latte")
+    thread_id = int(post(env, title="점심", tags="901").json()["thread_id"])
+    env.bot.channel_map[thread_id] = ChannelInfo(
+        thread_id, GUILD, "점심", "thread", 0, parent_id=FORUM, applied_tag_ids=(901,)
+    )
+    assert env.client.get(f"/api/channels/{thread_id}").json()["can_edit_post"] is True
+    env.tick(2)
+    edited = env.client.patch(
+        f"/api/threads/{thread_id}", json={"title": "  저녁  메뉴 ", "tag_ids": []}, headers=POST
+    )
+    assert edited.status_code == 400 and edited.json()["detail"] == "tag_required"
+    env.tick(2)
+    title = {"title": " 저녁  메뉴 "}
+    done = env.client.patch(f"/api/threads/{thread_id}", json=title, headers=POST)
+    assert done.status_code == 204
+    assert env.bot.thread_edits[-1] == (thread_id, "저녁 메뉴", (901,))
+    env.tick(2)
+    moderated = env.client.patch(
+        f"/api/threads/{thread_id}", json={"tag_ids": ["901", "902"]}, headers=POST
+    )
+    assert moderated.status_code == 403  # 관리자 전용 태그
+    env.tick(2)
+    env.bot.bot_cannot_manage = True
+    no_bot = env.client.patch(f"/api/threads/{thread_id}", json={"title": "다시"}, headers=POST)
+    assert no_bot.json()["detail"] == "bot_cannot_manage_threads"
+
+    signed_up(env, "mocha")  # 글쓴이가 아니고 스레드 관리 권한도 없음
+    assert env.client.get(f"/api/channels/{thread_id}").json()["can_edit_post"] is False
+    env.tick(2)
+    other = env.client.patch(f"/api/threads/{thread_id}", json={"title": "남의 글"}, headers=POST)
+    assert other.status_code == 403
 
 
 # ------------------------------------------------------------ 5-2 설정

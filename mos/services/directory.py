@@ -71,6 +71,8 @@ class ChannelInfo:
     owner_id: int | None = None
     last_message_id: int | None = None
     archive_ts: float | None = None
+    # 슬로우 모드(초). 포럼은 새 글 쓰기, 스레드는 그 안 댓글에 걸린다
+    slowmode: int = 0
 
 
 @dataclass(frozen=True)
@@ -180,6 +182,10 @@ class Directory(Protocol):
     ) -> tuple[list[ChannelInfo], bool]:
         """(스레드 목록, 더 있음). before가 없으면 열린 스레드 + 보관된 첫 쪽,
         있으면 그 시각보다 먼저 보관된 것만."""
+        ...
+
+    async def edit_thread(self, thread_id: int, name: str, tag_ids: tuple[int, ...]) -> None:
+        """글(스레드) 제목과 태그 바꾸기. 봇에 스레드 관리 권한이 없으면 PermissionError."""
         ...
 
     async def ensure_synced(self, channel_id: int) -> None:

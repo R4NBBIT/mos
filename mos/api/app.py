@@ -137,6 +137,8 @@ def channel_to_api(
         "category_name": channel.category_name,
         "category_position": channel.category_position,
         "can_send": access.can_send,
+        # 이 사람에게 걸리는 슬로우 모드(초, 관리 권한이 있으면 0)
+        "slowmode": access.slowmode,
     }
     if channel.kind == "forum":
         data["can_post"] = access.can_create_post
@@ -241,6 +243,11 @@ def voice_to_api(voice: VoiceChannelInfo, guild: GuildInfo) -> dict[str, Any]:
             for member in members
         ],
     }
+
+
+class PostEditBody(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    tag_ids: list[str] | None = Field(default=None, max_length=10)
 
 
 class PasswordBody(BaseModel):
@@ -507,7 +514,8 @@ def create_app(
 
     @app.exception_handler(SendError)
     async def send_error(_request: Request, error: SendError) -> JSONResponse:
-        return JSONResponse({"detail": error.code}, status_code=error.status)
+        headers = {"Retry-After": str(error.retry_after)} if error.retry_after else None
+        return JSONResponse({"detail": error.code}, status_code=error.status, headers=headers)
 
     async def read_uploads(files: list[UploadFile]) -> tuple[list[OutgoingFile], int]:
         """올린 파일을 읽는다(합계 10MB를 넘으면 그 자리에서 멈춤)."""
@@ -884,6 +892,9 @@ def create_app(
                 for tag_id in channel.applied_tag_ids
                 if (tag := tags.get(tag_id)) is not None
             ]
+            data["can_edit_post"] = bool(
+                sender is not None and await sender.can_edit_post(account.discord_user_id, access)
+            )
             starter = await repo.get(channel.id)
             allowed_homes = {channel.id, channel.parent_id}
             data["starter"] = (
@@ -892,6 +903,20 @@ def create_app(
                 else None
             )
         return data
+
+    @app.patch("/api/threads/{thread_id}", status_code=204)
+    async def edit_post(thread_id: int, body: PostEditBody, request: Request) -> None:
+        """포럼 글, 스레드의 제목과 태그.
+        글쓴이나 스레드 관리 권한이 있는 사람만, 봇에도 권한이 있어야 한다."""
+        account = await require_account(request)
+        require_ready()
+        tags = None
+        if body.tag_ids is not None:
+            if any(not tag.isdigit() or len(tag) > 21 for tag in body.tag_ids):
+                raise HTTPException(status_code=400, detail="bad_tags")
+            tags = [int(tag) for tag in body.tag_ids]
+        user = account.discord_user_id
+        await require_sender(account).edit_post(user, thread_id, body.title, tags)
 
     # ------------------------------------------------------------ 메시지
 

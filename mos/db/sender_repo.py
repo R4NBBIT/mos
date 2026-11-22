@@ -66,6 +66,16 @@ class SenderRepo:
                 (message_id, account_id, channel_id, reply_to_id, key, now),
             )
 
+    async def last_web_send(self, discord_user_id: int, channel_id: int) -> int | None:
+        """그 사람이 이 사이트에서 그 채널에 마지막으로 보낸 때(유닉스 초)."""
+        row = await self.db.fetch_one(
+            "SELECT MAX(ws.created_at) AS last FROM web_sent ws"
+            " JOIN account a ON a.id = ws.account_id"
+            " WHERE ws.channel_id = ? AND a.discord_user_id = ?",
+            (channel_id, discord_user_id),
+        )
+        return int(row["last"]) if row and row["last"] is not None else None
+
     async def forget_sent(self, message_id: int) -> None:
         async with self.db.writing() as conn:
             await conn.execute("DELETE FROM web_sent WHERE message_id = ?", (message_id,))

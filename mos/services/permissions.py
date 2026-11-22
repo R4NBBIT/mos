@@ -25,10 +25,12 @@ from mos.services.directory import (
 )
 
 ADMINISTRATOR = 1 << 3
+MANAGE_CHANNELS = 1 << 4
 ADD_REACTIONS = 1 << 6
 VIEW_CHANNEL = 1 << 10
 SEND_MESSAGES = 1 << 11
 READ_MESSAGE_HISTORY = 1 << 16
+MANAGE_MESSAGES = 1 << 13
 MENTION_EVERYONE = 1 << 17
 MANAGE_THREADS = 1 << 34
 SEND_MESSAGES_IN_THREADS = 1 << 38
@@ -129,6 +131,17 @@ class ChannelAccess:
     @property
     def can_use_moderated_tags(self) -> bool:
         return bool(self.permissions & MANAGE_THREADS)
+
+    @property
+    def slowmode(self) -> int:
+        """이 사람에게 걸리는 슬로우 모드(초). 디스코드처럼 메시지 관리, 채널 관리 권한이 있으면
+        (스레드는 스레드 관리도) 걸리지 않는다."""
+        exempt = MANAGE_MESSAGES | MANAGE_CHANNELS
+        if self.channel.kind == "thread":
+            exempt |= MANAGE_THREADS
+        if self.permissions & exempt:
+            return 0
+        return max(0, self.channel.slowmode)
 
     @property
     def can_mention_everyone(self) -> bool:

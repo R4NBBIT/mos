@@ -38,6 +38,7 @@ const sendErrors: Record<string, string> = {
   files_too_large: "파일은 합쳐서 10MB까지 보낼 수 있어요.",
   egress_limit: "이번 달 전송량이 거의 다 차서 사진과 파일 보내기를 잠시 막았어요. 글은 보낼 수 있어요.",
   upstream_unavailable: "연결이 잠깐 불안정해요. 다시 보내 주세요.",
+  slowmode: "슬로우 모드가 걸린 채널이라 조금 기다렸다가 보낼 수 있어요.",
 };
 
 export function sendErrorText(caught: unknown): string {
@@ -130,6 +131,8 @@ interface Props {
   /** @사람, #채널 자동완성에 쓸 서버와, 볼 수 있는 사람을 가릴 채널(스레드면 부모) */
   groupId?: string;
   viewChannelId?: string;
+  /** 나에게 걸리는 슬로우 모드(초) */
+  slowmode?: number;
 }
 
 export default function Composer({
@@ -144,6 +147,7 @@ export default function Composer({
   onSticker,
   groupId,
   viewChannelId,
+  slowmode = 0,
 }: Props) {
   const [text, setText] = useState(() => readDraft(channelId).text);
   const pickedRef = useRef<Record<string, string>>(readDraft(channelId).picked);
@@ -151,6 +155,18 @@ export default function Composer({
     null,
   );
   const [sendOriginal, setSendOriginal] = useState(false);
+  // 슬로우 모드: 이때까지는 보내기를 막고 남은 초를 보여 준다
+  const [coolUntil, setCoolUntil] = useState(0);
+  const [, setTick] = useState(0);
+  const coolLeft = Math.max(0, Math.ceil((coolUntil - Date.now()) / 1000));
+  useEffect(() => {
+    if (coolUntil <= Date.now()) return;
+    const timer = window.setInterval(() => {
+      setTick((value) => value + 1);
+      if (Date.now() >= coolUntil) window.clearInterval(timer);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [coolUntil]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirmSlash, setConfirmSlash] = useState(false);
@@ -309,6 +325,7 @@ export default function Composer({
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
     if (busy || preparing || (!text.trim() && files.length === 0)) return;
+    if (!editing && coolLeft > 0) return;
     if (totalBytes > MAX_FILES_BYTES) {
       setError(sendErrors.files_too_large ?? "");
       return;
@@ -325,6 +342,7 @@ export default function Composer({
       setText("");
       setItems([]);
       setSendOriginal(false);
+      if (!editing && slowmode > 0) setCoolUntil(Date.now() + slowmode * 1000);
       if (!editing) {
         pickedRef.current = {};
         writeDraft(channelId, { text: "", picked: {} });
@@ -332,7 +350,12 @@ export default function Composer({
       setPickerOpen(false);
       nonceRef.current = newNonce();
     } catch (caught) {
-      setError(sendErrorText(caught));
+      if (caught instanceof ApiError && caught.code === "slowmode") {
+        setCoolUntil(Date.now() + (caught.retryAfter ?? slowmode) * 1000);
+        setError("");
+      } else {
+        setError(sendErrorText(caught));
+      }
     } finally {
       setBusy(false);
       inputRef.current?.focus();
@@ -560,11 +583,16 @@ export default function Composer({
         <button
           type="submit"
           className="composer-send"
-          disabled={busy || preparing || (!text.trim() && files.length === 0)}
+          disabled={busy || preparing || (!text.trim() && files.length === 0) || (!editing && coolLeft > 0)}
         >
-          {editing ? "저장" : "보내기"}
+          {editing ? "저장" : coolLeft > 0 ? `${coolLeft}초` : "보내기"}
         </button>
       </div>
+      {!editing && coolLeft > 0 && (
+        <p className="composer-hint" role="status">
+          슬로우 모드: {slowmode || coolLeft}초에 한 번 보낼 수 있어요. {coolLeft}초 뒤에 보낼 수 있어요.
+        </p>
+      )}
       {text.length >= SHOW_COUNT_FROM && (
         <p className="composer-count">
           {text.length} / {MAX_LENGTH}
