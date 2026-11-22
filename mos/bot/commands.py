@@ -42,6 +42,32 @@ class MenuView(discord.ui.View):
         await interaction.response.edit_message(content=menu.text(roll), view=self)
 
 
+class ChoiceView(discord.ui.View):
+    """/todo가 되물을 때(오전, 오후) 고르는 단추. 누르면 고른 말로 다시 실행한다."""
+
+    def __init__(self, bot: MosBot, user_id: int, choices: list[tuple[str, str]]) -> None:
+        super().__init__(timeout=300)
+        self.bot = bot
+        self.user_id = user_id
+        for label, text in choices[:5]:
+            button: discord.ui.Button[ChoiceView] = discord.ui.Button(
+                label=label[:80], style=discord.ButtonStyle.secondary
+            )
+            button.callback = self._runner(text)
+            self.add_item(button)
+
+    def _runner(self, text: str):
+        async def run(interaction: discord.Interaction) -> None:
+            if interaction.user.id != self.user_id or self.bot.commands is None:
+                await interaction.response.send_message("이 단추는 쓸 수 없어요.", ephemeral=True)
+                return
+            said = text.removeprefix("/todo").strip()
+            result = await self.bot.commands.todo_text(interaction.user.id, said)
+            await interaction.response.edit_message(content=result.text, view=None)
+
+        return run
+
+
 def register_commands(bot: MosBot) -> None:
     tree = bot.tree
 
@@ -69,7 +95,10 @@ def register_commands(bot: MosBot) -> None:
         guild_id = interaction.guild.id if interaction.guild else None
         await interaction.response.send_message(await bot.menu.board(guild_id), ephemeral=True)
 
-    @tree.command(name="메뉴추가", description="메뉴 추가 (기본: 이 서버에만 적용)")
+    # 메뉴추가, 메뉴삭제는 운영자 전용(2026-11-23 사용자 요청). default_permissions()를 비워 두면
+    # 서버 관리자가 아닌 사람에게는 명령 목록에도 안 보인다. 실행할 때도 운영자인지 다시 본다.
+    @tree.command(name="메뉴추가", description="메뉴 추가 (운영자 전용, 기본: 이 서버에만 적용)")
+    @app_commands.default_permissions()
     @app_commands.rename(name="메뉴", common="공통")
     @app_commands.describe(
         name="추가할 메뉴 이름", common="예로 하면 모든 서버 공통 메뉴에 추가(운영자만)"
@@ -80,60 +109,46 @@ def register_commands(bot: MosBot) -> None:
         if bot.commands is None:
             return
         guild_id = interaction.guild.id if interaction.guild else None
-        result = await bot.commands.menu_add(interaction.user.id, guild_id, name, common == "예")
+        try:
+            result = await bot.commands.menu_add(
+                interaction.user.id, guild_id, name, common == "예"
+            )
+        except CommandError as error:
+            await interaction.response.send_message(str(error), ephemeral=True)
+            return
         await interaction.response.send_message(result.text, ephemeral=True)
 
-    @tree.command(name="메뉴삭제", description="메뉴 삭제 (이 서버에만 적용)")
+    @tree.command(name="메뉴삭제", description="메뉴 삭제 (운영자 전용, 이 서버에만 적용)")
+    @app_commands.default_permissions()
     @app_commands.rename(name="메뉴")
     @app_commands.describe(name="삭제할 메뉴 이름")
     async def remove_menu(interaction: discord.Interaction, name: str) -> None:
         if bot.commands is None:
             return
         guild_id = interaction.guild.id if interaction.guild else None
-        result = await bot.commands.menu_remove(guild_id, name)
-        await interaction.response.send_message(result.text, ephemeral=True)
-
-    todo = app_commands.Group(name="todo", description="ㅁㅇㅅ TODO(나에게만 보여요)")
-
-    @todo.command(name="보기", description="그날 TODO 보기")
-    @app_commands.rename(day="날짜")
-    @app_commands.describe(day="오늘, 내일, 11/23, 2026-11-23 (비우면 오늘)")
-    async def todo_view(interaction: discord.Interaction, day: str = "") -> None:
-        if bot.commands is None:
+        try:
+            result = await bot.commands.menu_remove(interaction.user.id, guild_id, name)
+        except CommandError as error:
+            await interaction.response.send_message(str(error), ephemeral=True)
             return
-        result = await bot.commands.todo_view(interaction.user.id, day)
         await interaction.response.send_message(result.text, ephemeral=True)
 
-    @todo.command(name="추가", description="TODO 넣기(첫 카테고리)")
-    @app_commands.rename(title="이름", day="날짜", at="시각", place="장소")
-    @app_commands.describe(
-        title="TODO 이름", day="오늘, 내일, 11/23 (비우면 오늘)", at="HH:MM", place="장소"
+    @tree.command(
+        name="todo", description="ㅁㅇㅅ TODO를 말로: 넣기, 보기, 완료, 미루기(나만 보여요)"
     )
-    async def todo_add(
-        interaction: discord.Interaction,
-        title: str,
-        day: str = "",
-        at: str = "",
-        place: str = "",
-    ) -> None:
+    @app_commands.rename(said="할말")
+    @app_commands.describe(said="하고 싶은 말(비우면 오늘 TODO)")
+    async def todo_command(interaction: discord.Interaction, said: str = "") -> None:
         if bot.commands is None:
             return
-        result = await bot.commands.todo_add(
-            interaction.user.id, title, day, at.strip() or None, place.strip() or None
-        )
-        await interaction.response.send_message(result.text, ephemeral=True)
+        result = await bot.commands.todo_text(interaction.user.id, said)
+        view = ChoiceView(bot, interaction.user.id, result.choices) if result.choices else None
+        if view is None:
+            await interaction.response.send_message(result.text, ephemeral=True)
+        else:
+            await interaction.response.send_message(result.text, ephemeral=True, view=view)
 
-    @todo.command(name="완료", description="오늘 TODO 완료 표시")
-    @app_commands.rename(target="대상")
-    @app_commands.describe(target="/todo 보기의 번호 또는 이름")
-    async def todo_done(interaction: discord.Interaction, target: str) -> None:
-        if bot.commands is None:
-            return
-        result = await bot.commands.todo_done(interaction.user.id, target)
-        await interaction.response.send_message(result.text, ephemeral=True)
-
-    tree.add_command(todo)
-    _ = (recommend, board, add_menu, remove_menu, todo_view, todo_add, todo_done)
+    _ = (recommend, board, add_menu, remove_menu, todo_command)
 
 
 class BotMenuPoster:

@@ -599,6 +599,24 @@ export default function Composer({
             </button>
           </div>
           <p className="command-result-text">{commandResult.text.replace(/\*\*/g, "")}</p>
+          {commandResult.choices && commandResult.choices.length > 0 && (
+            <div className="command-choices">
+              {commandResult.choices.map((choice) => (
+                <button
+                  key={choice.label}
+                  type="button"
+                  className="pill-button"
+                  onClick={() =>
+                    void runBotCommand(channelId, choice.text)
+                      .then((result) => setCommandResult({ ...result, until: Date.now() + 30_000 }))
+                      .catch(() => setError("명령을 실행하지 못했어요."))
+                  }
+                >
+                  {choice.label}
+                </button>
+              ))}
+            </div>
+          )}
           {commandResult.session && Date.now() < commandResult.until && (
             <button
               type="button"

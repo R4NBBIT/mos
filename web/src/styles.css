@@ -9024,3 +9024,9 @@ body.sorting * {
 .command-result .pill-button {
   align-self: flex-start;
 }
+
+.command-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}

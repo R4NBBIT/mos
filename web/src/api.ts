@@ -333,6 +333,8 @@ export interface BotCommandResult {
   text: string;
   /** 점메추: 30초 안에 리롤할 때 쓰는 값 */
   session: string | null;
+  /** 되물을 때 고를 단추(누르면 text를 다시 실행) */
+  choices?: { label: string; text: string }[];
 }
 
 let commandCache: Promise<BotCommand[]> | null = null;

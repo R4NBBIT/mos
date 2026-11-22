@@ -56,7 +56,11 @@ def register_command_routes(
         account = await user(request)
         data = await body(request)
         text = data.get("text")
-        if not isinstance(text, str) or len(text) > 500 or not commands.known(text):
+        if (
+            not isinstance(text, str)
+            or len(text) > 500
+            or not commands.known(text, account.discord_user_id)
+        ):
             raise HTTPException(status_code=400, detail="unknown_command")
         guild_id = None
         channel_id = 0
@@ -92,7 +96,12 @@ def register_command_routes(
             }
         if result is None:
             raise HTTPException(status_code=400, detail="unknown_command")
-        return {"command": name, "text": result.text, "session": result.session}
+        return {
+            "command": name,
+            "text": result.text,
+            "session": result.session,
+            "choices": [{"label": label, "text": text} for label, text in result.choices],
+        }
 
     @app.post("/api/commands/menu/{session}/reroll")
     async def command_reroll(session: str, request: Request) -> dict[str, Any]:
