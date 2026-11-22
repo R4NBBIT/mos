@@ -76,10 +76,13 @@ export function dateWithWeekday(key: string): string {
   return `${key.slice(0, 4)}. ${Number(key.slice(5, 7))}. ${Number(key.slice(8, 10))}. (${weekdayName(key)})`;
 }
 
-/** 15:00 → 오후 3:00 */
+/** 2026-11-23 → 11/23(월): TODO 줄에 붙는 짧은 날짜 */
+export function shortDate(key: string): string {
+  return `${Number(key.slice(5, 7))}/${Number(key.slice(8, 10))}(${weekdayName(key)})`;
+}
+
+/** 15:00 → 15:00, 9:5 → 09:05 (24시간, 어디서나 HH:MM) */
 export function timeLabel(time: string): string {
   const [hour = 0, minute = 0] = time.split(":").map(Number);
-  const half = hour < 12 ? "오전" : "오후";
-  const twelve = hour % 12 === 0 ? 12 : hour % 12;
-  return `${half} ${twelve}:${pad(minute)}`;
+  return `${pad(hour)}:${pad(minute)}`;
 }

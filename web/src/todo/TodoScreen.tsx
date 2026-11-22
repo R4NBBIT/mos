@@ -1,4 +1,4 @@
-// 할 일(공개 전): 하루 화면(SCR-02, 넓은 화면 오른쪽)과 넓은 화면 왼쪽 달력(SCR-04)
+// TODO(공개 전): 하루 화면(SCR-02, 넓은 화면 오른쪽)과 넓은 화면 왼쪽 달력(SCR-04)
 // 허용된 계정에서만 이 파일을 내려받는다(App에서 lazy). 테마 색은 ㅁㅇㅅ CSS 변수를 그대로 쓴다
 import { openTodoWidget } from "./TodoWidget";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -37,7 +37,7 @@ import "./todo.css";
 
 const SYNC_MS = 30_000;
 
-/** 그 주(또는 몇 주)의 날짜별 요약. 날짜가 바뀌거나 할 일이 바뀌면 다시 */
+/** 그 주(또는 몇 주)의 날짜별 요약. 날짜가 바뀌거나 TODO가 바뀌면 다시 */
 function useSummary(start: string, end: string, version: number): DaySummary {
   const [summary, setSummary] = useState<DaySummary>({});
   useEffect(() => {
@@ -76,7 +76,7 @@ export interface TodoScreenProps {
   menu: ReactNode;
   notice: string;
   onNoticeClose: () => void;
-  /** 할 일이 바뀌면(왼쪽 달력, 서버 목록 요약을 다시) */
+  /** TODO가 바뀌면(왼쪽 달력, 서버 목록 요약을 다시) */
   onChanged?: () => void;
   version?: number;
   /** 카테고리 관리 화면으로 */
@@ -212,12 +212,12 @@ export default function TodoScreen({
 
   const items = data?.items ?? [];
   const doneCount = items.filter((item) => item.done).length;
-  const sub = data ? (items.length === 0 ? "할 일이 없어요" : `${doneCount}개 했어요, ${items.length - doneCount}개 남음`) : "";
+  const sub = data ? (items.length === 0 ? "TODO가 없어요" : `${doneCount}개 했어요, ${items.length - doneCount}개 남음`) : "";
   const isToday = day === today();
 
   return (
     <div className="room todo-room">
-      <header className="room-header">
+      <header className="room-header todo-header">
         <SplitToggle />
         {showBack && (
           <button type="button" className="back-button" onClick={onBack} aria-label="서버 목록으로">
@@ -274,7 +274,7 @@ export default function TodoScreen({
               type="button"
               className="header-tool"
               aria-label="위젯 창"
-              title="오늘 할 일만 작은 창으로(이 탭을 닫아도 남고, 보스키를 누르면 같이 닫혀요)"
+              title="오늘 TODO만 작은 창으로(이 탭을 닫아도 남고, 보스키를 누르면 같이 닫혀요)"
               onClick={openTodoWidget}
             >
               <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -284,7 +284,7 @@ export default function TodoScreen({
               <span className="header-tool-label">위젯</span>
             </button>
           )}
-          <button type="button" className="header-tool" aria-label="반복 할 일" onClick={onRepeats}>
+          <button type="button" className="header-tool" aria-label="반복 TODO" onClick={onRepeats}>
             <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
               <path d="M4 9a6 6 0 0 1 10.5-3.5L16 7" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M16 3.5V7h-3.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -394,7 +394,7 @@ export function TodoSide({
   day: string;
   name: string;
   onDay: (day: string) => void;
-  /** 머리의 '할 일'을 누르면 서버 목록으로 */
+  /** 머리의 'TODO'을 누르면 서버 목록으로 */
   onServers: () => void;
   version?: number;
   /** 보고 있는 친구(없으면 나) */
@@ -425,10 +425,10 @@ export function TodoSide({
 
   return (
     <div className="room list-room todo-side">
-      <header className="room-header">
+      <header className="room-header todo-header">
         <div className="room-title">
           <button type="button" className="todo-side-switch" onClick={onServers} aria-label="서버 목록 보기">
-            <strong>할 일</strong>
+            <strong>TODO</strong>
             <svg viewBox="0 0 16 16" aria-hidden="true">
               <path d="M4 6l4 4 4-4" />
             </svg>
@@ -498,8 +498,16 @@ export function TodoSide({
             </button>
           ))}
           {onFriends && (
-            <button type="button" className="todo-link-button todo-friends-link" onClick={onFriends}>
-              친구 관리
+            <button type="button" className="list-item todo-friends-link" onClick={onFriends}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="9" cy="8" r="3.2" />
+                <path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5" />
+                <path d="M16 5.2a3 3 0 0 1 0 5.6M17.5 14.3c1.7.6 2.7 2.2 3 4.7" />
+              </svg>
+              <span className="todo-person-name">친구 관리</span>
+              <svg className="todo-friends-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 6l6 6-6 6" />
+              </svg>
             </button>
           )}
         </section>

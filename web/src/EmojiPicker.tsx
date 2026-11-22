@@ -65,7 +65,7 @@ function EmojiButton({ value, title, onPick }: { value: string; title: string; o
 }
 
 interface Props {
-  /** 채널 이모지(채팅). 없으면 loadCustom으로 받는다(할 일 반응) */
+  /** 채널 이모지(채팅). 없으면 loadCustom으로 받는다(TODO 반응) */
   channelId?: string;
   loadCustom?: () => Promise<{ emojis: ChannelEmoji[]; nitro?: "none" | "pending" | "verified" }>;
   onPick: (text: string) => void;

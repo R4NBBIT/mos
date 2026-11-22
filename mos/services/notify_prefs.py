@@ -21,7 +21,7 @@ class NotifyPrefsError(ValueError):
 def clean(update: dict[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in update.items():
-        if key in ("notify", "preview", "boss"):
+        if key in ("notify", "preview", "boss", "todo"):
             if not isinstance(value, bool):
                 raise NotifyPrefsError("bad_value")
         elif key == "scope":
@@ -50,6 +50,7 @@ class NotifyPrefs:
             "preview": prefs["notify_preview"],
             "hidden": prefs["hidden_notify"],
             "boss": False,  # 위장 화면일 때도 알림(기본은 받지 않음)
+            "todo": True,  # TODO 알림(채팅 알림과 따로, 2026-11-22 사용자 요청)
         }
 
     async def get(self, device_id: int, account_id: int) -> dict[str, Any]:

@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 홈 화면 위젯: 오늘 할 일(최대 8줄). 줄을 누르면 완료 켜고 끄기, ↻는 새로 고침, 날짜는 ㅁㅇㅅ 열기.
+ * 홈 화면 위젯: 오늘 TODO(최대 8줄). 줄을 누르면 완료 켜고 끄기, ↻는 새로 고침, 날짜는 ㅁㅇㅅ 열기.
  * 모양은 앱에서 고른 테마(Look: 기본, 다크, 스프레드시트, 메모장, 노션, Word)
  */
 public class TodoWidget extends AppWidgetProvider {
@@ -118,7 +118,7 @@ public class TodoWidget extends AppWidgetProvider {
         String base = now.getMonthValue() + "월 " + now.getDayOfMonth() + "일";
         switch (look.dateStyle) {
             case "sheet":
-                return base + " 할 일";
+                return base + " TODO";
             case "memo":
                 return "== " + base + " (" + weekday + ") ==";
             default:
@@ -226,7 +226,7 @@ public class TodoWidget extends AppWidgetProvider {
             }
             if (total == 0) {
                 views.setViewVisibility(R.id.message, View.VISIBLE);
-                views.setTextViewText(R.id.message, "오늘 할 일이 없어요.");
+                views.setTextViewText(R.id.message, "오늘 TODO가 없어요.");
             }
         }
         AppWidgetManager manager = AppWidgetManager.getInstance(context);

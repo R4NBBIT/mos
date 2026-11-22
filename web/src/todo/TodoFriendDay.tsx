@@ -1,10 +1,10 @@
-// 친구 할 일 보기(SCR-05): 읽기만. 내가 볼 수 있는 카테고리(친구: 전체와 친구, 같은 서버: 전체)만 오고,
-// 메모는 '메모도 보여 주기'인 카테고리만. 할 일마다 반응을 달 수 있다
+// 친구 TODO 보기(SCR-05): 읽기만. 내가 볼 수 있는 카테고리(친구: 전체와 친구, 같은 서버: 전체)만 오고,
+// 메모는 '메모도 보여 주기'인 카테고리만. TODO마다 반응을 달 수 있다
 import { type ReactNode, useEffect, useState } from "react";
 import BackIcon from "../BackIcon";
 import SplitToggle from "../SplitToggle";
 import { viaServer } from "../format";
-import { addDays, longLabel, timeLabel, today } from "./dates";
+import { addDays, longLabel, shortDate, timeLabel, today } from "./dates";
 import { CategoryDot, CHECK_PATH, checkStyle, MemoText, repeatLabel } from "./TodoItems";
 import { TodoReactions } from "./TodoReactions";
 import { type FriendDay, fetchFriendDay, type TodoItem, type TodoReaction } from "./todoApi";
@@ -13,7 +13,12 @@ import "./todo.css";
 function FriendRow({ owner, item, color }: { owner: string; item: TodoItem; color: string }) {
   const [reactions, setReactions] = useState<TodoReaction[]>(item.reactions ?? []);
   const [memoOpen, setMemoOpen] = useState(false);
-  const meta = [item.time ? timeLabel(item.time) : "", item.place ?? "", item.repeat ? repeatLabel(item.repeat) : ""]
+  const meta = [
+    shortDate(item.day),
+    item.time ? timeLabel(item.time) : "",
+    item.place ? `@${item.place}` : "",
+    item.repeat ? repeatLabel(item.repeat) : "",
+  ]
     .filter(Boolean)
     .join(", ");
   return (
@@ -85,10 +90,10 @@ export default function TodoFriendDay({
   const done = data?.items.filter((item) => item.done).length ?? 0;
   return (
     <div className="room todo-room">
-      <header className="room-header">
+      <header className="room-header todo-header">
         <SplitToggle />
         {showBack && (
-          <button type="button" className="back-button" onClick={onBack} aria-label="내 할 일로">
+          <button type="button" className="back-button" onClick={onBack} aria-label="내 TODO로">
             <BackIcon />
           </button>
         )}
@@ -96,7 +101,7 @@ export default function TodoFriendDay({
           <img className="todo-friend-avatar" src={viaServer(data.person.avatar_url)} alt="" referrerPolicy="no-referrer" />
         )}
         <div className="room-title">
-          <strong>{name ? `${name}의 할 일` : "친구 할 일"}</strong>
+          <strong>{name ? `${name}의 TODO` : "친구 TODO"}</strong>
           <span className="room-sub">
             {longLabel(day)}
             {data ? `, ${done}/${data.items.length}` : ""}
@@ -121,7 +126,7 @@ export default function TodoFriendDay({
       <div className="todo-body">
         {failed && <p className="list-note">볼 수 없는 친구예요. 친구를 끊었거나 같은 서버에 없어요.</p>}
         {!failed && data === null && <p className="list-note">불러오는 중…</p>}
-        {data && data.items.length === 0 && <p className="list-note">이날 보여 준 할 일이 없어요.</p>}
+        {data && data.items.length === 0 && <p className="list-note">이날 보여 준 TODO가 없어요.</p>}
         {data?.categories.map((category) => {
           const mine = data.items.filter((item) => item.category_id === category.id);
           if (mine.length === 0) return null;

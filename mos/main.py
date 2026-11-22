@@ -15,6 +15,7 @@ import uvicorn
 
 from mos.api.app import create_app
 from mos.bot.client import BotDirectory, BotMessenger, MosBot
+from mos.bot.commands import BotMenuPoster
 from mos.config import ConfigError, load_settings
 from mos.db.database import Database
 from mos.db.repo import MessageRepo
@@ -28,7 +29,7 @@ SHUTDOWN_TIMEOUT_SEC = 10
 
 
 def error_hint(error: BaseException) -> str | None:
-    """사람이 고쳐야 하는 봇 오류에 할 일을 알려 준다. 토큰 같은 비밀 값은 넣지 않는다."""
+    """사람이 고쳐야 하는 봇 오류에 TODO를 알려 준다. 토큰 같은 비밀 값은 넣지 않는다."""
     if isinstance(error, discord.PrivilegedIntentsRequired):
         return (
             "디스코드 개발자 포털 > 이 앱 > Bot > Privileged Gateway Intents에서 "
@@ -67,6 +68,9 @@ async def run() -> int:
     )
     bot.sender = app.state.sender  # 디스코드 앱의 'ㅁㅇㅅ 메시지 삭제' 명령
     bot.nitro_seen = app.state.sessions.nitro_seen  # '니트로 있어요' 계정의 7일 확인
+    bot.menu = app.state.menu  # 점메추(디스코드와 ㅁㅇㅅ 웹이 같은 기록)
+    bot.commands = app.state.commands  # 봇 명령(/점메추, /todo 등)
+    app.state.menu.poster = BotMenuPoster(bot)  # 웹에서 부른 점메추를 채널에 올림
     server = uvicorn.Server(
         uvicorn.Config(
             app,

@@ -1,7 +1,6 @@
 // 위젯 모양: ㅁㅇㅅ 테마마다 그 프로그램처럼(2026-11-22 사용자 요청 '모든 테마 위젯').
 // 기본(moon)과 다크(night)는 카드 모양, sheet는 엑셀 표, memo는 메모장, note는 노션 페이지, word는 Word 문서.
 // 이름은 어디에도 원래 서비스 이름 없이 'TODO'만 쓴다.
-import type { ChangeEvent, InputHTMLAttributes } from "react";
 import { longLabel, timeLabel } from "./dates";
 import { CHECK_PATH, checkStyle } from "./TodoItems";
 import type { TodoItem } from "./todoApi";
@@ -17,13 +16,6 @@ export interface WidgetModel {
   onToggle: (item: TodoItem) => void;
   /** 불러오기 실패나 빈 날 안내(없으면 null) */
   note: string | null;
-  /** 빠른 추가 칸(넣을 카테고리가 없으면 null) */
-  add:
-    | (InputHTMLAttributes<HTMLInputElement> & {
-        value: string;
-        onChange: (event: ChangeEvent<HTMLInputElement>) => void;
-      })
-    | null;
 }
 
 export function widgetLook(theme: string | undefined): WidgetLookName {
@@ -55,14 +47,6 @@ function Check({ model, item }: { model: WidgetModel; item: TodoItem }) {
 /** 장소(시각과 함께 위젯에 보임, 메모는 안 보임) */
 function Place({ item }: { item: TodoItem }) {
   return item.place ? <span className="tw-place">@{item.place}</span> : null;
-}
-
-function Plus() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
 }
 
 // ------------------------------------------------------------ 기본, 다크: 카드
@@ -97,14 +81,6 @@ function CardLook({ model }: { model: WidgetModel }) {
         ))}
       </ul>
       {model.note && <p className="todo-widget-note todo-widget-empty">{model.note}</p>}
-      {model.add && (
-        <div className="todo-widget-add">
-          <span className="todo-widget-plus" aria-hidden="true">
-            <Plus />
-          </span>
-          <input {...model.add} />
-        </div>
-      )}
     </>
   );
 }
@@ -128,10 +104,10 @@ function SheetLook({ model }: { model: WidgetModel }) {
         <span className="tw-sheet-name">B1</span>
         <span className="tw-sheet-fx-mark">fx</span>
         <span className="tw-grow">
-          {shortDay(model.day)} 할 일 {model.done}/{total}
+          {shortDay(model.day)} TODO {model.done}/{total}
         </span>
       </div>
-      <div className="tw-sheet-grid" role="table" aria-label="오늘 할 일">
+      <div className="tw-sheet-grid" role="table" aria-label="오늘 TODO">
         <div className="tw-sheet-row tw-sheet-head" role="row">
           <span className="tw-sheet-num" />
           <span>A</span>
@@ -142,7 +118,7 @@ function SheetLook({ model }: { model: WidgetModel }) {
         <div className="tw-sheet-row tw-sheet-label" role="row">
           <span className="tw-sheet-num">1</span>
           <span>완료</span>
-          <span>할 일</span>
+          <span>TODO</span>
           <span>시각</span>
           <span>장소</span>
         </div>
@@ -157,17 +133,6 @@ function SheetLook({ model }: { model: WidgetModel }) {
             <span className="tw-sheet-text">{item.place ?? ""}</span>
           </div>
         ))}
-        {model.add && (
-          <div className="tw-sheet-row tw-sheet-input" role="row">
-            <span className="tw-sheet-num">{total + 2}</span>
-            <span />
-            <span className="tw-sheet-cell-input">
-              <input {...model.add} />
-            </span>
-            <span />
-            <span />
-          </div>
-        )}
         {Array.from({ length: blanks }, (_, index) => (
           <div key={`blank-${index}`} className="tw-sheet-row" aria-hidden="true">
             <span className="tw-sheet-num">{total + 3 + index}</span>
@@ -216,22 +181,16 @@ function MemoLook({ model }: { model: WidgetModel }) {
             aria-label={`${item.title} ${item.done ? "완료 취소" : "완료"}`}
             onClick={() => model.onToggle(item)}
           >
-            <span className="tw-memo-mark">{item.done ? "[x]" : "[ ]"}</span>
+            <span className="tw-memo-mark">{item.done ? "[✓]" : "[ ]"}</span>
             {item.time ? ` ${item.time}` : ""} {item.title}
             {item.place ? ` @${item.place}` : ""}
           </button>
         ))}
         {model.note && <div className="tw-memo-line tw-memo-dim">{model.note}</div>}
-        {model.add && (
-          <label className="tw-memo-line tw-memo-input">
-            <span className="tw-memo-mark">[ ]</span>
-            <input {...model.add} />
-          </label>
-        )}
       </div>
       <div className="tw-memo-status">
         <span className="tw-grow">
-          줄 {total + 2}, 열 1
+          줄 {total + 1}, 열 1
         </span>
         <span>100%</span>
         <span>UTF-8</span>
@@ -274,12 +233,6 @@ function NoteLook({ model }: { model: WidgetModel }) {
           ))}
         </ul>
         {model.note && <p className="tw-note-dim">{model.note}</p>}
-        {model.add && (
-          <label className="tw-note-todo tw-note-input">
-            <span className="tw-note-ghost" aria-hidden="true" />
-            <input {...model.add} />
-          </label>
-        )}
       </div>
     </>
   );
@@ -319,12 +272,6 @@ function WordLook({ model }: { model: WidgetModel }) {
             ))}
           </ul>
           {model.note && <p className="tw-word-dim">{model.note}</p>}
-          {model.add && (
-            <label className="tw-word-item tw-word-input">
-              <span className="tw-word-ghost" aria-hidden="true" />
-              <input {...model.add} />
-            </label>
-          )}
         </div>
       </div>
       <div className="tw-word-status">

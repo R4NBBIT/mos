@@ -20,7 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 
-/** 로그인(ㅁㅇㅅ 사이트에서 승인)과 위젯 안내. 토큰은 할 일 전용이라 ㅁㅇㅅ 메시지는 못 본다 */
+/** 로그인(ㅁㅇㅅ 사이트에서 승인)과 위젯 안내. 토큰은 TODO 전용이라 ㅁㅇㅅ 메시지는 못 본다 */
 public class MainActivity extends Activity {
     private TextView status;
     private Button action;
@@ -34,7 +34,7 @@ public class MainActivity extends Activity {
         int pad = (int) (24 * getResources().getDisplayMetrics().density);
         layout.setPadding(pad, pad, pad, pad);
         TextView title = new TextView(this);
-        title.setText("ㅁㅇㅅ 할 일 위젯");
+        title.setText("ㅁㅇㅅ TODO 위젯");
         title.setTextSize(20);
         status = new TextView(this);
         status.setTextSize(15);
@@ -57,7 +57,7 @@ public class MainActivity extends Activity {
 
     private void render() {
         if (Store.signedIn(this)) {
-            status.setText("로그인했어요. 홈 화면을 길게 눌러 위젯 › 할 일을 추가하세요.");
+            status.setText("로그인했어요. 홈 화면을 길게 눌러 위젯 › TODO를 추가하세요.");
             action.setText("로그아웃");
             action.setOnClickListener(view -> {
                 Store.signOut(this);
@@ -65,7 +65,7 @@ public class MainActivity extends Activity {
                 render();
             });
         } else {
-            status.setText("ㅁㅇㅅ에 로그인하면 오늘 할 일이 위젯에 보여요.");
+            status.setText("ㅁㅇㅅ에 로그인하면 오늘 TODO가 위젯에 보여요.");
             action.setText("ㅁㅇㅅ로 로그인");
             action.setOnClickListener(view -> startLogin());
         }

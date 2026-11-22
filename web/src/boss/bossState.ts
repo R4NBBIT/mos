@@ -8,7 +8,7 @@ export function setDisguised(value: boolean): void {
   disguiseListeners.forEach((listener) => listener(value));
 }
 
-/** 위장이 켜지고 꺼질 때(할 일 위젯 창이 같이 숨는다) */
+/** 위장이 켜지고 꺼질 때(TODO 위젯 창이 같이 숨는다) */
 export function onDisguiseChange(listener: (value: boolean) => void): () => void {
   disguiseListeners.add(listener);
   return () => disguiseListeners.delete(listener);

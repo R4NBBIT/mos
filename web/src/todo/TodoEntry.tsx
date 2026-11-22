@@ -1,4 +1,4 @@
-// 서버 목록 맨 위 '할 일' 줄(SCR-01). 허용된 계정에서만 그린다
+// 서버 목록 맨 위 'TODO' 줄(SCR-01). 허용된 계정에서만 그린다
 import { useEffect, useState } from "react";
 import type { Theme } from "../theme";
 import { today } from "./dates";
@@ -12,8 +12,8 @@ function nowTime(): string {
 
 /** 테마별 이름(ㅁㅇㅅ 왼쪽 목록처럼 업무 파일로 보이게) */
 const LABELS: Record<Theme, { name: string; ext: string }> = {
-  moon: { name: "할 일", ext: "" },
-  night: { name: "할 일", ext: "" },
+  moon: { name: "TODO", ext: "" },
+  night: { name: "TODO", ext: "" },
   sheet: { name: "체크리스트", ext: ".xlsx" },
   memo: { name: "체크리스트", ext: ".txt" },
   note: { name: "체크리스트", ext: "" },
@@ -39,7 +39,7 @@ export default function TodoEntry({
   const [due, setDue] = useState(0);
   const [unread, setUnread] = useState(0);
   const [tick, setTick] = useState(0);
-  // 1분마다, 새 할 일 알림이 오면 다시(시각이 지난 할 일, 안 읽은 소식)
+  // 1분마다, 새 TODO 알림이 오면 다시(시각이 지난 TODO, 안 읽은 소식)
   useEffect(() => {
     const again = () => setTick((value) => value + 1);
     const timer = window.setInterval(again, 60_000);
@@ -72,9 +72,9 @@ export default function TodoEntry({
     left === null
       ? ""
       : due > 0
-        ? `시각 지난 할 일 ${due}개`
+        ? `시각 지난 TODO ${due}개`
         : total === 0
-          ? "오늘 할 일이 없어요"
+          ? "오늘 TODO가 없어요"
           : left === 0
             ? "오늘 다 했어요"
             : `오늘 ${left}개 남음`;

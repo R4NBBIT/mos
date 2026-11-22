@@ -1,4 +1,4 @@
-"""할 일 AI 연결(T3): OAuth 2.1(동적 등록, PKCE), MCP 도구, 연결 끊기, 공개 전 숨김."""
+"""TODO AI 연결(T3): OAuth 2.1(동적 등록, PKCE), MCP 도구, 연결 끊기, 공개 전 숨김."""
 
 from __future__ import annotations
 
@@ -149,9 +149,10 @@ def test_full_flow_and_tools(env: Env) -> None:
         "add_repeat_period",
         "update_repeat",
         "delete_repeat",
+        "end_repeat",
     ]
     cats = call(env, token, "list_categories")
-    assert cats["structuredContent"]["categories"] == ["할 일"]
+    assert cats["structuredContent"]["categories"] == ["TODO"]
     added = call(
         env,
         token,
@@ -159,12 +160,12 @@ def test_full_flow_and_tools(env: Env) -> None:
         {
             "items": [
                 {"title": "치과", "day": "2026-11-23", "time": "15:00", "place": "강남역"},
-                {"title": "장보기", "day": "2026-11-23", "category": "[할 일]"},
+                {"title": "장보기", "day": "2026-11-23", "category": "[TODO]"},
             ]
         },
     )
     assert "11월 23일 (월)" in added["content"][0]["text"]
-    assert "- 15:00 치과 @강남역 [할 일]" in added["content"][0]["text"]
+    assert "- 15:00 치과 @강남역 [TODO]" in added["content"][0]["text"]
     first_id = added["structuredContent"]["added"][0]["id"]
     # 앱에서도 보이고 AI가 넣었다고 표시
     items = env.client.get("/api/todo/day/2026-11-23").json()["items"]
@@ -182,7 +183,7 @@ def test_full_flow_and_tools(env: Env) -> None:
         "add_todos",
         {"items": [{"title": "x", "day": "2026-11-23", "category": "없음"}]},
     )
-    assert bad["isError"] is True and "할 일" in bad["content"][0]["text"]
+    assert bad["isError"] is True and "TODO" in bad["content"][0]["text"]
     undone = call(env, token, "undo_last_add")
     assert undone["structuredContent"]["removed"] == 2
     assert env.client.get("/api/todo/day/2026-11-23").json()["items"] == []
@@ -286,7 +287,7 @@ def test_delete_needs_confirm_and_goes_to_trash(env: Env) -> None:
     asked = call(env, token, "delete_todos", {"ids": [item_id]})
     assert "아직 실행하지 않았어요" in asked["content"][0]["text"]
     summary = asked["structuredContent"]["summary"]
-    assert "11월 23일 (월)\n[할 일]\n- 15:00 치과" in summary
+    assert "11월 23일 (월)\n[TODO]\n- 15:00 치과" in summary
     # 확인 전에는 그대로
     assert len(env.client.get("/api/todo/day/2026-11-23").json()["items"]) == 1
     bad = call(env, token, "confirm_action", {"confirm_id": "nope-nope"})
@@ -316,7 +317,7 @@ def test_category_actions_and_widening_needs_app_approval(env: Env) -> None:
     made = call(env, token, "add_category", {"name": "운동", "color": "#16A34A"})
     call(env, token, "confirm_action", {"confirm_id": made["structuredContent"]["confirm_id"]})
     names = call(env, token, "list_categories")["structuredContent"]["categories"]
-    assert names == ["할 일", "운동"]
+    assert names == ["TODO", "운동"]
     # 좁히기(친구 → 나만)는 대화 확인만
     narrow = call(env, token, "update_category", {"category": "운동", "visibility": "private"})
     assert "친구 → 나만" in narrow["structuredContent"]["summary"]
@@ -456,7 +457,7 @@ def test_every_delete_goes_to_trash(env: Env) -> None:
     env.client.post(f"/api/todo/ai/trash/{trash[0]['id']}/restore", headers=POST)
     titles = [i["title"] for i in env.client.get("/api/todo/day/2026-11-26").json()["items"]]
     assert "달리기" in titles
-    # 카테고리 지우기 → 할 일과 반복이 같이 사라졌다가 되살아남
+    # 카테고리 지우기 → TODO와 반복이 같이 사라졌다가 되살아남
     assert env.client.delete(f"/api/todo/categories/{cat}", headers=POST).status_code == 204
     names = [c["name"] for c in env.client.get("/api/todo/categories").json()["categories"]]
     assert "운동" not in names
@@ -482,7 +483,7 @@ def test_ai_repeats(env: Env) -> None:
         "create_repeat",
         {
             "title": "출근",
-            "category": "할 일",
+            "category": "TODO",
             "rule": "weekly",
             "weekdays": ["월", "수", "금"],
             "start_day": "2026-12-21",

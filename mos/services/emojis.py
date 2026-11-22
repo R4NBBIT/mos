@@ -61,7 +61,7 @@ class EmojiService:
         return result
 
     async def usable_anywhere(self, user_id: int, premium: bool) -> list[UsableEmoji]:
-        """채널이 없는 곳(할 일 반응)에서 쓸 수 있는 이모지: 지금 멤버인 서버들의 이모지.
+        """채널이 없는 곳(TODO 반응)에서 쓸 수 있는 이모지: 지금 멤버인 서버들의 이모지.
         역할 전용은 그 역할이 있어야, 움직이는 이모지는 니트로만(디스코드 규칙과 같게)."""
         result: list[UsableEmoji] = []
         guilds = await self.permissions.visible_guilds(user_id)

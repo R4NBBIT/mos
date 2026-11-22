@@ -4,7 +4,7 @@
   사용자가 대화에서 '네'라고 한 뒤 AI가 confirm_action을 불러야 실행된다(10분 안).
 - 공개 범위를 넓히거나 메모 공개를 켜는 것: 대화 확인에 더해 ㅁㅇㅅ 화면에서 사용자가 승인해야
   적용된다(남에게 보이는 범위는 되돌려도 이미 보였을 수 있어서). 좁히는 쪽은 대화 확인만.
-- AI가 지운 할 일은 휴지통에 7일(ㅁㅇㅅ 화면에서 되돌리기).
+- AI가 지운 TODO는 휴지통에 7일(ㅁㅇㅅ 화면에서 되돌리기).
 - ㅁㅇㅅ 메시지, 디스코드 정보는 여전히 주지 않는다.
 """
 
@@ -40,7 +40,7 @@ FRIEND_KINDS = (
     "unblock",
 )
 # 반복 화면 일(2026-11-22 사용자 요청 'AI로도'): 대화에서 확인하면 실행
-REPEAT_KINDS = ("repeat_create", "repeat_period", "repeat_update", "repeat_delete")
+REPEAT_KINDS = ("repeat_create", "repeat_period", "repeat_update", "repeat_end", "repeat_delete")
 KINDS = (
     "delete_todos",
     "add_category",
@@ -141,7 +141,7 @@ class TodoAiActions:
                 self.now(),
             )
             return (
-                "친구나 공개 범위에 관한 일이라 ㅁㅇㅅ 화면(할 일 › AI)에서 사용자가 승인해야 "
+                "친구나 공개 범위에 관한 일이라 ㅁㅇㅅ 화면(TODO › AI)에서 사용자가 승인해야 "
                 "적용돼요. 사용자에게 ㅁㅇㅅ에서 승인해 달라고 알려 주세요."
             )
         await self._forget(str(action_id))
@@ -167,7 +167,7 @@ class TodoAiActions:
                         count += 1
                 return (
                     f"{count}개를 지웠어요. "
-                    "ㅁㅇㅅ 휴지통(할 일 › 카테고리 화면 맨 아래, 또는 할 일 › AI)에서 "
+                    "ㅁㅇㅅ 휴지통(TODO › 카테고리 화면 맨 아래, 또는 TODO › AI)에서 "
                     "7일 동안 되돌릴 수 있어요."
                 )
             if kind == "add_category":
@@ -204,19 +204,23 @@ class TodoAiActions:
         if kind == "repeat_update":
             await self.todo.update_repeat(account_id, int(payload["repeat_id"]), payload["changes"])
             return "반복을 바꿨어요."
-        if self.bin is None or not await self.bin.repeat_series(
-            account_id, int(payload["series_id"])
+        if kind == "repeat_end":
+            await self.todo.end_repeat(account_id, payload["series_id"], payload["today"])
+            return "반복을 오늘까지로 끝냈어요. 앞으로 생길 회차는 지우고 지난 것은 남겼어요."
+        if not await self.todo.delete_repeat_series(
+            account_id, payload["series_id"], payload["today"]
         ):
             raise ActionError("그런 반복이 없어요")
         return (
-            "반복을 지웠어요. ㅁㅇㅅ 휴지통(카테고리 화면 맨 아래)에서 7일 동안 되살릴 수 있어요."
+            "반복을 지웠어요. 지난 회차는 따로 남겼고, ㅁㅇㅅ 휴지통(카테고리 화면 맨 아래)에서 "
+            "7일 동안 되살릴 수 있어요."
         )
 
     async def _run_friend(self, account_id: int, kind: str, payload: dict[str, Any]) -> str:
         friends = self.friends
         if kind == "block":
             await friends.block(account_id, payload["person"])
-            return "차단했어요. 서로 할 일이 안 보이고 친구도 끊겼어요."
+            return "차단했어요. 서로 TODO가 안 보이고 친구도 끊겼어요."
         if kind == "unblock":
             await friends.unblock(account_id, payload["person"])
             return "차단을 풀었어요."
@@ -255,7 +259,7 @@ class TodoAiActions:
         return "일부 공개 대상을 바꿨어요."
 
     async def trash_item(self, account_id: int, item_id: Any, client: str = "") -> bool:
-        """할 일을 지우고 휴지통에 7일(앱에서 지울 때 client는 빈 문자열)."""
+        """TODO를 지우고 휴지통에 7일(앱에서 지울 때 client는 빈 문자열)."""
         try:
             row = await self.todo._row(account_id, item_id)  # noqa: SLF001  반복 회차도 행으로
         except TodoError:
@@ -378,12 +382,12 @@ def _todo_error(error: TodoError) -> str:
         "last_category": "열린 카테고리가 하나는 있어야 해요",
         "bad_color": "색은 #RRGGBB여야 해요",
         "bad_visibility": "공개 범위는 나만, 일부, 친구, 전체 중 하나예요",
-        "not_found": "그런 할 일, 카테고리, 사람, 그룹이 없어요",
+        "not_found": "그런 TODO, 카테고리, 사람, 그룹이 없어요",
         "not_friend": "친구만 고를 수 있어요",
         "too_many_groups": "그룹은 30개까지예요",
         "too_many_friends": "친구는 200명까지예요",
         "period_overlap": "새 기간은 앞 기간이 끝난 다음 날부터 시작해야 해요",
-        "bad_rule": "반복 규칙은 daily, weekdays, weekly, monthly 중 하나예요",
+        "bad_rule": "반복 규칙은 daily, weekdays, weekends, weekly 중 하나예요",
         "bad_weekdays": "매주 반복은 요일을 하나 이상 골라야 해요",
         "bad_end_day": "끝 날은 시작 날보다 뒤여야 해요",
         "bad_day": "날짜는 YYYY-MM-DD여야 해요",

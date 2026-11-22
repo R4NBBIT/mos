@@ -220,6 +220,8 @@ class MosBot(discord.Client):
         self.thread_member_changed: MemberChanged | None = None
         self.sender: SenderService | None = None  # main에서 연결(메시지 명령이 쓴다)
         self.nitro_seen: NitroSeen | None = None  # main에서 연결(니트로 확인)
+        self.menu: Any = None  # main에서 연결(점메추, services/menu.py)
+        self.commands: Any = None  # main에서 연결(봇 명령, services/commands.py)
         self.tree = app_commands.CommandTree(self)
         self._backfill_lock = asyncio.Lock()
         self._synced: set[int] = set()
@@ -235,6 +237,9 @@ class MosBot(discord.Client):
         self.tree.add_command(
             app_commands.ContextMenu(name=DELETE_COMMAND_NAME, callback=self._delete_command)
         )
+        from mos.bot.commands import register_commands  # noqa: PLC0415  순환 가져오기 피함
+
+        register_commands(self)  # /점메추, /메뉴판, /메뉴추가, /메뉴삭제, /todo
         try:
             await self.tree.sync()  # 전역 명령. 바뀐 게 없으면 디스코드가 그대로 둔다
         except discord.HTTPException:
@@ -444,7 +449,7 @@ class MosBot(discord.Client):
         await user.send(text)
 
     async def send_dm(self, user_id: int, text: str) -> bool:
-        """사용자에게 봇 DM(할 일 아침 요약). DM을 막았거나 같은 서버가 아니면 False."""
+        """사용자에게 봇 DM(TODO 아침 요약). DM을 막았거나 같은 서버가 아니면 False."""
         try:
             user = self.get_user(user_id) or await self.fetch_user(user_id)
             await user.send(text[:1900])

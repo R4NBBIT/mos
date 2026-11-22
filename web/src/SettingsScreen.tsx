@@ -419,8 +419,8 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
           <div className="settings-item">
             <label className="settings-toggle">
               <span>
-                <strong>알림 받기</strong>
-                <small>새 메시지를 탭 제목 앞 숫자, 화면 위 작은 알림, 알림 창으로 알려요</small>
+                <strong>채팅 알림 받기</strong>
+                <small>새 메시지를 탭 제목 앞 숫자, 화면 위 작은 알림, 알림 창으로 알려요. TODO 알림은 TODO › 알림에서 따로 정해요</small>
               </span>
               <input
                 type="checkbox"

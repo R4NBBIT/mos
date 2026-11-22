@@ -1,11 +1,11 @@
-"""할 일 친구, 공개 범위, 반응(T4: FRIEND, VIS, REACT, NOTI-02).
+"""TODO 친구, 공개 범위, 반응(T4: FRIEND, VIS, REACT, NOTI-02).
 
-- 친구: 같은 디스코드 서버(봇이 있고 둘 다 지금 멤버인 서버)의 할 일 사용자에게만 요청.
+- 친구: 같은 디스코드 서버(봇이 있고 둘 다 지금 멤버인 서버)의 TODO 사용자에게만 요청.
   초대 링크, 아이디, 공개 프로필 없음. '친구 요청 받기'를 끄면 찾기 목록에 안 나오고 요청도 못 받음.
 - 보기: 친구는 '전체'와 '친구' 카테고리, 같은 서버 사용자는 '전체' 카테고리만. '나만'은 아무도.
   메모는 그 카테고리가 '메모도 보여 주기'일 때만(아니면 메모가 있다는 표시도 없음).
   끝낸 카테고리는 안 보임.
-- 반응: 볼 수 있는 할 일에만. 유니코드 이모지 또는 반응하는 사람이 쓸 수 있는 디스코드 이모지.
+- 반응: 볼 수 있는 TODO에만. 유니코드 이모지 또는 반응하는 사람이 쓸 수 있는 디스코드 이모지.
 - 소식: 친구 요청, 수락, 반응(같은 사람이 1분 안에 한 반응은 하나로).
 """
 
@@ -139,7 +139,7 @@ class TodoFriends:
         return mine, theirs
 
     async def relation(self, viewer: int, owner: int) -> str | None:
-        """self, friend, server(같은 서버 할 일 사용자), 또는 None(볼 수 없음, 차단 포함)."""
+        """self, friend, server(같은 서버 TODO 사용자), 또는 None(볼 수 없음, 차단 포함)."""
         if viewer == owner:
             return "self"
         if await self.blocked(viewer, owner):
@@ -371,7 +371,7 @@ class TodoFriends:
         }
 
     async def friends_today(self, me_id: int, day: str) -> list[dict[str, Any]]:
-        """'나와 친구' 목록: 친구마다 내가 볼 수 있는 할 일의 한 수/전체."""
+        """'나와 친구' 목록: 친구마다 내가 볼 수 있는 TODO의 한 수/전체."""
         people = (await self.people(me_id))["friends"]
         result = []
         for person in people:

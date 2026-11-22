@@ -2150,6 +2150,7 @@ def test_notify_prefs_are_per_device(env: Env) -> None:
         "preview": False,
         "hidden": "mentions",
         "boss": False,
+        "todo": True,
     }
     env.client.patch("/api/settings", json={"notify_scope": "all"}, headers=POST)
     assert env.client.get("/api/notify-prefs").json()["scope"] == "all"

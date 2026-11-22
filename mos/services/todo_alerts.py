@@ -1,4 +1,4 @@
-"""할 일 알림(NOTI-01 시각 알림, NOTI-03 아침 요약). 서버가 1분마다 보낼 것을 고른다.
+"""TODO 알림(NOTI-01 시각 알림, NOTI-03 아침 요약). 서버가 1분마다 보낼 것을 고른다.
 
 보낼 내용만 만들고, 실제로 보내기(웹 푸시)는 app이 한다. 보낸 표시는 DB에 남겨
 서버가 다시 켜지거나 같은 분에 두 번 불려도 한 번만 보낸다.
@@ -46,7 +46,7 @@ class TodoAlert:
     push: dict[str, Any] | None
     # 봇 DM으로 보낼 글(아침 요약을 DM으로 고른 경우). 없으면 None
     dm: str | None
-    # 위장 화면일 때: off 안 띄움, silent 내용과 소리 없이, full 그대로(할 일 알림 설정)
+    # 위장 화면일 때: off 안 띄움, silent 내용과 소리 없이, full 그대로(TODO 알림 설정)
     boss: str
 
 
@@ -80,7 +80,7 @@ class TodoAlerts:
             try:
                 alert = await self._for_account(account_id, settings, now)
             except Exception:  # 한 계정의 문제로 다른 계정 알림이 멈추지 않게
-                log.exception("할 일 알림 고르기 실패")
+                log.exception("TODO 알림 고르기 실패")
                 continue
             if alert is not None:
                 result.append(alert)
@@ -98,7 +98,7 @@ class TodoAlerts:
         lead = settings["alert_lead"]
         if lead is not None:
             lines: list[str] = []
-            # 자정 직후 할 일을 전날 밤에 미리 알리는 경우까지(최대 60분)
+            # 자정 직후 TODO를 전날 밤에 미리 알리는 경우까지(최대 60분)
             for day in (today, today + timedelta(days=1)):
                 data = await self.todo.day(account_id, day.isoformat())
                 for item in data["items"]:
@@ -111,9 +111,13 @@ class TodoAlerts:
                     if await self.repo.mark_alert(account_id, key, int(now)):
                         lines.append(_title_line(item))
             if lines:
-                head = "할 일 시각이에요" if lead == 0 else f"{lead}분 뒤 할 일"
-                parts.append({"title": head, "body": _joined(lines)})
+                head = "TODO 시각이에요" if lead == 0 else f"{lead}분 뒤 TODO"
                 await self.repo.add_news(account_id, "time", head, _joined(lines), int(now))
+                # 알림 받는 곳(기기 알림, 봇 DM, 둘 다)은 TODO 알림과 아침 요약에 같이(2026-11-22)
+                if settings["morning_via"] in ("push", "both"):
+                    parts.append({"title": head, "body": _joined(lines)})
+                if settings["morning_via"] in ("dm", "both"):
+                    dm = _dm_list(head, lines)
 
         morning = settings["morning"]
         if morning is not None:
@@ -124,17 +128,18 @@ class TodoAlerts:
                 key = f"m:{today.isoformat()}"
                 if left and await self.repo.mark_alert(account_id, key, int(now)):
                     left.sort(key=lambda item: (item["time"] is None, item["time"] or ""))
-                    # 남은 할 일 전부(2026-11-22 사용자 요청: 앞의 몇 개만이 아니라)
+                    # 남은 TODO 전부(2026-11-22 사용자 요청: 앞의 몇 개만이 아니라)
                     names = [
                         f"{item['time']} {item['title']}" if item["time"] else item["title"]
                         for item in left
                     ]
-                    title = f"오늘 할 일 {len(left)}개"
+                    title = f"오늘 TODO {len(left)}개"
                     body = ", ".join(names)
                     await self.repo.add_news(account_id, "morning", title, body, int(now))
                     via = settings["morning_via"]
                     if via in ("dm", "both"):
-                        dm = _dm_list(f"좋은 아침이에요. {title}", names)
+                        morning_dm = _dm_list(f"좋은 아침이에요. {title}", names)
+                        dm = f"{dm}\n\n{morning_dm}" if dm else morning_dm
                     if via in ("push", "both"):
                         parts.append({"title": title, "body": body})
 

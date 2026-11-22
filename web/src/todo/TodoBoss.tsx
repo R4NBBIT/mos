@@ -1,4 +1,4 @@
-// 위장 화면 '내 할 일'(SCR-11, BOSS-01~05): 진짜 오늘 할 일을 지금 테마의 프로그램 모양으로.
+// 위장 화면 '내 TODO'(SCR-11, BOSS-01~05): 진짜 오늘 TODO를 지금 테마의 프로그램 모양으로.
 // 체크와 빈 줄에 쓰기는 실제로 저장된다. 친구, 반응, AI 표시, 카테고리 색은 보이지 않는다.
 // 잠겨서 받지 못하면 이 탭이 마지막으로 받은 목록(메모리에만)을 보여 주고 고칠 수 없게 한다.
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -56,7 +56,7 @@ function AddLine({ disabled, onAdd, className, placeholder }: { disabled: boolea
       maxLength={100}
       disabled={disabled}
       placeholder={placeholder}
-      aria-label="할 일 입력"
+      aria-label="TODO 입력"
       onChange={(event) => setText(event.target.value)}
       {...enter}
     />
@@ -121,7 +121,7 @@ export default function TodoBoss({ theme, active }: { theme: Theme; active: bool
             </div>
           ))}
           <div className="boss-todo-cell boss-todo-num">1</div>
-          {["완료", "할 일", "구분", "시각", "장소"].map((head) => (
+          {["완료", "TODO", "구분", "시각", "장소"].map((head) => (
             <div key={head} className="boss-todo-cell boss-todo-title">
               {head}
             </div>
@@ -180,7 +180,7 @@ export default function TodoBoss({ theme, active }: { theme: Theme; active: bool
                 {mine.map((item) => (
                   <div key={item.id} className="boss-todo-memoline">
                     <button type="button" className="boss-todo-memocheck" disabled={offline} onClick={() => void toggle(item)}>
-                      {item.done ? "[x]" : "[ ]"}
+                      {item.done ? "[✓]" : "[ ]"}
                     </button>{" "}
                     {item.title}
                     {item.time ? `  ${item.time}` : ""}
@@ -217,7 +217,7 @@ export default function TodoBoss({ theme, active }: { theme: Theme; active: bool
       })}
       <div className="boss-todo-item">
         <span className="boss-todo-box boss-todo-box-ghost" aria-hidden="true" />
-        <AddLine disabled={locked} onAdd={add} className="boss-todo-docinput" placeholder="할 일" />
+        <AddLine disabled={locked} onAdd={add} className="boss-todo-docinput" placeholder="TODO" />
       </div>
     </>
   );
@@ -228,7 +228,7 @@ export default function TodoBoss({ theme, active }: { theme: Theme; active: bool
         <WordChrome name={title.name} />
         <div className="boss-todo-paperwrap">
           <article className="boss-todo-paper">
-            <h1>{longLabel(today())} 할 일</h1>
+            <h1>{longLabel(today())} TODO</h1>
             {list}
           </article>
         </div>

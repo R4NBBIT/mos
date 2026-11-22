@@ -10,6 +10,8 @@ export interface NotifyPrefs {
   hidden: HiddenNotify;
   /** 위장 화면일 때도 알림 창 띄우기(내용 없이) */
   boss: boolean;
+  /** TODO 알림(시각, 아침 요약)을 이 기기에서 받기. 채팅 알림과 따로 */
+  todo: boolean;
 }
 
 export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = {
@@ -18,6 +20,7 @@ export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = {
   preview: false,
   hidden: "mentions",
   boss: false,
+  todo: true,
 };
 
 export function cleanNotifyPrefs(value: unknown): NotifyPrefs {
@@ -28,6 +31,7 @@ export function cleanNotifyPrefs(value: unknown): NotifyPrefs {
     preview: raw.preview === true,
     hidden: raw.hidden === "none" || raw.hidden === "all" ? raw.hidden : "mentions",
     boss: raw.boss === true,
+    todo: raw.todo !== false,
   };
 }
 

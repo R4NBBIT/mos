@@ -1,8 +1,8 @@
-"""할 일 MCP 서버(T3, AI-04~11). Streamable HTTP의 JSON 응답만 쓴다(SSE 없음, 세션 없음).
+"""TODO MCP 서버(T3, AI-04~11). Streamable HTTP의 JSON 응답만 쓴다(SSE 없음, 세션 없음).
 
 도구: list_categories, list_todos, add_todos, update_todo, complete_todo, undo_last_add.
 지우기, 카테고리 만들기, 공개 범위, 친구, 디스코드 정보는 주지 않는다.
-AI가 넣은 할 일은 source='ai', 앱(연결)과 묶음 ID를 남겨 '방금 넣은 것 되돌리기'를 할 수 있다.
+AI가 넣은 TODO는 source='ai', 앱(연결)과 묶음 ID를 남겨 '방금 넣은 것 되돌리기'를 할 수 있다.
 """
 
 from __future__ import annotations
@@ -24,21 +24,21 @@ from mos.services.todo_ai_actions import (
 from mos.services.todo_oauth import Grant
 
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
-SERVER_INFO = {"name": "mos-todo", "title": "ㅁㅇㅅ 할 일", "version": "1.0"}
+SERVER_INFO = {"name": "mos-todo", "title": "ㅁㅇㅅ TODO", "version": "1.0"}
 MAX_ADD = 20
 MAX_LIST_DAYS = 14
 UNDO_WINDOW_SEC = 24 * 3600
 WEEKDAYS = "월화수목금토일"
 
-INSTRUCTIONS = """ㅁㅇㅅ 할 일에 사용자의 할 일을 넣고 고치는 도구예요.
+INSTRUCTIONS = """ㅁㅇㅅ TODO에 사용자의 TODO를 넣고 고치는 도구예요.
 
 넣기 전에 꼭 이 형식으로 날짜별로 묶어 보여 주고, 사용자가 좋다고 한 뒤에 add_todos를 부르세요.
 (사용자가 '확인 없이 바로'라고 하면 그 대화에서는 건너뛰어도 돼요)
 
 11월 23일 (월)
-- 15:00 치과 @강남역 [할 일]
+- 15:00 치과 @강남역 [TODO]
   메모: 보험증 챙기기
-- 장보기 [할 일]
+- 장보기 [TODO]
 
 규칙
 - 날짜는 오늘을 기준으로 정해요(list_categories가 오늘 날짜를 알려 줘요). 한 주는 일요일부터.
@@ -47,7 +47,7 @@ INSTRUCTIONS = """ㅁㅇㅅ 할 일에 사용자의 할 일을 넣고 고치는 
 - 사용자가 말하지 않은 칸(시각, 장소, 메모)은 비워 두세요. 추측하지 마세요.
 - 카테고리는 list_categories에 있는 이름만. 애매하면 물어보세요.
   없는 카테고리가 필요하면 아래 두 단계로 add_category를 써서 만들 수 있어요.
-- 없는 칸은 줄에서 빼요(시각이 없으면 '- 장보기 [할 일]').
+- 없는 칸은 줄에서 빼요(시각이 없으면 '- 장보기 [TODO]').
 - 잘못 넣었으면 undo_last_add로 방금 넣은 묶음을 되돌릴 수 있어요.
 
 조심해야 하는 일(지우기, 카테고리 만들기, 바꾸기, 끝내기, 공개 범위)은 두 단계예요.
@@ -58,16 +58,17 @@ INSTRUCTIONS = """ㅁㅇㅅ 할 일에 사용자의 할 일을 넣고 고치는 
 - 공개 범위를 넓히거나 메모 공개를 켜는 것은 그 뒤 ㅁㅇㅅ 화면에서
   사용자가 한 번 더 승인해야 적용돼요.
 - 여러 개나 '전부' 지우라고 하면 먼저 list_todos로 그 범위를 보고, 날짜별로 어느 카테고리에
-  무슨 할 일이 있는지 빠짐없이 모두 보여 준 뒤 물어보세요(delete_todos 요약도 같은 모양이에요).
-- 지운 할 일은 ㅁㅇㅅ 휴지통에 7일 있어요(할 일 › 카테고리 화면 맨 아래, 또는 할 일 › AI).
+  무슨 TODO가 있는지 빠짐없이 모두 보여 준 뒤 물어보세요(delete_todos 요약도 같은 모양이에요).
+- 지운 TODO는 ㅁㅇㅅ 휴지통에 7일 있어요(TODO › 카테고리 화면 맨 아래, 또는 TODO › AI).
 - 카테고리는 지우지 않고 '끝내기'(다시 열 수 있음)만 해요.
 - 친구 일(요청, 수락, 끊기, 차단, 차단 풀기, 그룹, 일부 공개 대상)은 list_friends로 이름을 확인하고,
   같은 두 단계 뒤에 ㅁㅇㅅ 화면에서 사용자가 한 번 더 승인해야 실행돼요.
-- 반복 할 일(정해 둔 날마다 자동으로 생기는 할 일)은 list_repeats로 보고, create_repeat,
-  add_repeat_period(끝난 반복을 새 기간으로), update_repeat, delete_repeat도 같은 두 단계예요.
+- 반복 TODO(정해 둔 날마다 자동으로 생기는 TODO)은 list_repeats로 보고, create_repeat,
+  add_repeat_period(끝난 반복을 새 기간으로), update_repeat, end_repeat, delete_repeat도
+  같은 두 단계예요.
   매주 반복의 요일은 여러 개, 공휴일 빼기(skip_holidays)를 고를 수 있어요.
   끝 날을 말하지 않으면 비워 두세요.
-- ㅁㅇㅅ 메시지, 디스코드 정보는 볼 수 없어요. 친구의 할 일도 볼 수 없어요.
+- ㅁㅇㅅ 메시지, 디스코드 정보는 볼 수 없어요. 친구의 TODO도 볼 수 없어요.
 """
 
 
@@ -93,7 +94,7 @@ def _line(item: dict[str, Any], category: str) -> str:
 
 
 def _by_category(items: list[dict[str, Any]], names: dict[str, str]) -> str:
-    """날짜 → 카테고리 → 할 일(지우기 확인용: 어느 카테고리에 무엇이 있는지 모두)."""
+    """날짜 → 카테고리 → TODO(지우기 확인용: 어느 카테고리에 무엇이 있는지 모두)."""
     lines: list[str] = []
     for day in sorted({item["day"] for item in items}):
         if lines:
@@ -137,14 +138,14 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "list_categories",
         "title": "카테고리 보기",
-        "description": "할 일 카테고리 목록과 오늘 날짜. 할 일을 넣기 전에 먼저 부르세요.",
+        "description": "TODO 카테고리 목록과 오늘 날짜. TODO를 넣기 전에 먼저 부르세요.",
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
         "annotations": {"readOnlyHint": True},
     },
     {
         "name": "list_todos",
-        "title": "할 일 보기",
-        "description": "날짜 범위(최대 14일)의 할 일. id는 고치기, 완료에 써요.",
+        "title": "TODO 보기",
+        "description": "날짜 범위(최대 14일)의 TODO. id는 고치기, 완료에 써요.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -158,9 +159,9 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "add_todos",
-        "title": "할 일 넣기",
+        "title": "TODO 넣기",
         "description": (
-            "할 일을 한 번에 20개까지 넣어요. 넣기 전에 안내문의 형식으로 사용자에게 확인받으세요. "
+            "TODO를 한 번에 20개까지 넣어요. 넣기 전에 안내문의 형식으로 사용자에게 확인받으세요. "
             "사용자가 말하지 않은 칸은 비워 두세요."
         ),
         "inputSchema": {
@@ -194,8 +195,8 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "update_todo",
-        "title": "할 일 고치기",
-        "description": "할 일 하나를 고쳐요. 바꿀 칸만 넣으세요. 시각, 장소를 지우려면 null.",
+        "title": "TODO 고치기",
+        "description": "TODO 하나를 고쳐요. 바꿀 칸만 넣으세요. 시각, 장소를 지우려면 null.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -213,8 +214,8 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "complete_todo",
-        "title": "할 일 완료",
-        "description": "할 일을 완료로(done=false면 완료 취소).",
+        "title": "TODO 완료",
+        "description": "TODO를 완료로(done=false면 완료 취소).",
         "inputSchema": {
             "type": "object",
             "properties": {"id": {"type": "string"}, "done": {"type": "boolean"}},
@@ -231,9 +232,9 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "delete_todos",
-        "title": "할 일 지우기(확인 필요)",
+        "title": "TODO 지우기(확인 필요)",
         "description": (
-            "할 일을 지우는 요청을 만들어요(20개까지). 바로 지우지 않고 확인 번호와 요약을 줘요. "
+            "TODO를 지우는 요청을 만들어요(20개까지). 바로 지우지 않고 확인 번호와 요약을 줘요. "
             "요약을 사용자에게 보여 주고 '네'라고 하면 confirm_action을 부르세요."
         ),
         "inputSchema": {
@@ -418,8 +419,7 @@ TOOLS: list[dict[str, Any]] = [
         "name": "block_person",
         "title": "차단(승인 필요)",
         "description": (
-            "사람을 차단해요. 친구와 요청이 끊기고 서로 할 일이 안 보여요. "
-            "대화 확인 뒤 ㅁㅇㅅ 승인."
+            "사람을 차단해요. 친구와 요청이 끊기고 서로 TODO가 안 보여요. 대화 확인 뒤 ㅁㅇㅅ 승인."
         ),
         "inputSchema": {
             "type": "object",
@@ -447,7 +447,7 @@ TOOLS: list[dict[str, Any]] = [
         "name": "list_repeats",
         "title": "반복 보기",
         "description": (
-            "반복 할 일 목록(규칙, 기간, 공휴일 빼기, 끝났는지). id는 반복 고치기, 새 기간, "
+            "반복 TODO 목록(규칙, 기간, 공휴일 빼기, 끝났는지). id는 반복 고치기, 새 기간, "
             "지우기에 써요."
         ),
         "inputSchema": {
@@ -462,7 +462,7 @@ TOOLS: list[dict[str, Any]] = [
         "name": "create_repeat",
         "title": "반복 만들기(확인 필요)",
         "description": (
-            "정해 둔 날마다 자동으로 생기는 할 일을 만드는 요청(확인 번호). "
+            "정해 둔 날마다 자동으로 생기는 TODO를 만드는 요청(확인 번호). "
             "사용자가 '네'라고 하면 confirm_action."
         ),
         "inputSchema": {
@@ -472,8 +472,8 @@ TOOLS: list[dict[str, Any]] = [
                 "category": {"type": "string", "description": "카테고리 이름"},
                 "rule": {
                     "type": "string",
-                    "enum": ["daily", "weekdays", "weekly", "monthly"],
-                    "description": "매일, 평일, 매주(요일 고르기), 매달(시작 날짜와 같은 날)",
+                    "enum": ["daily", "weekdays", "weekends", "weekly"],
+                    "description": "매일, 평일, 주말, 매주(요일 고르기)",
                 },
                 "weekdays": {
                     "type": "array",
@@ -524,8 +524,8 @@ TOOLS: list[dict[str, Any]] = [
                 "category": {"type": "string"},
                 "rule": {
                     "type": "string",
-                    "enum": ["daily", "weekdays", "weekly", "monthly"],
-                    "description": "매일, 평일, 매주(요일 고르기), 매달(시작 날짜와 같은 날)",
+                    "enum": ["daily", "weekdays", "weekends", "weekly"],
+                    "description": "매일, 평일, 주말, 매주(요일 고르기)",
                 },
                 "weekdays": {
                     "type": "array",
@@ -559,11 +559,31 @@ TOOLS: list[dict[str, Any]] = [
         },
         "annotations": {"destructiveHint": True},
     },
+    {
+        "name": "end_repeat",
+        "title": "반복 끝내기(확인 필요)",
+        "description": (
+            "반복을 오늘까지로 끝내요. 앞으로 생길 회차는 지우고 지난 회차는 남겨요. "
+            "사용자가 '네'라고 하면 confirm_action."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"repeat": {"type": "string", "description": "list_repeats의 id"}},
+            "required": ["repeat"],
+            "additionalProperties": False,
+        },
+    },
 ]
 
-REPEAT_TOOLS = ("create_repeat", "add_repeat_period", "update_repeat", "delete_repeat")
+REPEAT_TOOLS = (
+    "create_repeat",
+    "add_repeat_period",
+    "update_repeat",
+    "end_repeat",
+    "delete_repeat",
+)
 WEEKDAY_INDEX = {name: index for index, name in enumerate("일월화수목금토")}
-RULE_WORD = {"daily": "매일", "weekdays": "평일마다", "monthly": "매달"}
+RULE_WORD = {"daily": "매일", "weekdays": "평일마다", "weekends": "주말마다", "monthly": "매달"}
 
 FRIEND_TOOLS = (
     "block_person",
@@ -585,7 +605,7 @@ ERROR_TEXT = {
     "bad_memo": "메모는 1000자까지예요",
     "too_many_items": "하루 200개(전체 2만 개)를 넘었어요",
     "category_closed": "끝낸 카테고리에는 넣을 수 없어요",
-    "not_found": "그런 할 일이나 카테고리가 없어요",
+    "not_found": "그런 TODO가나 카테고리가 없어요",
     "bad_range": "날짜 범위가 올바르지 않아요",
 }
 
@@ -717,7 +737,7 @@ class TodoMcp:
                 {**_public(item, names), "color": colors.get(item["category_id"], "")}
                 for item in items
             ]
-            text = _grouped(items, names) if items else "할 일이 없어요."
+            text = _grouped(items, names) if items else "TODO가 없어요."
             text += "\n\n(id) " + ", ".join(f"{it['title']}={it['id']}" for it in listed)
             return text, {"todos": listed}
         if name == "add_todos":
@@ -820,10 +840,10 @@ class TodoMcp:
                     raise ToolError("ids는 문자열이어야 해요")
                 found = await self._find_item(account_id, item_id)
                 if found is None:
-                    raise ToolError(f"{item_id}: 그런 할 일이 없어요. list_todos로 id를 확인하세요")
+                    raise ToolError(f"{item_id}: 그런 TODO가 없어요. list_todos로 id를 확인하세요")
                 items.append(found)
             names = await self._names(account_id)
-            summary = f"지울 할 일 {len(items)}개\n\n" + _by_category(items, names)
+            summary = f"지울 TODO {len(items)}개\n\n" + _by_category(items, names)
             payload: dict[str, Any] = {"ids": [item["id"] for item in items]}
         elif name == "add_category":
             payload = {"name": args.get("name"), "color": args.get("color") or "#FFD66B"}
@@ -1053,7 +1073,7 @@ class TodoMcp:
                 f"- {self._repeat_line(current, names.get(current['category_id'], ''))}"
                 f" / 기간 {periods}{state} / id={item['id']}"
             )
-        text = "\n".join(lines) if lines else "반복 할 일이 없어요."
+        text = "\n".join(lines) if lines else "반복 TODO가 없어요."
         return text, {"repeats": series}
 
     async def _series(self, account_id: int, raw: Any, today: str) -> dict[str, Any]:
@@ -1169,10 +1189,13 @@ class TodoMcp:
             summary = f"'{current['title']}' 반복: " + ", ".join(parts)
         else:
             item = await self._series(account_id, args.get("repeat"), today)
-            kind = "repeat_delete"
-            payload = {"series_id": item["id"]}
+            kind = "repeat_delete" if name == "delete_repeat" else "repeat_end"
+            payload = {"series_id": item["id"], "today": today}
             summary = (
-                f"'{item['current']['title']}' 반복 지우기(모든 기간과 이미 생긴 회차, 휴지통 7일)"
+                f"'{item['current']['title']}' 반복 지우기"
+                "(오늘부터의 회차도 지움, 지난 회차는 남김, 휴지통 7일)"
+                if name == "delete_repeat"
+                else f"'{item['current']['title']}' 반복을 오늘까지로 끝내기(지난 회차는 남김)"
             )
         confirm_id = await self.actions.request(grant, kind, payload, summary)
         text = (
@@ -1183,7 +1206,7 @@ class TodoMcp:
         return text, {"confirm_id": confirm_id, "summary": summary}
 
     async def _find_item(self, account_id: int, item_id: str) -> dict[str, Any] | None:
-        """id로 할 일 하나(반복 회차 r<반복>:<날짜>도). 요약에 쓸 모양으로."""
+        """id로 TODO 하나(반복 회차 r<반복>:<날짜>도). 요약에 쓸 모양으로."""
         day = item_id.split(":", 1)[1] if item_id.startswith("r") and ":" in item_id else None
         if day is None:
             if not item_id.isdigit() or len(item_id) > 18:

@@ -81,7 +81,7 @@ export function AiRequests({ onChanged }: { onChanged: () => void }) {
           <div className="todo-alerts-head todo-alerts-sub">
             <strong>휴지통</strong>
           </div>
-          <p className="todo-setting-help">지운 할 일은 7일 동안 되돌릴 수 있어요.</p>
+          <p className="todo-setting-help">지운 TODO는 7일 동안 되돌릴 수 있어요.</p>
           <ul className="todo-news">
             {state.trash.map((item) => (
               <li key={item.id} className="todo-ai-item">
@@ -150,7 +150,7 @@ export default function TodoAiPanel({ onChanged }: { onChanged: () => void }) {
         }}
       />
       <p className="todo-setting-help">
-        내 Claude나 ChatGPT에 연결하면 대화로 말한 할 일을 정리해서 넣어 줘요. 넣기 전에 대화에서 먼저 보여 주고 확인받아요.
+        내 Claude나 ChatGPT에 연결하면 대화로 말한 TODO를 정리해서 넣어 줘요. 넣기 전에 대화에서 먼저 보여 주고 확인받아요.
       </p>
       {data && (
         <div className="todo-ai-url">
@@ -164,8 +164,12 @@ export default function TodoAiPanel({ onChanged }: { onChanged: () => void }) {
         <span className="todo-setting-name">Claude</span>
         <div className="todo-setting-body">
           <p className="todo-setting-help">
-            설정(Customize) › 커넥터 › 추가 › 사용자 지정(Custom)에서 위 주소를 넣고, 연결을 누르면 이 사이트에서 승인해요. 무료 요금제는
-            사용자 지정 커넥터가 1개까지예요.
+            웹, 데스크톱 앱(같은 방법): 설정(Customize) › 커넥터 › 추가 › 사용자 지정(Custom)에서 위 주소를 넣고, 연결을 누르면 이
+            사이트에서 승인해요. 무료 요금제는 사용자 지정 커넥터가 1개까지예요.
+          </p>
+          <p className="todo-setting-help">
+            휴대폰 앱: 웹이나 데스크톱에서 한 번 연결해 두면 같은 계정의 휴대폰 앱에도 저절로 생겨요. 휴대폰 앱에서 바로 추가하는
+            기능은 아직 시험 중이라, 웹에서 연결하는 것이 가장 확실해요.
           </p>
         </div>
       </div>

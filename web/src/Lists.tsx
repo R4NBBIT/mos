@@ -798,7 +798,7 @@ export function GroupList({
   todoEntry,
   ...common
 }: CommonProps & {
-  /** 맨 위 '할 일' 줄(허용된 계정만) */
+  /** 맨 위 'TODO' 줄(허용된 계정만) */
   todoEntry?: ReactNode;
   onOpen: (groupId: string) => void;
   onOpenChannel: (groupId: string, channel: ChannelInfo) => void;

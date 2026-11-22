@@ -1,4 +1,4 @@
-// 할 일 API(공개 전 기능, 허용된 계정만). 허용되지 않으면 서버가 모든 주소에 404를 준다
+// TODO API(공개 전 기능, 허용된 계정만). 허용되지 않으면 서버가 모든 주소에 404를 준다
 import { announceTodoChange } from "./todoSync";
 import { ApiError } from "../api";
 
@@ -34,7 +34,7 @@ export interface TodoReaction {
   mine: boolean;
 }
 
-export type RepeatRule = "daily" | "weekdays" | "weekly" | "monthly";
+export type RepeatRule = "daily" | "weekdays" | "weekends" | "weekly" | "monthly";
 
 export interface TodoRepeat {
   id: string;
@@ -83,7 +83,12 @@ export interface NewRepeat {
 export const fetchRepeats = (today: string) =>
   call<{ series: RepeatSeries[] }>(`/api/todo/repeats?today=${encodeURIComponent(today)}`);
 export const newRepeat = (input: NewRepeat) => call<RepeatPeriod>("/api/todo/repeats/new", "POST", input);
-export const deleteRepeatSeries = (id: string) => call<void>(`/api/todo/repeats/series/${id}`, "DELETE");
+/** 반복 삭제: 내일부터 생길 TODO만 지우고 오늘까지는 남긴다 */
+export const deleteRepeatSeries = (id: string, day: string) =>
+  call<void>(`/api/todo/repeats/series/${encodeURIComponent(id)}?today=${day}`, "DELETE");
+/** 반복 끝내기(오늘까지만) */
+export const endRepeatSeries = (id: string, day: string) =>
+  call<void>(`/api/todo/repeats/series/${encodeURIComponent(id)}/end?today=${day}`, "POST");
 
 export interface TodoDay {
   day: string;
@@ -181,10 +186,10 @@ export function todoErrorText(error: unknown): string {
   const status = error instanceof ApiError ? error.status : 0;
   if (status === 429) return "너무 빨라요. 잠시 뒤 다시 해 주세요.";
   const words: Record<string, string> = {
-    bad_title: "할 일은 1~100자로 써 주세요.",
+    bad_title: "TODO는 1~100자로 써 주세요.",
     bad_name: "이름은 1~20자로 써 주세요.",
     duplicate_name: "같은 이름의 카테고리가 있어요.",
-    too_many_items: "하루에 넣을 수 있는 할 일(200개)을 넘었어요.",
+    too_many_items: "하루에 넣을 수 있는 TODO(200개)을 넘었어요.",
     too_many_categories: "카테고리는 50개까지예요.",
     category_closed: "끝낸 카테고리에는 넣을 수 없어요.",
     last_category: "열린 카테고리가 하나는 있어야 해요.",
@@ -194,14 +199,14 @@ export function todoErrorText(error: unknown): string {
     bad_memo: "메모는 1000자까지예요.",
     bad_weekdays: "요일을 하나 이상 골라 주세요.",
     bad_end_day: "끝나는 날은 시작한 날보다 뒤여야 해요.",
-    too_many_repeats: "반복 할 일은 100개까지예요.",
+    too_many_repeats: "반복 TODO는 100개까지예요.",
     period_overlap: "새 기간은 앞 기간이 끝난 다음 날부터 시작해야 해요.",
     bad_alert_lead: "알림 시각을 다시 골라 주세요.",
     bad_tz: "이 기기의 시간대를 알 수 없어요.",
     bad_morning_via: "아침 요약 방법을 다시 골라 주세요.",
     bad_boss_mode: "위장 중 알림을 다시 골라 주세요.",
     bad_emoji: "이 이모지는 쓸 수 없어요.",
-    too_many_reactions: "한 할 일에 반응은 10개까지예요.",
+    too_many_reactions: "한 TODO에 반응은 10개까지예요.",
     too_many_friends: "친구는 200명까지예요.",
     too_many_groups: "그룹은 30개까지예요.",
     not_friend: "친구만 고를 수 있어요.",
@@ -238,7 +243,7 @@ export const fetchTodoNews = () => call<{ items: TodoNewsItem[]; unread: number 
 
 export const markTodoNewsSeen = () => call<void>("/api/todo/news/seen", "POST");
 
-/** 새 할 일 알림이 오면(탭) 소식 점과 '할 일' 줄을 다시 받게 알리는 이벤트 이름 */
+/** 새 TODO 알림이 오면(탭) 소식 점과 'TODO' 줄을 다시 받게 알리는 이벤트 이름 */
 export const TODO_NEWS_EVENT = "mos-todo-news";
 
 export const fetchAlertPrefs = () => call<TodoAlertPrefs>("/api/todo/prefs");

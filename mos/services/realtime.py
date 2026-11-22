@@ -34,6 +34,7 @@ class Subscriber:
     device_id: int = 0
     # 알림을 받겠다고 한 접속만 범위가 있다(None이면 알림 안 보냄)
     notify_scope: str | None = None
+    todo: bool = False  # TODO 알림을 받는 접속(채팅 알림과 따로)
     # 음성 채널에 누가 들어가 있는지 바뀌면 알려 줄 서버들
     voice_groups: frozenset[int] = frozenset()
 
@@ -99,10 +100,11 @@ class RealtimeHub:
             user_id=user_id, account_id=account_id, device_id=device_id
         )
 
-    def set_notify(self, socket: JsonSocket, scope: str | None) -> None:
+    def set_notify(self, socket: JsonSocket, scope: str | None, todo: bool = False) -> None:
         subscriber = self._sockets.get(socket)
         if subscriber is not None:
             subscriber.notify_scope = scope if scope in NOTIFY_SCOPES else None
+            subscriber.todo = todo
 
     def remove(self, socket: JsonSocket) -> None:
         self._sockets.pop(socket, None)
@@ -192,11 +194,12 @@ class RealtimeHub:
         await self._send_all(sends)
 
     async def send_to_account(self, account_id: int, event: dict[str, Any]) -> set[int]:
-        """그 계정의 알림 켠 접속(탭)에 보낸다. 받은 기기 ID들(그 기기에는 웹 푸시를 안 보냄)."""
+        """그 계정의 TODO 알림 켠 접속(탭)에 보낸다.
+        받은 기기 ID들(그 기기에는 웹 푸시를 안 보냄)."""
         targets = [
             (socket, subscriber)
             for socket, subscriber in list(self._sockets.items())
-            if subscriber.account_id == account_id and subscriber.notify_scope is not None
+            if subscriber.account_id == account_id and subscriber.todo
         ]
         await self._send_all([(socket, event) for socket, _ in targets])
         return {subscriber.device_id for socket, subscriber in targets if socket in self._sockets}

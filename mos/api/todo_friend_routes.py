@@ -1,4 +1,4 @@
-"""할 일 친구, 반응 API(T4). 모두 /api/todo 아래라 허용 안 된 계정에는 404(미들웨어)."""
+"""TODO 친구, 반응 API(T4). 모두 /api/todo 아래라 허용 안 된 계정에는 404(미들웨어)."""
 
 from __future__ import annotations
 

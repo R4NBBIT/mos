@@ -1,4 +1,4 @@
-// 할 일의 '알림'과 'AI 연결'을 위에 펼치는 대신 설정처럼 따로 여는 화면(2026-11-22 사용자 요청).
+// TODO의 '알림'과 'AI 연결'을 위에 펼치는 대신 설정처럼 따로 여는 화면(2026-11-22 사용자 요청).
 import { type ReactNode, useCallback } from "react";
 import BackIcon from "../BackIcon";
 import SplitToggle from "../SplitToggle";
@@ -11,7 +11,7 @@ export type TodoPanelKind = "alerts" | "ai";
 
 const TITLES: Record<TodoPanelKind, { title: string; sub: string }> = {
   alerts: { title: "알림", sub: "소식과 알림 설정" },
-  ai: { title: "AI 연결", sub: "Claude, ChatGPT에서 할 일 넣기" },
+  ai: { title: "AI 연결", sub: "Claude, ChatGPT에서 TODO 넣기" },
 };
 
 export default function TodoPanelPage({
@@ -31,10 +31,10 @@ export default function TodoPanelPage({
   const text = TITLES[kind];
   return (
     <div className="room todo-room">
-      <header className="room-header">
+      <header className="room-header todo-header">
         <SplitToggle />
         {showBack && (
-          <button type="button" className="back-button" onClick={onBack} aria-label="할 일로">
+          <button type="button" className="back-button" onClick={onBack} aria-label="TODO로">
             <BackIcon />
           </button>
         )}
@@ -45,7 +45,7 @@ export default function TodoPanelPage({
         {!showBack && (
           <div className="header-tools">
             <button type="button" className="header-tool" onClick={onBack}>
-              <span className="header-tool-label todo-tool-always">할 일로</span>
+              <span className="header-tool-label todo-tool-always">TODO로</span>
             </button>
           </div>
         )}

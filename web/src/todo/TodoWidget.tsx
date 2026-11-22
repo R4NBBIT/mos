@@ -1,16 +1,16 @@
-// 할 일 위젯(T5, WIDGET): 오늘 할 일만 작게. 체크와 빠른 추가.
+// TODO 위젯(T5, WIDGET): 오늘 TODO만 작게 보고 체크만 한다. 넣기와 삭제는 앱이나 AI에서만(2026-11-23 사용자 요청).
 // PC: 따로 뜨는 작은 창(#/todo/widget)이라 ㅁㅇㅅ 탭을 닫아도 남는다(2026-11-22 사용자 요청).
-// 크롬, 엣지는 그 창에서 '항상 위'(Document Picture-in-Picture)를 켤 수 있다.
+// 크롬, 엣지는 '항상 위에 띄우기'로 위젯 자체를 항상 위 창(Document Picture-in-Picture)으로 옮긴다.
+// 원래 창은 작게 줄여 두고, '되돌아가기'를 누르면 위젯이 원래 창으로 돌아온다(원래 창을 닫으면 같이 닫힘).
 // 어느 창에서든 위장(보스키)하면 위젯 창도 같이 닫힌다. 테마마다 그 프로그램 모양(TodoWidgetLooks).
 // 본 화면과 위젯 창은 서로 바꾼 것을 바로 알린다(todoSync).
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createRoot } from "react-dom/client";
+import { createPortal } from "react-dom";
 import { isDisguised, onDisguiseChange } from "../boss/bossState";
 import { today } from "./dates";
-import { useEnterKey } from "./enterKey";
 import { onTodoRefresh, onTodoSync } from "./todoSync";
 import { type WidgetModel, WidgetLook, widgetLook } from "./TodoWidgetLooks";
-import { addTodo, fetchTodoDay, type TodoDay, type TodoItem, updateTodo } from "./todoApi";
+import { fetchTodoDay, type TodoDay, type TodoItem, updateTodo } from "./todoApi";
 import "./todo.css";
 
 const REFRESH_MS = 15_000;
@@ -18,10 +18,9 @@ const REFRESH_MS = 15_000;
 export default function TodoWidget({ compact = false, theme }: { compact?: boolean; theme?: string }) {
   const [data, setData] = useState<TodoDay | null>(null);
   const [day, setDay] = useState(today());
-  const [text, setText] = useState("");
   const [failed, setFailed] = useState(false);
-  const textRef = useRef(text);
-  textRef.current = text;
+  // 항상 위 창으로 옮겼을 때 그 창(위젯은 그 창 안에 그린다)
+  const [floatWindow, setFloatWindow] = useState<Window | null>(null);
 
   const load = useCallback(() => {
     const now = today();
@@ -68,13 +67,6 @@ export default function TodoWidget({ compact = false, theme }: { compact?: boole
       load();
     }
   };
-  const first = data?.categories.find((category) => !category.closed);
-  const add = useEnterKey(() => {
-    const title = textRef.current.trim();
-    if (!title || !first) return;
-    setText("");
-    void addTodo({ title, day, category_id: first.id }).finally(load);
-  });
 
   const items = [...(data?.items ?? [])].sort(
     (a, b) => Number(a.done) - Number(b.done) || (a.time ?? "99").localeCompare(b.time ?? "99"),
@@ -89,56 +81,56 @@ export default function TodoWidget({ compact = false, theme }: { compact?: boole
     note: failed
       ? "불러오지 못했어요. ㅁㅇㅅ가 잠겼으면 잠금을 풀어 주세요."
       : data && items.length === 0
-        ? "오늘 할 일이 없어요."
+        ? "오늘 TODO가 없어요."
         : null,
-    add: first
-      ? {
-          value: text,
-          maxLength: 100,
-          "aria-label": `${first.name}에 할 일 넣기`,
-          onChange: (event) => setText(event.target.value),
-          ...add,
-        }
-      : null,
   };
   const look = widgetLook(theme ?? document.documentElement.dataset.theme);
-  return (
+  const sizeRef = useRef<{ width: number; height: number } | null>(null);
+  const float = async () => {
+    const pip = await openFloating(() => {
+      setFloatWindow(null);
+      // 되돌아가면 원래 창 크기로
+      const size = sizeRef.current;
+      if (size) window.resizeTo(size.width, size.height);
+      window.focus();
+    });
+    if (!pip) return;
+    sizeRef.current = { width: window.outerWidth, height: window.outerHeight };
+    setFloatWindow(pip);
+    window.resizeTo(300, 150); // 원래 창은 작게 줄여 둔다(닫으면 항상 위 창도 닫혀서 닫지는 않는다)
+  };
+  const widget = (
     <div className={`todo-widget tw-${look}${compact ? " todo-widget-compact" : ""}`}>
       <WidgetLook look={look} model={model} />
-      {!compact && canFloat() && <FloatBar />}
-    </div>
-  );
-}
-
-/** 따로 뜬 위젯 창 아래: 항상 위 창 켜고 끄기 */
-function FloatBar() {
-  const [floating, setFloating] = useState(Boolean(pipApi()?.window));
-  return (
-    <div className="tw-float">
-      {floating ? (
-        <>
-          <span className="tw-grow">항상 위 창을 띄웠어요. 이 창은 최소화해 두세요(닫으면 같이 닫혀요).</span>
-          <button
-            type="button"
-            onClick={() => {
-              pipApi()?.window?.close();
-              setFloating(false);
-            }}
-          >
-            닫기
-          </button>
-        </>
-      ) : (
-        <button
-          type="button"
-          className="tw-float-on"
-          onClick={() => void openFloating(() => setFloating(false)).then((ok) => setFloating(ok))}
-        >
-          항상 위에 띄우기
-        </button>
+      {!compact && canFloat() && (
+        <div className="tw-float">
+          {floatWindow ? (
+            <button type="button" onClick={() => floatWindow.close()}>
+              되돌아가기
+            </button>
+          ) : (
+            <button type="button" onClick={() => void float()}>
+              항상 위에 띄우기
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
+  if (floatWindow) {
+    return (
+      <>
+        <div className="tw-floating-note">
+          <p>위젯이 항상 위 창에 떠 있어요. 이 창을 닫으면 같이 닫혀요.</p>
+          <button type="button" className="todo-small-button" onClick={() => floatWindow.close()}>
+            되돌아가기
+          </button>
+        </div>
+        {createPortal(widget, floatWindow.document.body)}
+      </>
+    );
+  }
+  return widget;
 }
 
 // ------------------------------------------------------------ 위젯 창 열기
@@ -165,15 +157,20 @@ export function openTodoWidget(): void {
   opened?.focus();
 }
 
-/** 이 창(따로 뜬 위젯 창)에서 항상 위 창 띄우기. 띄웠으면 true */
-async function openFloating(onClosed: () => void): Promise<boolean> {
+/** 이 창(따로 뜬 위젯 창)에서 항상 위 창 열기. 위젯은 부르는 쪽이 그 안에 그린다 */
+async function openFloating(onClosed: () => void): Promise<Window | null> {
   const api = pipApi();
-  if (!api || isDisguised()) return false;
+  if (!api || isDisguised()) return null;
   if (api.window) {
     api.window.focus();
-    return true;
+    return api.window;
   }
-  const pip = await api.requestWindow({ width: 320, height: 460 });
+  let pip: Window;
+  try {
+    pip = await api.requestWindow({ width: Math.max(280, window.innerWidth), height: Math.max(360, window.innerHeight) });
+  } catch {
+    return null;
+  }
   // 지금 화면의 스타일과 테마를 그대로 옮긴다. 배포 서버는 CSP(style-src 'self')라 글자로 넣은
   // <style>은 막히므로, 파일로 된 스타일은 같은 주소의 <link>로 붙인다(개발 서버만 글자로).
   for (const sheet of Array.from(document.styleSheets)) {
@@ -206,17 +203,12 @@ async function openFloating(onClosed: () => void): Promise<boolean> {
   pip.document.addEventListener("keydown", (event) => {
     window.dispatchEvent(new KeyboardEvent("keydown", event));
   });
-  const holder = pip.document.createElement("div");
-  pip.document.body.appendChild(holder);
-  const root = createRoot(holder);
-  root.render(<TodoWidget compact theme={document.documentElement.dataset.theme} />);
   const stop = onDisguiseChange((value) => {
     if (value) pip.close(); // 위장하면 위젯 창도 바로 닫는다
   });
   pip.addEventListener("pagehide", () => {
     stop();
-    root.unmount();
     onClosed();
   });
-  return true;
+  return pip;
 }

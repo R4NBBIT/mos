@@ -27,6 +27,7 @@ from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from starlette.websockets import WebSocketDisconnect
 
+from mos.api.command_routes import register_command_routes
 from mos.api.rate_limit import RateLimiter
 from mos.api.todo_ai_routes import register_todo_ai_routes
 from mos.api.todo_friend_routes import register_todo_friend_routes
@@ -43,6 +44,7 @@ from mos.services.boss_files import KINDS as BOSS_KINDS
 from mos.services.boss_files import MAX_BYTES as BOSS_MAX_BYTES
 from mos.services.boss_files import MAX_EDITS_BYTES as BOSS_MAX_EDITS
 from mos.services.boss_files import BossFileError, BossFiles
+from mos.services.commands import BotCommands
 from mos.services.crypto import BytesCipher, TokenCipher
 from mos.services.directory import (
     ChannelInfo,
@@ -62,6 +64,7 @@ from mos.services.media_proxy import (
     response_headers,
 )
 from mos.services.media_urls import AttachmentRefresher
+from mos.services.menu import MenuService
 from mos.services.messages import row_to_api
 from mos.services.notify_prefs import NotifyPrefs, NotifyPrefsError
 from mos.services.permissions import ADD_REACTIONS, ChannelAccess, PermissionService, is_private
@@ -607,7 +610,7 @@ def create_app(
         if not limiter.allow(client_ip(request)):
             raise SessionError("rate_limited", status=429, retry_after=60)
 
-    # ------------------------------------------------------------ 할 일(공개 전, 기능 스위치)
+    # ------------------------------------------------------------ TODO(공개 전, 기능 스위치)
 
     todo_access = TodoAccess(settings)
     todo_repo = TodoRepo(db)
@@ -640,7 +643,7 @@ def create_app(
     todo_alerts = TodoAlerts(todo_service, todo_repo, clock)
 
     async def send_todo_alerts() -> None:
-        """할 일 알림(NOTI-01, NOTI-03, NOTI-05): 허용된 활성 계정만.
+        """TODO 알림(NOTI-01, NOTI-03, NOTI-05): 허용된 활성 계정만.
         열린 탭이 있는 기기는 탭이 띄우고(위장 중 규칙은 탭이 따름), 나머지는 웹 푸시.
         아침 요약을 DM으로 고른 계정은 봇 DM."""
         due = await todo_alerts.due()
@@ -659,7 +662,7 @@ def create_app(
                     sent = await send_dm(user_id, alert.dm)
                 except Exception:
                     sent = False
-                    logging.getLogger(__name__).warning("할 일 아침 요약 DM 실패")
+                    logging.getLogger(__name__).warning("TODO 아침 요약 DM 실패")
                 if not sent:
                     await todo_repo.add_news(
                         alert.account_id,
@@ -678,19 +681,19 @@ def create_app(
         boss_mode: str,
         targets: list[tuple[int, int]] | None = None,
     ) -> None:
-        """할 일 알림 하나: 열린 탭(위장 규칙은 탭이), 나머지 기기는 웹 푸시(알림 켠 기기만)."""
+        """TODO 알림 하나: 열린 탭(위장 규칙은 탭이), 나머지 기기는 웹 푸시(알림 켠 기기만)."""
         event = {"type": "todo_alert", "data": {**payload, "boss_mode": boss_mode}}
         in_tabs = await hub.send_to_account(account_id, event)
         for device_id, target_account in targets if targets is not None else await push.targets():
             if target_account != account_id or device_id in in_tabs:
                 continue
-            if not (await notify_prefs.get(device_id, account_id))["notify"]:
-                continue
+            if not (await notify_prefs.get(device_id, account_id))["todo"]:
+                continue  # TODO 알림은 채팅 알림과 따로 켜고 끈다
             last_push[(device_id, account_id)] = {**payload, "at": clock()}
             await push.send(account_id, device_id)
 
     async def notify_todo(account_id: int, title: str, body: str) -> None:
-        """친구 소식(NOTI-02): 할 일 알림과 같은 길로(위장 중 규칙도 같은 설정)."""
+        """친구 소식(NOTI-02): TODO 알림과 같은 길로(위장 중 규칙도 같은 설정)."""
         prefs = await todo_service.alert_prefs(account_id)
         payload = {"kind": "todo", "title": title, "body": body, "url": "/#/todo"}
         await deliver_todo(account_id, payload, prefs["boss_mode"])
@@ -737,13 +740,29 @@ def create_app(
         clock=clock,
     )
 
+    # 봇 명령(/점메추, /메뉴판, /메뉴추가, /메뉴삭제, /todo)
+    # 디스코드 슬래시 명령과 웹 입력칸이 같이 쓴다
+    menu = MenuService(db, clock)
+    commands = BotCommands(db, menu, todo_service, todo_access, settings.operator_discord_id)
+    app.state.menu = menu
+    app.state.commands = commands
+    register_command_routes(
+        app,
+        require_account=require_account,
+        commands=commands,
+        menu=menu,
+        perms=perms,
+        db=db,
+        clock=clock,
+    )
+
     async def todo_alert_loop() -> None:
         while True:
             await asyncio.sleep(60 - time.time() % 60 + 1)  # 매분 1초쯤
             try:
                 await send_todo_alerts()
             except Exception:  # 다음 분에 다시
-                logging.getLogger(__name__).exception("할 일 알림 보내기 실패")
+                logging.getLogger(__name__).exception("TODO 알림 보내기 실패")
 
     app.state.send_todo_alerts = send_todo_alerts  # 테스트가 바로 부른다
     app.state.todo_alerts = todo_alerts
@@ -1553,7 +1572,7 @@ def create_app(
         if latest is None:
             return result
         if latest.get("kind") == "todo":
-            # 할 일 알림: 내용 보이기를 켜고 잠기지 않았을 때만 할 일 이름(NOTI-04)
+            # TODO 알림: 내용 보이기를 켜고 잠기지 않았을 때만 TODO 이름(NOTI-04)
             result["url"] = latest["url"]
             try:
                 await sessions.require_active(device, touch=False)
@@ -1747,7 +1766,9 @@ def create_app(
             return
         if isinstance(message, dict) and message.get("type") == "notify":
             scope = message.get("scope")
-            hub.set_notify(websocket, scope if isinstance(scope, str) else None)
+            hub.set_notify(
+                websocket, scope if isinstance(scope, str) else None, message.get("todo") is True
+            )
             return
         if not isinstance(message, dict) or message.get("type") != "subscribe":
             return

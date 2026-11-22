@@ -1,4 +1,4 @@
-"""할 일 규칙(기능명세서 TODO, CAT). 화면에서 온 값도 여기서 다시 검사한다."""
+"""TODO 규칙(기능명세서 TODO, CAT). 화면에서 온 값도 여기서 다시 검사한다."""
 
 from __future__ import annotations
 
@@ -23,11 +23,12 @@ MAX_CATEGORIES = 50
 MAX_PER_DAY = 200
 MAX_TOTAL = 20_000
 MAX_RANGE_DAYS = 42
-FIRST_CATEGORY = ("할 일", "#FFD66B")  # 사용자 결정: 노랑(ㅁㅇㅅ 꿀색)
+FIRST_CATEGORY = ("TODO", "#FFD66B")  # 사용자 결정: 노랑(ㅁㅇㅅ 꿀색)
 VISIBILITIES = ("public", "friends", "selected", "private")  # selected: 고른 친구와 그룹만
 DEFAULT_VISIBILITY = "friends"
-RULES = ("daily", "weekdays", "weekly", "monthly")
+RULES = ("daily", "weekdays", "weekends", "weekly", "monthly")  # monthly는 예전 것만(화면에서 뺌)
 MAX_REPEATS = 100
+KEEP_PAST_DAYS = 366  # 반복을 끝내거나 지울 때 지난 회차를 따로 남기는 기간
 PRESET_COLORS = ("#FFD66B", "#2563EB", "#7C5CDB", "#16A34A", "#C2410C", "#DB2777", "#0891B2")
 MAX_RECENT_COLORS = 8
 VIRTUAL_RE = re.compile(r"^r(\d{1,18}):(\d{4}-\d{2}-\d{2})$")
@@ -194,6 +195,8 @@ def repeat_on(rep: dict[str, Any], day: str) -> bool:
         return True
     if rule == "weekdays":
         return 1 <= sunday_index <= 5
+    if rule == "weekends":
+        return sunday_index in (0, 6)
     if rule == "weekly":
         return bool(rep["weekdays"] & (1 << sunday_index))
     if rule == "monthly":
@@ -228,10 +231,10 @@ def day_range(start: str, end: str) -> list[str]:
 
 
 class TodoService:
-    # 지우기를 휴지통으로(계정, 할 일 ID) → 지웠는지. 없으면 바로 지움
+    # 지우기를 휴지통으로(계정, TODO ID) → 지웠는지. 없으면 바로 지움
     trash: Callable[[int, Any], Awaitable[bool]] | None = None
     bin: Any = None  # TodoBin(앱이 이어 줌): 카테고리, 반복 앞으로 것 지우기도 휴지통으로
-    # 하루 보기에 덧붙이기(친구 기능의 반응). (보는 사람, 주인, 할 일들)
+    # 하루 보기에 덧붙이기(친구 기능의 반응). (보는 사람, 주인, TODO들)
     decorate: Callable[[int, int, list[dict[str, Any]]], Awaitable[None]] | None = None
 
     def __init__(self, repo: TodoRepo, clock: Callable[[], float] = time.time) -> None:
@@ -371,7 +374,7 @@ class TodoService:
                 items.append(virtual_row(rep, day))
         items.sort(key=lambda row: (row["position"], row["id"] or 0))
         used = {item["category_id"] for item in items}
-        # 끝낸 카테고리는 그날 할 일이 남아 있을 때만(지난 기록)
+        # 끝낸 카테고리는 그날 TODO가 남아 있을 때만(지난 기록)
         shown = [row for row in categories if row["closed_at"] is None or row["id"] in used]
         api_items = [item_to_api(item, repeats.get(item["repeat_id"])) for item in items]
         return {
@@ -406,7 +409,7 @@ class TodoService:
                     entry["total"] += extra
         return {"days": summary}
 
-    # ------------------------------------------------------------ 할 일
+    # ------------------------------------------------------------ TODO
 
     async def add_item(
         self,
@@ -439,7 +442,7 @@ class TodoService:
         return item_to_api(row)
 
     async def _row(self, account_id: int, raw_id: Any, skipped: bool = False) -> dict[str, Any]:
-        """할 일 행. 아직 행이 없는 반복 회차(r<반복>:<날짜>)면 지금 만든다."""
+        """TODO 행. 아직 행이 없는 반복 회차(r<반복>:<날짜>)면 지금 만든다."""
         match = VIRTUAL_RE.match(raw_id) if isinstance(raw_id, str) else None
         if match is None:
             row = await self.repo.item(account_id, parse_id(raw_id))
@@ -497,7 +500,7 @@ class TodoService:
                 if on_day >= MAX_PER_DAY:
                     raise TodoError("too_many_items", 409)
                 if row["repeat_id"] is not None:
-                    # 반복 회차를 다른 날로 옮기면 따로인 할 일이 되고, 원래 날 회차는 건너뜀
+                    # 반복 회차를 다른 날로 옮기면 따로인 TODO가 되고, 원래 날 회차는 건너뜀
                     changes["repeat_id"] = None
                     rep = await self.repo.repeat(account_id, row["repeat_id"])
                     if rep is not None:
@@ -701,13 +704,17 @@ class TodoService:
                 raise TodoError("bad_end_day")
             changes["end_day"] = end_day
         await self.repo.update_repeat(account_id, repeat_id, changes, self.now())
+        if changes.get("end_day"):
+            # 끝 날을 당기면 그 뒤에 미리 만들어진 회차는 지운다
+            after = (date.fromisoformat(changes["end_day"]) + timedelta(days=1)).isoformat()
+            await self.repo.delete_repeat_rows_from(account_id, repeat_id, after)
         updated = await self.repo.repeat(account_id, repeat_id)
         return repeat_to_api(updated or rep)
 
     async def stop_repeat(
         self, account_id: int, repeat_id: int, raw_day: Any, keep_day: bool = True
     ) -> None:
-        """그날부터 반복 그만. keep_day면 그날 할 일은 따로인 할 일로 남긴다."""
+        """그날부터 반복 그만. keep_day면 그날 TODO는 따로인 TODO로 남긴다."""
         rep = await self.repo.repeat(account_id, repeat_id)
         if rep is None:
             raise TodoError("not_found", 404)
@@ -718,6 +725,64 @@ class TodoService:
         before = (date.fromisoformat(day) - timedelta(days=1)).isoformat()
         await self.repo.delete_repeat_rows_from(account_id, repeat_id, day)
         await self.repo.update_repeat(account_id, repeat_id, {"end_day": before}, self.now())
+
+    async def keep_past(self, account_id: int, repeat_id: int, raw_today: Any) -> None:
+        """반복을 끝내거나 지우기 전에, 오늘 전까지의 회차를 행으로 만들어 둔다(안 한 것도 남게).
+        행이 된 회차는 반복이 지워지면 따로인 TODO로 남는다(repeat_id ON DELETE SET NULL)."""
+        rep = await self.repo.repeat(account_id, repeat_id)
+        if rep is None:
+            return
+        today = clean_day(raw_today)
+        first = max(
+            date.fromisoformat(rep["start_day"]),
+            date.fromisoformat(today) - timedelta(days=KEEP_PAST_DAYS),
+        )
+        last = date.fromisoformat(today) - timedelta(days=1)
+        if rep["end_day"] is not None:
+            last = min(last, date.fromisoformat(rep["end_day"]))
+        day = first
+        while day <= last:
+            key = day.isoformat()
+            if (
+                repeat_on(rep, key)
+                and await self.repo.item_for_repeat(account_id, repeat_id, key) is None
+            ):
+                await self.repo.add_item(account_id, virtual_row(rep, key), self.now())
+            day += timedelta(days=1)
+
+    async def delete_repeat_series(self, account_id: int, raw_series: Any, raw_today: Any) -> bool:
+        """반복 지우기: 지난 회차는 따로 남기고, 오늘부터는 같이 지운다(휴지통 7일)."""
+        if self.bin is None:
+            return False
+        today = clean_day(raw_today)
+        series_id = parse_id(raw_series)
+        for rep in await self.repo.repeats(account_id):
+            if (rep["series_id"] or rep["id"]) == series_id:
+                await self.keep_past(account_id, rep["id"], today)
+        return bool(await self.bin.repeat_series(account_id, series_id, today))
+
+    async def end_repeat(self, account_id: int, raw_series: Any, raw_today: Any) -> None:
+        """반복 끝내기(반복 화면): 오늘까지만. 앞으로 생길 회차는 지우고 지난 것은 남긴다."""
+        today = clean_day(raw_today)
+        series_id = parse_id(raw_series)
+        periods = [
+            rep
+            for rep in await self.repo.repeats(account_id)
+            if (rep["series_id"] or rep["id"]) == series_id
+        ]
+        if not periods:
+            raise TodoError("not_found", 404)
+        tomorrow = (date.fromisoformat(today) + timedelta(days=1)).isoformat()
+        for rep in periods:
+            if rep["end_day"] is not None and rep["end_day"] <= today:
+                continue  # 이미 끝난 기간
+            await self.keep_past(account_id, rep["id"], today)
+            await self.repo.delete_repeat_rows_from(account_id, rep["id"], tomorrow)
+            if rep["start_day"] > today:
+                # 아직 시작 안 한 기간은 기간째 없앤다(행도 없음)
+                await self.repo.delete_repeat(account_id, rep["id"])
+            else:
+                await self.repo.update_repeat(account_id, rep["id"], {"end_day": today}, self.now())
 
     # ------------------------------------------------------------ 설정(todo_pref 한 행, JSON)
 
@@ -738,7 +803,7 @@ class TodoService:
     async def row_for_reaction(
         self, account_id: int, raw_id: Any, materialize: bool
     ) -> dict[str, Any] | None:
-        """반응을 달 할 일 행. 반복 회차는 반응을 달 때만 행을 만든다(뗄 때는 만들지 않음)."""
+        """반응을 달 TODO 행. 반복 회차는 반응을 달 때만 행을 만든다(뗄 때는 만들지 않음)."""
         if not materialize and isinstance(raw_id, str):
             match = VIRTUAL_RE.match(raw_id)
             if match is not None:
@@ -820,7 +885,7 @@ class TodoService:
 
 ALERT_LEADS = (0, 10, 30, 60)  # 몇 분 미리(NOTI-01)
 MORNING_VIA = ("push", "dm", "both")
-# 위장 화면일 때 할 일 알림(NOTI-05): 안 받기, 조용히(내용, 소리 없이 창만), 그대로(내용, 소리)
+# 위장 화면일 때 TODO 알림(NOTI-05): 안 받기, 조용히(내용, 소리 없이 창만), 그대로(내용, 소리)
 BOSS_MODES = ("off", "silent", "full")  # 아침 요약 방법(NOTI-03): 기기 알림, 봇 DM, 둘 다
 NEWS_DAYS = 30
 DEFAULT_TZ = "Asia/Seoul"

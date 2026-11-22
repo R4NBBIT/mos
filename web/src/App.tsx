@@ -54,7 +54,7 @@ import { useNotifications } from "./useNotifications";
 import TodoEntry from "./todo/TodoEntry";
 import { isDayKey, today } from "./todo/dates";
 
-// 할 일(공개 전): 허용된 계정에서만 내려받는다
+// TODO(공개 전): 허용된 계정에서만 내려받는다
 const TodoScreen = lazy(() => import("./todo/TodoScreen"));
 const TodoBoss = lazy(() => import("./todo/TodoBoss"));
 const TodoConnect = lazy(() => import("./todo/TodoConnect"));
@@ -139,7 +139,7 @@ function parseRoute(hash: string): Route {
   return { view: "groups" };
 }
 
-/** 할 일 화면들(오늘, 카테고리, 친구 관리, 친구 할 일) */
+/** TODO 화면들(오늘, 카테고리, 친구 관리, 친구 TODO) */
 type TodoRoute = Extract<
   Route,
   { view: "todo" | "todoCategories" | "todoFriends" | "todoFriend" | "todoAlerts" | "todoAi" | "todoRepeats" }
@@ -285,7 +285,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
   // 넓은 화면 왼쪽 목록에서 둘러보는 서버(null이면 서버 목록). 오른쪽 화면과 따로 움직이고,
   // 채널을 열거나 뒤로 가서 주소가 바뀌면 다시 주소를 따른다
   const [browse, setBrowse] = useState<{ from: Route; groupId: string | null } | null>(null);
-  // 할 일이 바뀌면 서버 목록 요약, 왼쪽 달력을 다시 받는다
+  // TODO가 바뀌면 서버 목록 요약, 왼쪽 달력을 다시 받는다
   const [todoVersion, setTodoVersion] = useState(0);
   const bumpTodo = useCallback(() => setTodoVersion((value) => value + 1), []);
 
@@ -409,8 +409,9 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     updateSettings({ guide_done: true }).catch(() => {}); // 못 남기면 다음에 한 번 더 보일 뿐
   }, [look, setLook]);
   const notify = useNotifications({
-    enabled: open && Boolean(notifyPrefs?.notify),
-    scope: notifyPrefs?.scope ?? "pinned",
+    enabled: open && Boolean(notifyPrefs?.notify || (notifyPrefs?.todo && open && active?.features?.includes(TODO_FEATURE))),
+    scope: notifyPrefs?.notify ? notifyPrefs.scope : null,
+    todo: Boolean(notifyPrefs?.todo),
     preview: Boolean(notifyPrefs?.preview),
     boss: Boolean(notifyPrefs?.boss),
     accountId: openAccountId,
@@ -438,7 +439,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
   if (active.locked) {
     return <UnlockScreen session={session} account={active} notice={notice} onChanged={changed} />;
   }
-  // 할 일 위젯 창(T5): 다른 것 없이 오늘 할 일만(항상 위 창을 못 쓰는 브라우저의 작은 팝업 창)
+  // TODO 위젯 창(T5): 다른 것 없이 오늘 TODO만(항상 위 창을 못 쓰는 브라우저의 작은 팝업 창)
   if (window.location.hash === "#/todo/widget" && active.features?.includes(TODO_FEATURE)) {
     return (
       <Suspense fallback={<div className="center-note">불러오는 중…</div>}>
@@ -483,7 +484,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     // 넓은 화면 왼쪽 목록에는 계정 메뉴·안내를 두지 않는다(계정 메뉴는 늘 오른쪽 위 같은 자리)
     const listSide = { ...common, menu: null, notice: "" };
     const browseTo = (groupId: string | null) => setBrowse({ from: route, groupId });
-    // 할 일(공개 전): 서버가 허용한 계정에만 features가 온다
+    // TODO(공개 전): 서버가 허용한 계정에만 features가 온다
     const todoAllowed = Boolean(active.features?.includes(TODO_FEATURE));
     queueMicrotask(() => setTodoAllowed(todoAllowed)); // 위장 화면, 설정이 읽는다(렌더 중 다른 컴포넌트 갱신 피함)
     const todoEntry = (side: boolean) =>
@@ -714,7 +715,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
       // 휴대폰: 서버 목록(0), 채널 목록(1), 채팅(2) 사이를 옆으로 밀어서 오간다
       const level = routeLevel(route);
       if (isTodoRoute(route)) {
-        // 할 일: 서버 목록(0), 할 일(1), 카테고리 관리(2). 오른쪽으로 밀면 앞 단계
+        // TODO: 서버 목록(0), TODO(1), 카테고리 관리(2). 오른쪽으로 밀면 앞 단계
         return (
           <SwipeDeck
             level={level}
@@ -932,7 +933,7 @@ export default function App() {
   const [files, setFiles] = useState<BossFilesState>(EMPTY_FILES);
   const day = new Date().toDateString();
   const todoOk = useTodoAllowed();
-  // '내 할 일'은 허용된 계정에만. 아니면 기본 표(주간 업무 보고)로 보인다
+  // '내 TODO'은 허용된 계정에만. 아니면 기본 표(주간 업무 보고)로 보인다
   const mode = look.boss_template === "todo" && !todoOk ? "weekly" : look.boss_template;
 
   // 위장 파일: 처음, 계정이 열리거나 바뀔 때, 설정에서 새로 올렸을 때

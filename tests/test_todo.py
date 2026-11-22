@@ -1,4 +1,4 @@
-"""할 일 기능(공개 전): 기능 스위치, 하루 보기, 쓰기, 검사, 남의 것 막기."""
+"""TODO 기능(공개 전): 기능 스위치, 하루 보기, 쓰기, 검사, 남의 것 막기."""
 
 from __future__ import annotations
 
@@ -151,14 +151,14 @@ def test_operator_is_always_allowed() -> None:
     assert not access.allowed(1573318317446529064)
 
 
-# ------------------------------------------------------------ 하루와 할 일
+# ------------------------------------------------------------ 하루와 TODO
 
 
 def test_first_category_is_yellow(env: Env) -> None:
     signed_up(env, "mocha")
     day = env.client.get(f"/api/todo/day/{DAY}").json()
     assert day["day"] == DAY and day["items"] == []
-    assert [(c["name"], c["color"]) for c in day["categories"]] == [("할 일", "#FFD66B")]
+    assert [(c["name"], c["color"]) for c in day["categories"]] == [("TODO", "#FFD66B")]
     # 두 번 열어도 하나만
     assert len(env.client.get("/api/todo/categories").json()["categories"]) == 1
 
@@ -233,13 +233,13 @@ def test_categories(env: Env) -> None:
     order = env.client.put(
         "/api/todo/categories/order", json={"ids": [made["id"], first]}, headers=POST
     ).json()
-    assert [c["name"] for c in order["categories"]] == ["업무", "할 일"]
+    assert [c["name"] for c in order["categories"]] == ["업무", "TODO"]
     env.tick(1)  # 쓰기는 계정당 1초 5번
     closed = env.client.patch(
         f"/api/todo/categories/{made['id']}", json={"closed": True}, headers=POST
     ).json()
     assert closed["closed"] is True
-    # 끝낸 카테고리에는 새 할 일을 넣을 수 없다
+    # 끝낸 카테고리에는 새 TODO를 넣을 수 없다
     blocked = env.client.post(
         "/api/todo/items",
         json={"title": "보고서", "day": DAY, "category_id": made["id"]},
@@ -281,7 +281,7 @@ def test_write_rate_limit(env: Env) -> None:
     codes = [
         env.client.post(
             "/api/todo/items",
-            json={"title": f"할 일 {n}", "day": DAY, "category_id": category},
+            json={"title": f"TODO {n}", "day": DAY, "category_id": category},
             headers=POST,
         ).status_code
         for n in range(6)
@@ -339,7 +339,7 @@ def test_weekly_repeat_and_moving_one_day(env: Env) -> None:
     ).json()["id"]
     assert len(day_items(env, "2026-11-23")) == 1  # 월
     assert day_items(env, "2026-11-24") == []  # 화
-    # 월요일 회차를 화요일로 옮기면 따로인 할 일이 되고 월요일은 비어 있다
+    # 월요일 회차를 화요일로 옮기면 따로인 TODO가 되고 월요일은 비어 있다
     moved = env.client.patch(
         f"/api/todo/items/r{rid}:2026-11-23", json={"day": "2026-11-24"}, headers=POST
     ).json()
@@ -526,7 +526,7 @@ def test_morning_by_dm_and_news(env: Env) -> None:
     assert due[0].boss == "full"
     news = env.client.get("/api/todo/news").json()
     assert news["unread"] == 1
-    assert news["items"][0]["title"] == "오늘 할 일 1개"
+    assert news["items"][0]["title"] == "오늘 TODO 1개"
     env.tick(1)
     assert env.client.post("/api/todo/news/seen", headers=POST).status_code == 204
     assert env.client.get("/api/todo/news").json()["unread"] == 0
@@ -592,8 +592,40 @@ def test_repeat_screen_periods_and_holidays(env: Env) -> None:
     assert titles("2027-01-05") == ["출근"]
     # 반복 지우기는 휴지통으로
     assert (
-        env.client.delete(f"/api/todo/repeats/series/{series[0]['id']}", headers=POST).status_code
+        env.client.delete(
+            f"/api/todo/repeats/series/{series[0]['id']}?today=2027-01-05", headers=POST
+        ).status_code
         == 204
     )
     assert env.client.get("/api/todo/repeats?today=2027-01-05").json()["series"] == []
     assert titles("2027-01-05") == []
+    assert titles("2026-12-24") == ["출근"]  # 지난 회차는 따로인 TODO로 남는다
+
+
+def test_end_repeat_keeps_past_drops_future(env: Env) -> None:
+    """반복을 끝내면 앞으로의 회차는 지우고, 지난 회차(안 한 것도)는 남긴다."""
+    signed_up(env, "mocha")
+    cat = first_category(env)
+    made = env.client.post(
+        "/api/todo/repeats/new",
+        json={
+            "title": "물 마시기",
+            "category_id": cat,
+            "rule": "weekends",
+            "start_day": "2026-11-01",
+        },
+        headers=POST,
+    ).json()
+
+    def titles(day: str) -> list[str]:
+        return [i["title"] for i in env.client.get(f"/api/todo/day/{day}").json()["items"]]
+
+    assert titles("2026-11-21") == ["물 마시기"]  # 토요일
+    assert titles("2026-11-20") == []  # 금요일
+    ended = env.client.post(
+        f"/api/todo/repeats/series/{made['series_id']}/end?today=2026-11-22", headers=POST
+    )
+    assert ended.status_code == 204
+    assert titles("2026-11-28") == []  # 앞으로는 없음
+    assert titles("2026-11-15") == ["물 마시기"]  # 지난 것은 남음
+    assert titles("2026-11-22") == ["물 마시기"]  # 오늘까지

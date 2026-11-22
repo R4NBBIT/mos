@@ -17,8 +17,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * ㅁㅇㅅ 서버와 이야기하기. 할 일은 AI 연결과 같은 MCP 주소(/mcp)의 도구를 그대로 쓴다
- * (list_todos, complete_todo). 토큰은 할 일 전용(OAuth, PKCE).
+ * ㅁㅇㅅ 서버와 이야기하기. TODO는 AI 연결과 같은 MCP 주소(/mcp)의 도구를 그대로 쓴다
+ * (list_todos, complete_todo). 토큰은 TODO 전용(OAuth, PKCE).
  */
 final class Api {
     static final String ORIGIN = "https://docs.teamsheet-note.com";

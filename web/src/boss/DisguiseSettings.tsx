@@ -258,7 +258,7 @@ export default function DisguiseSettings({ settings, save, onFileChanged }: Prop
         <div className="boss-group" role="radiogroup" aria-label="위장 화면">
           <p className="boss-group-title">예시</p>
           {EXAMPLES.map((item) => choice(item.template, item.label))}
-          {todoOk && choice("todo", "내 할 일: 오늘 체크리스트(지금 테마 모양, 체크하면 저장됨)")}
+          {todoOk && choice("todo", "내 TODO: 오늘 체크리스트(지금 테마 모양, 체크하면 저장됨)")}
 
           <p className="boss-group-title">내 파일</p>
           {FILE_SLOTS.map((slot) => {

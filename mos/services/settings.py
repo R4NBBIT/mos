@@ -39,7 +39,7 @@ BOSS_TEMPLATES = (
     "sales",
     "schedule",
     "budget",
-    "todo",  # 할 일(공개 전 기능). 허용 안 된 계정이 골라도 화면은 기본 표로 보인다
+    "todo",  # TODO(공개 전 기능). 허용 안 된 계정이 골라도 화면은 기본 표로 보인다
 )
 BOSS_FITS = ("cover", "contain")  # 사진: 화면에 꽉 채우기(가장자리 잘림) · 다 보이게
 MAX_BOSS_URL = 300

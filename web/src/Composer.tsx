@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { ApiError } from "./api";
+import { ApiError, type BotCommand, type BotCommandResult, fetchBotCommands, rerollMenu, runBotCommand } from "./api";
 import EmojiPicker from "./EmojiPicker";
 import { formatBytes, prepareImage } from "./imageResize";
 import { Avatar } from "./MessageItem";
@@ -170,6 +170,17 @@ export default function Composer({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirmSlash, setConfirmSlash] = useState(false);
+  // ㅁㅇㅅ 봇 명령(/점메추, /메뉴판, /todo …): 메시지로 보내지 않고 실행, 결과는 나에게만
+  const [botCommands, setBotCommands] = useState<BotCommand[]>([]);
+  const [commandResult, setCommandResult] = useState<(BotCommandResult & { until: number }) | null>(null);
+  const [commandIndex, setCommandIndex] = useState(0);
+  useEffect(() => {
+    let stopped = false;
+    void fetchBotCommands().then((list) => !stopped && setBotCommands(list));
+    return () => {
+      stopped = true;
+    };
+  }, []);
   const [items, setItems] = useState<PickedFile[]>([]);
   const files = items.map((item) => (sendOriginal ? item.original : item.prepared));
   const shrunk = items.some((item) => item.prepared !== item.original);
@@ -260,7 +271,35 @@ export default function Composer({
     return <footer className="room-footer">{readOnlyText}</footer>;
   }
 
-  const looksLikeCommand = !editing && SLASH_COMMAND.test(text);
+  const commandHead = text.trim().split(/\s+/)[0] ?? "";
+  const isBotCommand =
+    !editing && botCommands.some((command) => `/${command.name.split(" ")[0]}`.toLowerCase() === commandHead.toLowerCase());
+  const looksLikeCommand = !editing && SLASH_COMMAND.test(text) && !isBotCommand;
+  // '/'만 쓰는 중이면 쓸 수 있는 봇 명령을 보여 준다
+  const commandChoices =
+    !editing && /^\/[^\n]*$/.test(text) && text.split(" ").length <= 2
+      ? botCommands.filter((command) => `/${command.name}`.startsWith(text.trimEnd()) && `/${command.name}` !== text.trimEnd())
+      : [];
+  const pickCommand = (command: BotCommand) => {
+    setText(`/${command.name} `);
+    setCommandIndex(0);
+    window.requestAnimationFrame(() => inputRef.current?.focus());
+  };
+  const runCommand = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await runBotCommand(channelId, text.trim());
+      setCommandResult({ ...result, until: Date.now() + 30_000 });
+      setText("");
+      writeDraft(channelId, { text: "", picked: {} });
+    } catch (caught) {
+      setError(caught instanceof ApiError && caught.code === "cannot_send" ? "이 채널에는 올릴 수 없어요." : "명령을 실행하지 못했어요.");
+    } finally {
+      setBusy(false);
+      inputRef.current?.focus();
+    }
+  };
 
   const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
 
@@ -330,6 +369,10 @@ export default function Composer({
       setError(sendErrors.files_too_large ?? "");
       return;
     }
+    if (isBotCommand) {
+      await runCommand();
+      return;
+    }
     if (looksLikeCommand && !confirmSlash) {
       setConfirmSlash(true);
       return;
@@ -365,6 +408,20 @@ export default function Composer({
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     // 한글 조합 중 Enter는 글자 확정이라 보내지 않는다
     if (event.nativeEvent.isComposing) return;
+    if (commandChoices.length > 0 && !suggest) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const step = event.key === "ArrowDown" ? 1 : -1;
+        setCommandIndex((commandIndex + step + commandChoices.length) % commandChoices.length);
+        return;
+      }
+      if (event.key === "Tab" || (event.key === "Enter" && !isBotCommand)) {
+        event.preventDefault();
+        const choice = commandChoices[Math.min(commandIndex, commandChoices.length - 1)];
+        if (choice) pickCommand(choice);
+        return;
+      }
+    }
     if (suggest) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
@@ -516,8 +573,49 @@ export default function Composer({
           )}
         </div>
       )}
-      {looksLikeCommand && !confirmSlash && (
-        <p className="composer-hint">슬래시 명령은 디스코드 앱에서만 실행돼요. 여기서는 글자로만 올라가요.</p>
+      {commandChoices.length > 0 && !suggest && (
+        <ul className="mention-list command-list" role="listbox" aria-label="봇 명령">
+          {commandChoices.map((command, index) => (
+            <li key={command.name} role="option" aria-selected={index === commandIndex}>
+              <button
+                type="button"
+                className={index === commandIndex ? "mention-item mention-item-on" : "mention-item"}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => pickCommand(command)}
+              >
+                <span className="command-usage">{command.usage}</span>
+                <span className="command-help">{command.help}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {commandResult && (
+        <div className="command-result" role="status">
+          <div className="command-result-head">
+            <span className="command-result-tag">나만 보여요</span>
+            <button type="button" className="text-button" aria-label="닫기" onClick={() => setCommandResult(null)}>
+              ✕
+            </button>
+          </div>
+          <p className="command-result-text">{commandResult.text.replace(/\*\*/g, "")}</p>
+          {commandResult.session && Date.now() < commandResult.until && (
+            <button
+              type="button"
+              className="pill-button"
+              onClick={() =>
+                void rerollMenu(commandResult.session ?? "")
+                  .then((result) => setCommandResult({ ...result, until: Date.now() + 30_000 }))
+                  .catch(() => setError("다시 뽑지 못했어요."))
+              }
+            >
+              🎲 리롤
+            </button>
+          )}
+        </div>
+      )}
+      {looksLikeCommand && !confirmSlash && commandChoices.length === 0 && (
+        <p className="composer-hint">이 슬래시 명령은 디스코드 앱에서만 실행돼요. 여기서는 글자로만 올라가요. ㅁㅇㅅ 봇 명령은 / 를 쓰면 목록이 나와요.</p>
       )}
       {looksLikeCommand && confirmSlash && (
         <div className="composer-confirm" role="alert">

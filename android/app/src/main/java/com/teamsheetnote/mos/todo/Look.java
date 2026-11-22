@@ -22,9 +22,9 @@ final class Look {
     /** 표시 색: 0이면 카테고리 색 */
     final int markColor;
     final int doneColor;
-    /** 시각을 이름 앞에 붙임(메모장 'HH:MM', Word '오후 3:00') */
+    /** 시각을 이름 앞에 붙임(HH:MM) */
     final boolean timeInline;
-    /** 시각을 '오후 3:00'으로 */
+    /** 예전 12시간 표시 자리(지금은 HH:MM 그대로) */
     final boolean timeKorean;
     final String dateStyle;
 
@@ -71,7 +71,7 @@ final class Look {
             case "sheet":
                 return new Look(key, R.layout.widget_sheet, "☐", "☑", 0xFF1F6E43, 0xFF8A8F98, false, false, "sheet");
             case "memo":
-                return new Look(key, R.layout.widget_memo, "[ ]", "[x]", 0xFF111111, 0xFF8A8F98, true, false, "memo");
+                return new Look(key, R.layout.widget_memo, "[ ]", "[✓]", 0xFF111111, 0xFF8A8F98, true, false, "memo");
             case "note":
                 return new Look(key, R.layout.widget_note, "☐", "☑", 0xFF2383E2, 0xFF9B9A97, false, true, "long");
             case "word":
@@ -81,16 +81,8 @@ final class Look {
         }
     }
 
-    /** 15:00 → 오후 3:00 */
+    /** 시각은 어디서나 24시간 HH:MM */
     static String koreanTime(String time) {
-        try {
-            int hour = Integer.parseInt(time.substring(0, 2));
-            String minute = time.substring(3, 5);
-            String half = hour < 12 ? "오전" : "오후";
-            int shown = hour % 12 == 0 ? 12 : hour % 12;
-            return half + " " + shown + ":" + minute;
-        } catch (RuntimeException error) {
-            return time;
-        }
+        return time.length() >= 5 ? time.substring(0, 5) : time;
     }
 }

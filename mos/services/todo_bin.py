@@ -1,7 +1,7 @@
-"""할 일 휴지통의 '묶음' 지우기(2026-11-22 사용자 결정: 모든 지우기는 휴지통을 거쳐 되살릴 수 있게).
+"""TODO 휴지통의 '묶음' 지우기(2026-11-22 사용자 결정: 모든 지우기는 휴지통을 거쳐 되살릴 수 있게).
 
-할 일 하나(item, skip)는 todo_ai_actions가 다루고, 여기서는 여러 행을 한 번에 지우는 것을 다룬다.
-- 카테고리 지우기: 카테고리, 그 안의 할 일, 반복, 일부 공개 대상, 받은 반응
+TODO 하나(item, skip)는 todo_ai_actions가 다루고, 여기서는 여러 행을 한 번에 지우는 것을 다룬다.
+- 카테고리 지우기: 카테고리, 그 안의 TODO, 반복, 일부 공개 대상, 받은 반응
 - 반복 '앞으로 것까지' 지우기: 그날부터의 회차 행, 반복의 끝 날
 - 친구 그룹 지우기: 그룹, 사람, 그 그룹으로 고른 일부 공개 대상
 
@@ -115,11 +115,9 @@ class TodoBin:
             shown = [row for row in items if not row["skipped"]]
             label = f"'{found[0]['name']}' 카테고리"
             if shown or repeats:
-                label += f"(할 일 {len(shown)}개" + (
-                    f", 반복 {len(repeats)}개)" if repeats else ")"
-                )
+                label += f"(TODO {len(shown)}개" + (f", 반복 {len(repeats)}개)" if repeats else ")")
             await self._put(conn, account_id, label, {"rows": _pack(rows)}, client)
-            # 할 일, 반복, 대상, 반응은 ON DELETE CASCADE로 같이 지워진다
+            # TODO, 반복, 대상, 반응은 ON DELETE CASCADE로 같이 지워진다
             await conn.execute(
                 "DELETE FROM todo_category WHERE id = ? AND account_id = ?",
                 (category_id, account_id),
@@ -169,8 +167,9 @@ class TodoBin:
             )
         return True
 
-    async def repeat_series(self, account_id: int, series_id: int) -> bool:
-        """반복 화면에서 반복 하나(모든 기간)를 지우기. 이미 만든 회차 행도 같이."""
+    async def repeat_series(self, account_id: int, series_id: int, today: str) -> bool:
+        """반복 화면에서 반복 하나(모든 기간) 지우기. 오늘부터의 회차는 같이 지우고,
+        지난 회차(행)는 따로인 TODO로 남긴다(되살리면 다시 반복에 묶는다)."""
         async with self.db.writing() as conn:
             periods = await self._rows(
                 conn,
@@ -182,22 +181,33 @@ class TodoBin:
                 return False
             ids = [row["id"] for row in periods]
             marks = ", ".join("?" for _ in ids)
-            items = await self._rows(conn, "todo_item", f"repeat_id IN ({marks})", tuple(ids))
+            items = await self._rows(
+                conn, "todo_item", f"repeat_id IN ({marks}) AND day >= ?", (*ids, today)
+            )
+            past = await self._rows(
+                conn, "todo_item", f"repeat_id IN ({marks}) AND day < ?", (*ids, today)
+            )
             reactions = await self._rows(
                 conn,
                 "todo_reaction",
-                f"item_id IN (SELECT id FROM todo_item WHERE repeat_id IN ({marks}))",  # noqa: S608  자리표만
-                tuple(ids),
+                f"item_id IN (SELECT id FROM todo_item WHERE repeat_id IN ({marks})"  # noqa: S608
+                " AND day >= ?)",
+                (*ids, today),
             )
             rows = [("todo_repeat", row) for row in periods]
             rows += [("todo_item", row) for row in items]
             rows += [("todo_reaction", row) for row in reactions]
+            relink = [{"item": row["id"], "repeat": row["repeat_id"]} for row in past]
             title = periods[-1]["title"]
-            await self._put(conn, account_id, f"반복 '{title}'", {"rows": _pack(rows)}, "")
-            await conn.execute(
-                f"DELETE FROM todo_item WHERE account_id = ? AND repeat_id IN ({marks})",  # noqa: S608
-                (account_id, *ids),
+            await self._put(
+                conn, account_id, f"반복 '{title}'", {"rows": _pack(rows), "relink": relink}, ""
             )
+            await conn.execute(
+                f"DELETE FROM todo_item WHERE account_id = ? AND repeat_id IN ({marks})"  # noqa: S608
+                " AND day >= ?",
+                (account_id, *ids, today),
+            )
+            # 지난 회차는 repeat_id가 NULL이 되어 따로인 TODO로 남는다(ON DELETE SET NULL)
             await conn.execute(
                 f"DELETE FROM todo_repeat WHERE account_id = ? AND id IN ({marks})",  # noqa: S608
                 (account_id, *ids),
@@ -314,6 +324,14 @@ class TodoBin:
                     continue  # 가리키던 행이 이제 없으면(예: 지운 카테고리의 대상) 건너뜀
                 if old_id is not None:
                     ids[table][int(old_id)] = int(cursor.lastrowid or old_id)
+            for link in bundle.get("relink", []):
+                # 반복을 지울 때 따로 남겼던 지난 회차를 다시 반복에 묶는다
+                repeat_id = ids["todo_repeat"].get(int(link["repeat"]), int(link["repeat"]))
+                await conn.execute(
+                    "UPDATE todo_item SET repeat_id = ? WHERE id = ? AND account_id = ?"
+                    " AND repeat_id IS NULL",
+                    (repeat_id, int(link["item"]), account_id),
+                )
             for update in bundle.get("updates", []):
                 table = update.get("table")
                 changes = update.get("set") or {}

@@ -319,3 +319,39 @@ export async function saveNotifyPrefs(changes: Record<string, unknown>): Promise
   });
   return response.json();
 }
+
+// ------------------------------------------------------------ ㅁㅇㅅ 봇 명령(/점메추, /메뉴판, /todo 등)
+
+export interface BotCommand {
+  name: string;
+  usage: string;
+  help: string;
+}
+
+export interface BotCommandResult {
+  command?: string;
+  text: string;
+  /** 점메추: 30초 안에 리롤할 때 쓰는 값 */
+  session: string | null;
+}
+
+let commandCache: Promise<BotCommand[]> | null = null;
+
+/** 쓸 수 있는 봇 명령(입력칸에서 '/'를 쓰면 보여 줌). 한 번만 받는다 */
+export function fetchBotCommands(): Promise<BotCommand[]> {
+  commandCache ??= request("/api/commands")
+    .then(async (response) => ((await response.json()) as { commands: BotCommand[] }).commands)
+    .catch(() => {
+      commandCache = null;
+      return [];
+    });
+  return commandCache;
+}
+
+export async function runBotCommand(channelId: string, text: string): Promise<BotCommandResult> {
+  return (await (await postJson("/api/commands", { channel_id: channelId, text })).json()) as BotCommandResult;
+}
+
+export async function rerollMenu(session: string): Promise<BotCommandResult> {
+  return (await (await postJson(`/api/commands/menu/${encodeURIComponent(session)}/reroll`)).json()) as BotCommandResult;
+}

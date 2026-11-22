@@ -1,4 +1,4 @@
-// 할 일 반응(T4, REACT): 이모지 칩(누르면 내 반응 켜고 끄기) + 반응 고르기(유니코드, 내가 쓸 수 있는 디스코드 이모지)
+// TODO 반응(T4, REACT): 이모지 칩(누르면 내 반응 켜고 끄기) + 반응 고르기(유니코드, 내가 쓸 수 있는 디스코드 이모지)
 import { lazy, Suspense, useState } from "react";
 import { viaServer } from "../format";
 import { fetchTodoEmojis, reactTodo, type TodoReaction, todoErrorText } from "./todoApi";
@@ -25,11 +25,11 @@ export function TodoReactions({
   canAdd,
   onChange,
 }: {
-  /** 남의 할 일이면 주인 계정 ID, 내 것이면 null */
+  /** 남의 TODO가면 주인 계정 ID, 내 것이면 null */
   owner: string | null;
   itemId: string;
   reactions: TodoReaction[];
-  /** '반응 달기' 단추를 보일지(친구 할 일) */
+  /** '반응 달기' 단추를 보일지(친구 TODO) */
   canAdd: boolean;
   onChange: (reactions: TodoReaction[]) => void;
 }) {

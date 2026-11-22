@@ -1,9 +1,9 @@
-"""할 일 AI 연결(T3): OAuth 2.1 서버, MCP 주소, 승인 화면과 연결 관리 API.
+"""TODO AI 연결(T3): OAuth 2.1 서버, MCP 주소, 승인 화면과 연결 관리 API.
 
 - /.well-known/oauth-protected-resource, /.well-known/oauth-authorization-server: 찾기용
 - /oauth/register(동적 등록), /oauth/authorize(승인 화면으로), /oauth/token
 - /mcp: MCP(Streamable HTTP, JSON 응답). Bearer 토큰 필요
-- /api/todo/oauth/*, /api/todo/connections: 화면용(할 일 허용 계정만, 아니면 404)
+- /api/todo/oauth/*, /api/todo/connections: 화면용(TODO 허용 계정만, 아니면 404)
 """
 
 from __future__ import annotations
@@ -103,7 +103,7 @@ def register_todo_ai_routes(
             "authorization_servers": [origin],
             "scopes_supported": [SCOPE],
             "bearer_methods_supported": ["header"],
-            "resource_name": "ㅁㅇㅅ 할 일",
+            "resource_name": "ㅁㅇㅅ TODO",
         }
 
     @app.get("/.well-known/oauth-authorization-server")

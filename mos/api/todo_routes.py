@@ -1,4 +1,4 @@
-"""할 일 API(/api/todo/*). 공개 전에는 허용된 계정만 쓰고, 나머지에게는 전부 404."""
+"""TODO API(/api/todo/*). 공개 전에는 허용된 계정만 쓰고, 나머지에게는 전부 404."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def register_todo_routes(
     todo: TodoService,
     clock: Callable[[], float],
 ) -> Callable[[Request], Awaitable[ActiveAccount]]:
-    """할 일 API를 붙이고, 다른 할 일 주소(AI 연결)가 쓸 계정 확인 함수를 돌려준다."""
+    """TODO API를 붙이고, 다른 TODO 주소(AI 연결)가 쓸 계정 확인 함수를 돌려준다."""
     write_limiter = RateLimiter(limit=5, window_sec=1, clock=clock)
 
     async def allowed_request(request: Request) -> bool:
@@ -80,7 +80,7 @@ def register_todo_routes(
     async def todo_day(day: str, request: Request) -> dict[str, Any]:
         account = await todo_account(request)
         data = await todo.day(account.account_id, day)
-        if todo.decorate is not None:  # 내 할 일에 달린 반응(T4)
+        if todo.decorate is not None:  # 내 TODO에 달린 반응(T4)
             await todo.decorate(account.account_id, account.account_id, data["items"])
         return data
 
@@ -98,7 +98,7 @@ def register_todo_routes(
             "recent_colors": await todo.recent_colors(account.account_id),
         }
 
-    # ------------------------------------------------------------ 할 일 쓰기
+    # ------------------------------------------------------------ TODO 쓰기
 
     @app.post("/api/todo/items")
     async def todo_add(request: Request) -> dict[str, Any]:
@@ -160,12 +160,15 @@ def register_todo_routes(
         return await todo.new_repeat(account.account_id, await json_body(request))
 
     @app.delete("/api/todo/repeats/series/{series_id}", status_code=204)
-    async def todo_repeat_series_delete(series_id: str, request: Request) -> None:
+    async def todo_repeat_series_delete(series_id: str, request: Request, today: str) -> None:
         account = await writer(request)
-        if todo.bin is None or not await todo.bin.repeat_series(
-            account.account_id, parse_id(series_id)
-        ):
+        if not await todo.delete_repeat_series(account.account_id, series_id, today):
             raise TodoError("not_found", 404)
+
+    @app.post("/api/todo/repeats/series/{series_id}/end", status_code=204)
+    async def todo_repeat_series_end(series_id: str, request: Request, today: str) -> None:
+        account = await writer(request)
+        await todo.end_repeat(account.account_id, series_id, today)
 
     @app.post("/api/todo/repeats")
     async def todo_repeat_add(request: Request) -> dict[str, Any]:

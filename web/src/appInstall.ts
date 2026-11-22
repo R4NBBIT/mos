@@ -12,7 +12,7 @@ export interface AppIcon {
 export const APP_ICONS: AppIcon[] = [
   { key: "a", label: "업무 노트" },
   { key: "b", label: "메모" },
-  { key: "c", label: "할 일" },
+  { key: "c", label: "TODO" },
   { key: "d", label: "일정" },
   { key: "e", label: "문서함" },
   { key: "f", label: "업무 표" },

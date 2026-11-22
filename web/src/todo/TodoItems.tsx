@@ -1,6 +1,6 @@
-// 할 일 한 줄과 할 일 메뉴(SCR-03), 카테고리 묶음의 입력칸(날짜 알아보기, TODO-13~15)
+// TODO 한 줄과 TODO 메뉴(SCR-03), 카테고리 묶음의 입력칸(날짜 알아보기, TODO-13~15)
 import { type CSSProperties, Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { dateWithWeekday, longLabel, timeLabel, today, WEEKDAY_NAMES } from "./dates";
+import { dateWithWeekday, longLabel, shortDate, timeLabel, today, WEEKDAY_NAMES } from "./dates";
 import { useEnterKey } from "./enterKey";
 import { TodoReactions } from "./TodoReactions";
 import { parseWhen } from "./parseWhen";
@@ -47,12 +47,19 @@ export function checkStyle(color: string | undefined): CSSProperties | undefined
 }
 
 export function CategoryDot({ color }: { color: string }) {
-  return <span className={needsRing(color) ? "todo-dot todo-dot-ring" : "todo-dot"} style={{ background: color }} />;
+  // 테두리 색(borderColor)은 채운 색과 같게: Word 테마는 테두리를 그 색으로 그린다
+  return (
+    <span
+      className={needsRing(color) ? "todo-dot todo-dot-ring" : "todo-dot"}
+      style={{ background: color, borderColor: color }}
+    />
+  );
 }
 
 export function repeatLabel(repeat: TodoRepeat): string {
   if (repeat.rule === "daily") return "매일";
   if (repeat.rule === "weekdays") return "평일마다";
+  if (repeat.rule === "weekends") return "주말마다";
   if (repeat.rule === "monthly") return "매달";
   return `매주 ${repeat.weekdays.map((day) => WEEKDAY_NAMES[day]).join(" ")}`;
 }
@@ -75,7 +82,7 @@ export function MemoText({ text }: { text: string }) {
   );
 }
 
-// ------------------------------------------------------------ 할 일 메뉴
+// ------------------------------------------------------------ TODO 메뉴
 
 /** 일정 변경: 누르면 달력이 뜨고, 고르면 그날로 바로 옮긴다 */
 function MoveDate({ value, disabled, onPick }: { value: string; disabled: boolean; onPick: (day: string) => void }) {
@@ -112,7 +119,7 @@ function MoveDate({ value, disabled, onPick }: { value: string; disabled: boolea
 }
 
 /** 이 카테고리의 메모를 누가 보는지(카테고리 공개 설정 그대로, 일부면 이름까지) */
-function useMemoAudience(category: TodoCategory | undefined): { short: string; detail: string } {
+export function useMemoAudience(category: TodoCategory | undefined): { short: string; detail: string } {
   const [names, setNames] = useState<string | null>(null);
   const selected = Boolean(category && category.memo_shared && category.visibility === "selected");
   const categoryId = category?.id;
@@ -280,7 +287,7 @@ function TodoMenu({
         if (Object.keys(rest).length > 0) await updateRepeat(repeat.id, rest);
       }
       if (repeat) {
-        // 다른 날로 옮긴 회차는 따로인 할 일이 되므로 반복은 건드리지 않는다
+        // 다른 날로 옮긴 회차는 따로인 TODO가 되므로 반복은 건드리지 않는다
         if (day === item.day) {
           if (rule === "none") await stopRepeat(repeat.id, item.day);
           else if (
@@ -393,8 +400,9 @@ function TodoMenu({
               <option value="none">안 함</option>
               <option value="daily">매일</option>
               <option value="weekdays">평일마다</option>
+              <option value="weekends">주말마다</option>
               <option value="weekly">매주 고른 요일</option>
-              <option value="monthly">매달 같은 날</option>
+              {rule === "monthly" && <option value="monthly">매달 같은 날</option>}
             </select>
           </span>
         </div>
@@ -438,7 +446,7 @@ function TodoMenu({
           </label>
         )}
       </div>
-      {rule === "none" && item.repeat && <span className="todo-hint">저장하면 이날부터 반복을 그만해요. 이 할 일은 남아요.</span>}
+      {rule === "none" && item.repeat && <span className="todo-hint">저장하면 이날부터 반복을 그만해요. 이 TODO는 남아요.</span>}
       {item.repeat && (
         <label className="todo-check-line">
           <input type="checkbox" checked={forFuture} onChange={(event) => setForFuture(event.target.checked)} />
@@ -485,8 +493,8 @@ function TodoMenu({
         <div className="todo-confirm" role="group" aria-label="삭제 확인">
           <span>
             {item.repeat
-              ? "반복 할 일이에요. 이날 것만 삭제할까요, 앞으로 것까지 삭제할까요? 어느 쪽이든 휴지통(카테고리 화면 아래)에서 7일 동안 되살릴 수 있어요."
-              : "이 할 일을 삭제할까요? 휴지통(카테고리 화면 아래)에서 7일 동안 되살릴 수 있어요."}
+              ? "반복 TODO예요. 이날 것만 삭제할까요, 앞으로 것까지 삭제할까요? 어느 쪽이든 휴지통(카테고리 화면 아래)에서 7일 동안 되살릴 수 있어요."
+              : "이 TODO를 삭제할까요? 휴지통(카테고리 화면 아래)에서 7일 동안 되살릴 수 있어요."}
           </span>
           <div className="todo-confirm-buttons">
             <button type="button" className="todo-small-button" onClick={() => setConfirming(false)}>
@@ -507,7 +515,7 @@ function TodoMenu({
   );
 }
 
-// ------------------------------------------------------------ 할 일 한 줄
+// ------------------------------------------------------------ TODO 한 줄
 
 export function TodoRow({
   item,
@@ -526,7 +534,12 @@ export function TodoRow({
   // 열린 메뉴의 이름을 다시 누르면 '취소'와 같게(바꾼 것이 있으면 확인)
   const [closeAsk, setCloseAsk] = useState(0);
   const [memoOpen, setMemoOpen] = useState(false);
-  const meta = [item.time ? timeLabel(item.time) : "", item.place ?? "", item.repeat ? repeatLabel(item.repeat) : ""]
+  const meta = [
+    shortDate(item.day),
+    item.time ? timeLabel(item.time) : "",
+    item.place ? `@${item.place}` : "",
+    item.repeat ? repeatLabel(item.repeat) : "",
+  ]
     .filter(Boolean)
     .join(", ");
   return (
@@ -616,6 +629,11 @@ export function CategoryBlock({
   onDone: (notice?: string) => void;
 }) {
   const [text, setText] = useState("");
+  // 넣을 때 칸: 날짜, 시각, 장소, 메모(2026-11-23 사용자 요청 '이름만이 아니라 모든 칸'). 비우면 쓴 글에서 뗀 값
+  const [fields, setFields] = useState({ day: "", time: "", place: "", memo: "" });
+  const fieldsRef = useRef(fields);
+  fieldsRef.current = fields;
+  const memoWho = useMemoAudience(category);
   const [raw, setRaw] = useState(false); // 미리보기 ×: 이번에는 떼지 않고 글자 그대로
   const parsed = useMemo(() => (raw ? null : parseWhen(text, today())), [text, raw]);
   const shown = parsed?.found ? parsed : null;
@@ -633,9 +651,9 @@ export function CategoryBlock({
     const value = textRef.current.trim();
     const found = parsedRef.current;
     if (!value || busy.current) return;
-    if (found?.ask && chosenTime === undefined) return; // 오전, 오후를 고를 때까지 넣지 않는다
+    if (found?.ask && chosenTime === undefined && !fieldsRef.current.time) return; // 오전, 오후를 고를 때까지 넣지 않는다
     busy.current = true;
-    const values: NewTodoValues = found
+    const parsedValues: NewTodoValues = found
       ? {
           title: found.title,
           day: found.day ?? viewDay,
@@ -644,7 +662,18 @@ export function CategoryBlock({
           memo: found.memo ?? "",
         }
       : { title: value, day: viewDay, time: null, place: null, memo: "" };
-    if (await onAdd(values)) setText(""); // 칸은 열린 채로 이어서 입력
+    const typed = fieldsRef.current;
+    const values: NewTodoValues = {
+      title: parsedValues.title,
+      day: typed.day || parsedValues.day,
+      time: typed.time || parsedValues.time,
+      place: typed.place.trim() || parsedValues.place,
+      memo: typed.memo.trim() || parsedValues.memo,
+    };
+    if (await onAdd(values)) {
+      setText(""); // 칸은 열린 채로 이어서 입력
+      setFields({ day: "", time: "", place: "", memo: "" });
+    }
     busy.current = false;
   };
   const enter = useEnterKey(() => void submit());
@@ -673,10 +702,10 @@ export function CategoryBlock({
             <span>{shown.ask.label}가 오전인가요, 오후인가요?</span>
             <div className="todo-confirm-buttons">
               <button type="button" className="todo-small-button" onClick={() => void submit(shown.ask?.am)}>
-                오전 {timeLabel(shown.ask.am).replace("오전 ", "")}
+                오전 ({timeLabel(shown.ask.am)})
               </button>
               <button type="button" className="todo-small-button todo-primary" onClick={() => void submit(shown.ask?.pm)}>
-                오후 {timeLabel(shown.ask.pm).replace("오후 ", "")}
+                오후 ({timeLabel(shown.ask.pm)})
               </button>
               <button type="button" className="todo-small-button" onClick={() => void submit(null)}>
                 시각 없이
@@ -690,7 +719,7 @@ export function CategoryBlock({
 
   return (
     <section className="todo-block" aria-label={category.name}>
-      <h2 className="todo-cat">
+      <h2 className="todo-cat" style={checkStyle(category.color)}>
         <CategoryDot color={category.color} />
         {category.name}
       </h2>
@@ -704,7 +733,8 @@ export function CategoryBlock({
           className="todo-add"
           onClick={(event) => {
             const input = (event.currentTarget as HTMLFormElement).querySelector<HTMLInputElement>(".todo-add-input");
-            if (event.target !== input && !(event.target instanceof HTMLButtonElement)) input?.focus();
+            const inFields = event.target instanceof Element && event.target.closest(".todo-add-fields");
+            if (event.target !== input && !inFields && !(event.target instanceof HTMLButtonElement)) input?.focus();
           }}
           onSubmit={(event) => {
             event.preventDefault();
@@ -721,16 +751,61 @@ export function CategoryBlock({
             value={text}
             maxLength={200}
             placeholder=""
-            aria-label={`${category.name}에 할 일 입력`}
+            aria-label={`${category.name}에 TODO 입력`}
             enterKeyHint="done"
             onChange={(event) => setText(event.target.value)}
             {...enter}
           />
-          {text.trim() && !shown?.ask && (
+          {text.trim() && (!shown?.ask || fields.time) && (
             <button type="submit" className="todo-small-button todo-add-button">
               추가
             </button>
           )}
+          <div
+            className={
+              text || fields.day || fields.time || fields.place || fields.memo
+                ? "todo-add-fields todo-add-fields-on"
+                : "todo-add-fields"
+            }
+          >
+            <label className="todo-add-field">
+              <span>날짜</span>
+              <input
+                type="date"
+                value={fields.day || shown?.day || viewDay}
+                onChange={(event) => setFields({ ...fields, day: event.target.value })}
+              />
+            </label>
+            <label className="todo-add-field">
+              <span>시각</span>
+              <input
+                type="time"
+                value={fields.time || (shown?.ask ? "" : (shown?.time ?? ""))}
+                onChange={(event) => setFields({ ...fields, time: event.target.value })}
+              />
+            </label>
+            <label className="todo-add-field todo-add-field-wide">
+              <span>장소</span>
+              <input
+                value={fields.place}
+                maxLength={40}
+                placeholder={shown?.place ?? ""}
+                onChange={(event) => setFields({ ...fields, place: event.target.value })}
+                {...enter}
+              />
+            </label>
+            <label className="todo-add-field todo-add-field-full">
+              <span>메모</span>
+              <textarea
+                value={fields.memo}
+                maxLength={1000}
+                rows={2}
+                placeholder={memoWho.short}
+                onChange={(event) => setFields({ ...fields, memo: event.target.value })}
+              />
+            </label>
+            {memoWho.detail && <span className="todo-hint todo-memo-who todo-add-field-full">{memoWho.detail}</span>}
+          </div>
         </form>
       )}
       {preview}

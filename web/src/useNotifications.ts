@@ -49,7 +49,7 @@ export async function askPopupPermission(): Promise<PopupSupport> {
 interface TodoAlertEvent {
   title: string;
   body: string;
-  /** 위장 화면일 때(할 일 알림 설정): off 안 띄움, silent 내용과 소리 없이, full 그대로 */
+  /** 위장 화면일 때(TODO 알림 설정): off 안 띄움, silent 내용과 소리 없이, full 그대로 */
   boss_mode?: "off" | "silent" | "full";
 }
 
@@ -86,9 +86,12 @@ export function notifyRoute(event: NotifyEvent): string {
 }
 
 interface Options {
-  /** 알림을 켰고 계정이 열려 있을 때만 */
+  /** 채팅 알림이나 TODO 알림을 켰고 계정이 열려 있을 때만 */
   enabled: boolean;
-  scope: NotifyScope;
+  /** 채팅 알림 범위. null이면 채팅 알림은 받지 않음(TODO 알림만) */
+  scope: NotifyScope | null;
+  /** TODO 알림 받기 */
+  todo: boolean;
   preview: boolean;
   /** 위장 화면일 때도 알림 창 띄우기(내용 없이) */
   boss: boolean;
@@ -104,6 +107,7 @@ interface Options {
 export function useNotifications({
   enabled,
   scope,
+  todo,
   preview,
   boss,
   accountId,
@@ -123,14 +127,14 @@ export function useNotifications({
     countsRef.current = next;
     setCountsState(next);
   }, []);
-  const optionsRef = useRef({ scope, preview, boss, currentChannel, currentForum, onOpen });
-  optionsRef.current = { scope, preview, boss, currentChannel, currentForum, onOpen };
+  const optionsRef = useRef({ scope, todo, preview, boss, currentChannel, currentForum, onOpen });
+  optionsRef.current = { scope, todo, preview, boss, currentChannel, currentForum, onOpen };
   const socketRef = useRef<WebSocket | null>(null);
   const popupRef = useRef<Notification | null>(null);
 
   const sendScope = useCallback((socket: WebSocket | null) => {
     if (socket?.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ type: "notify", scope: optionsRef.current.scope }));
+      socket.send(JSON.stringify({ type: "notify", scope: optionsRef.current.scope, todo: optionsRef.current.todo }));
     }
   }, []);
 
@@ -193,10 +197,10 @@ export function useNotifications({
     }
   }, [showToast]);
 
-  // 할 일 알림(공개 전 기능, 서버가 허용된 계정에만 보냄). 위장 중에는 할 일 알림 설정을 따른다
+  // TODO 알림(공개 전 기능, 서버가 허용된 계정에만 보냄). 위장 중에는 TODO 알림 설정을 따른다
   const showTodoAlert = useCallback((event: TodoAlertEvent) => {
     if (!event || typeof event.title !== "string" || typeof event.body !== "string") return;
-    window.dispatchEvent(new Event("mos-todo-news")); // 소식 점, '할 일' 줄 다시 받기
+    window.dispatchEvent(new Event("mos-todo-news")); // 소식 점, 'TODO' 줄 다시 받기
     const disguised = isDisguised();
     const mode = event.boss_mode ?? "off";
     if (disguised && mode === "off") return;
@@ -209,7 +213,7 @@ export function useNotifications({
         setToast({
           key: Date.now(),
           route: "#/todo",
-          title: showContent ? event.title : "할 일 알림",
+          title: showContent ? event.title : "TODO 알림",
           body: showContent ? event.body : "",
         });
         window.clearTimeout(toastTimer.current);
@@ -297,7 +301,7 @@ export function useNotifications({
   }, [enabled, accountId, sendScope, showPopup, showTodoAlert, setCounts, closeToast]);
 
   // 범위를 바꾸면 연결은 그대로 두고 알려만 준다
-  useEffect(() => sendScope(socketRef.current), [scope, sendScope]);
+  useEffect(() => sendScope(socketRef.current), [scope, todo, sendScope]);
 
   // 알림이 가리키던 곳을 열면 작은 알림도 닫는다
   useEffect(() => {

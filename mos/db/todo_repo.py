@@ -1,4 +1,4 @@
-"""할 일 SQL. 모든 질의는 계정 ID로 걸러서, 남의 것은 ID를 알아도 찾을 수 없다."""
+"""TODO SQL. 모든 질의는 계정 ID로 걸러서, 남의 것은 ID를 알아도 찾을 수 없다."""
 
 from __future__ import annotations
 
@@ -85,7 +85,7 @@ class TodoRepo:
                 (account_id, category_id),
             )
 
-    # ------------------------------------------------------------ 할 일
+    # ------------------------------------------------------------ TODO
 
     async def items_on(self, account_id: int, day: str) -> list[dict[str, Any]]:
         rows = await self.db.fetch_all(
@@ -185,7 +185,7 @@ class TodoRepo:
         return int(row[0] if row else 0) + 1
 
     async def materialized(self, account_id: int, start: str, end: str) -> set[tuple[int, str]]:
-        """반복 할 일 중 행이 이미 있는 (반복 ID, 날짜)."""
+        """반복 TODO 중 행이 이미 있는 (반복 ID, 날짜)."""
         rows = await self.db.fetch_all(
             "SELECT repeat_id, day FROM todo_item WHERE account_id = ? AND repeat_id IS NOT NULL"
             " AND day BETWEEN ? AND ?",
@@ -208,6 +208,12 @@ class TodoRepo:
             await conn.execute(
                 "DELETE FROM todo_item WHERE account_id = ? AND repeat_id = ? AND day >= ?",
                 (account_id, repeat_id, day),
+            )
+
+    async def delete_repeat(self, account_id: int, repeat_id: int) -> None:
+        async with self.db.writing() as conn:
+            await conn.execute(
+                "DELETE FROM todo_repeat WHERE account_id = ? AND id = ?", (account_id, repeat_id)
             )
 
     # ------------------------------------------------------------ 반복
@@ -236,7 +242,7 @@ class TodoRepo:
     async def add_repeat(
         self, account_id: int, values: dict[str, Any], item_id: int | None, now: int
     ) -> int:
-        """반복 규칙을 만든다. item_id가 있으면 그 할 일을 첫 회차로 묶는다."""
+        """반복 규칙을 만든다. item_id가 있으면 그 TODO를 첫 회차로 묶는다."""
         async with self.db.writing() as conn:
             cursor = await conn.execute(
                 "INSERT INTO todo_repeat (account_id, category_id, title, memo, time, place,"
@@ -283,7 +289,7 @@ class TodoRepo:
                 (*changes.values(), now, account_id, repeat_id),
             )
 
-    # ------------------------------------------------------------ 할 일 설정
+    # ------------------------------------------------------------ TODO 설정
 
     async def prefs(self, account_id: int) -> str | None:
         row = await self.db.fetch_one(

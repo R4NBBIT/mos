@@ -1,4 +1,4 @@
-// 친구 관리(SCR-06): 받은 요청(수락, 거절), 친구(보기, 끊기), 보낸 요청(취소), 같은 서버 할 일 사용자(요청),
+// 친구 관리(SCR-06): 받은 요청(수락, 거절), 친구(보기, 끊기), 보낸 요청(취소), 같은 서버 TODO 사용자(요청),
 // '친구 요청 받기' 끄고 켜기. 초대 링크, 아이디 검색은 없다(같은 디스코드 서버 사람만)
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import BackIcon from "../BackIcon";
@@ -73,7 +73,7 @@ export default function TodoFriends({
   const blockable = (person: TodoPerson, actions: ReactNode): ReactNode =>
     blocking === person.id ? (
       <>
-        <span className="todo-friend-ask">차단하면 친구가 끊기고 서로 할 일이 안 보여요.</span>
+        <span className="todo-friend-ask">차단하면 친구가 끊기고 서로 TODO가 안 보여요.</span>
         <button type="button" className="todo-small-button" onClick={() => setBlocking(null)}>
           취소
         </button>
@@ -113,21 +113,21 @@ export default function TodoFriends({
   );
   return (
     <div className="room todo-room">
-      <header className="room-header">
+      <header className="room-header todo-header">
         <SplitToggle />
         {showBack && (
-          <button type="button" className="back-button" onClick={onBack} aria-label="할 일로">
+          <button type="button" className="back-button" onClick={onBack} aria-label="TODO로">
             <BackIcon />
           </button>
         )}
         <div className="room-title">
           <strong>친구</strong>
-          <span className="room-sub">할 일에서만 맺는 친구(디스코드 친구와 따로)</span>
+          <span className="room-sub">TODO에서만 맺는 친구(디스코드 친구와 따로)</span>
         </div>
         {!showBack && (
           <div className="header-tools">
             <button type="button" className="header-tool" onClick={onBack}>
-              <span className="header-tool-label todo-tool-always">할 일로</span>
+              <span className="header-tool-label todo-tool-always">TODO로</span>
             </button>
           </div>
         )}
@@ -176,7 +176,7 @@ export default function TodoFriends({
                 </button>
               </div>
               <p className="todo-field-help">
-                같은 디스코드 서버에서 할 일을 쓰는 사람에게 요청할 수 있어요. 친구가 되면 서로 '친구' 카테고리까지 보이고 반응을
+                같은 디스코드 서버에서 TODO를 쓰는 사람에게 요청할 수 있어요. 친구가 되면 서로 '친구' 카테고리까지 보이고 반응을
                 달 수 있어요. 친구가 아니어도 같은 서버 사람은 내 '전체' 카테고리를 볼 수 있어요(차단한 사람 빼고).
               </p>
               {adding && (
@@ -191,7 +191,7 @@ export default function TodoFriends({
                   />
                   {people.candidates.length === 0 ? (
                     <p className="todo-field-help">
-                      요청할 수 있는 사람이 없어요. 같은 디스코드 서버에 있고, 할 일을 쓰고, '친구 요청 받기'를 켜 둔 사람만
+                      요청할 수 있는 사람이 없어요. 같은 디스코드 서버에 있고, TODO를 쓰고, '친구 요청 받기'를 켜 둔 사람만
                       나와요.
                     </p>
                   ) : (
@@ -235,7 +235,7 @@ export default function TodoFriends({
                     ) : (
                       <>
                         <button type="button" className="todo-small-button" onClick={() => onOpenFriend(person.id)}>
-                          할 일 보기
+                          TODO 보기
                         </button>
                         <button type="button" className="todo-small-button todo-danger-text" onClick={() => setConfirming(person.id)}>
                           끊기
@@ -266,7 +266,7 @@ export default function TodoFriends({
             {people.blocked.length > 0 && (
               <section className="todo-friend-section">
                 <h2 className="todo-friend-title">차단한 사람</h2>
-                <p className="todo-field-help">서로 할 일이 안 보이고, 요청과 반응도 할 수 없어요.</p>
+                <p className="todo-field-help">서로 TODO가 안 보이고, 요청과 반응도 할 수 없어요.</p>
                 <ul>
                   {people.blocked.map((person) => (
                     <li key={person.id} className="todo-friend-row">

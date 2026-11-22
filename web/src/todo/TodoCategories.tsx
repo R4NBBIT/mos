@@ -298,7 +298,7 @@ function CategoryEditor({
       )}
       {asking === "delete" && (
         <div className="todo-confirm" role="alertdialog" aria-label="카테고리 삭제 확인">
-          <span>'{category.name}' 카테고리와 안의 할 일을 삭제할까요? 휴지통에서 7일 동안 되살릴 수 있어요.</span>
+          <span>'{category.name}' 카테고리와 안의 TODO를 삭제할까요? 휴지통에서 7일 동안 되살릴 수 있어요.</span>
           <div className="todo-confirm-buttons">
             <button type="button" className="todo-small-button" onClick={() => setAsking(null)}>
               취소
@@ -322,7 +322,7 @@ function CategoryEditor({
   );
 }
 
-/** 새 카테고리: 할 일처럼 '+'를 누르면 칸이 열린다 */
+/** 새 카테고리: TODO처럼 '+'를 누르면 칸이 열린다 */
 function NewCategory({ count, recent, onMade }: { count: number; recent: string[]; onMade: (category: TodoCategory) => void }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -486,10 +486,10 @@ export default function TodoCategories({
     ) : null;
   return (
     <div className="room todo-room">
-      <header className="room-header">
+      <header className="room-header todo-header">
         <SplitToggle />
         {showBack && (
-          <button type="button" className="back-button" onClick={onBack} aria-label="할 일로">
+          <button type="button" className="back-button" onClick={onBack} aria-label="TODO로">
             <BackIcon />
           </button>
         )}
@@ -500,7 +500,7 @@ export default function TodoCategories({
         {!showBack && (
           <div className="header-tools">
             <button type="button" className="header-tool" onClick={onBack}>
-              <span className="header-tool-label todo-tool-always">할 일로</span>
+              <span className="header-tool-label todo-tool-always">TODO로</span>
             </button>
           </div>
         )}
@@ -526,7 +526,7 @@ export default function TodoCategories({
         {closedItems.length > 0 && (
           <section className="todo-cat-section" aria-label="끝낸 카테고리">
             <h2 className="todo-cat-section-title">끝낸 카테고리</h2>
-            <p className="todo-field-help">할 일 화면에 안 보여요. 다시 열면 위 목록으로 올라가요.</p>
+            <p className="todo-field-help">TODO 화면에 안 보여요. 다시 열면 위 목록으로 올라가요.</p>
             {closedItems.map((category) => (
               <CategoryRow
                 key={category.id}
