@@ -155,7 +155,8 @@ class TodoAiActions:
                         count += 1
                 return (
                     f"{count}개를 지웠어요. "
-                    "ㅁㅇㅅ 휴지통(할 일 › AI)에서 7일 동안 되돌릴 수 있어요."
+                    "ㅁㅇㅅ 휴지통(할 일 › 카테고리 화면 맨 아래, 또는 할 일 › AI)에서 "
+                    "7일 동안 되돌릴 수 있어요."
                 )
             if kind == "add_category":
                 made = await self.todo.create_category(account_id, payload)
