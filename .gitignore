@@ -42,6 +42,8 @@ tools/verify/state.json
 
 # 내 PC 실행 데이터
 data/
+!mos/data/
+# 위: 앱에 들어가는 고정 자료(점메추 기본 메뉴)는 올린다. 실행 중 만들어지는 data/(DB)만 뺀다
 
 # 안드로이드 위젯 빌드 결과
 android/.gradle/
