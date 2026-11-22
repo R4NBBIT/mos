@@ -61,7 +61,13 @@ export interface Settings {
   doc_titles: Record<string, string>;
   /** 왼쪽 목록 순서(이 사이트에서만): groups, pinned, c:<서버 ID> → ID 순서 */
   list_order: Record<string, string[]>;
+  /** 목록에서 숨긴 서버와 채널 ID(디스코드에는 그대로) */
+  hidden: string[];
+  /** 숨긴 곳의 새 메시지: 알리지 않기, 나를 부른 것만, 모두(안 읽음 수에도 같이) */
+  hidden_notify: HiddenNotify;
 }
+
+export type HiddenNotify = "none" | "mentions" | "all";
 
 export type ReactionsView = "full" | "compact" | "hidden";
 export type StickersView = "full" | "small" | "hidden";
@@ -113,6 +119,8 @@ export const DEFAULT_SETTINGS: Settings = {
   media_view: "full",
   doc_titles: {},
   list_order: {},
+  hidden: [],
+  hidden_notify: "mentions",
 };
 
 const BOSS_KEY_RE = /^(?:(?:Ctrl|Alt|Shift|Meta)\+){0,4}[A-Za-z][A-Za-z0-9]{0,24}(?:\*2)?$/;
@@ -269,6 +277,11 @@ export function cachedLook(): Settings {
           media_view: value.media_view === "small" || value.media_view === "hidden" ? value.media_view : "full",
           doc_titles: cleanTitles(value.doc_titles),
           list_order: cleanOrder(value.list_order),
+          hidden: Array.isArray(value.hidden)
+            ? value.hidden.filter((id) => typeof id === "string" && /^[0-9]{15,21}$/.test(id)).slice(0, 500)
+            : [],
+          hidden_notify:
+            value.hidden_notify === "none" || value.hidden_notify === "all" ? value.hidden_notify : "mentions",
         };
       }
     }

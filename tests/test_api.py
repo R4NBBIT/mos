@@ -852,6 +852,18 @@ def test_notify_only_mentions_or_pinned_channels(env: Env) -> None:
         env.client.portal.call(env.hub.notify, CHANNEL, notify_message(8))
         assert ws.receive_json()["data"]["message_id"] == "8"
 
+        # 숨긴 채널: 기본(나를 부른 것만)은 범위 all이어도 부른 것만, 알리지 않기면 부른 것도 안 옴
+        patch = env.client.patch("/api/settings", json={"hidden": [str(CHANNEL)]}, headers=POST)
+        assert patch.status_code == 200
+        env.client.portal.call(env.hub.notify, CHANNEL, notify_message(9))
+        env.client.portal.call(env.hub.notify, CHANNEL, notify_message(10, mention=43))
+        assert ws.receive_json()["data"]["message_id"] == "10"
+        env.client.patch("/api/settings", json={"hidden_notify": "none"}, headers=POST)
+        env.client.portal.call(env.hub.notify, CHANNEL, notify_message(11, mention=43))
+        env.client.patch("/api/settings", json={"hidden": []}, headers=POST)
+        env.client.portal.call(env.hub.notify, CHANNEL, notify_message(12))
+        assert ws.receive_json()["data"]["message_id"] == "12"
+
         # 알림을 끄면 아무것도 오지 않는다
         ws.send_text('{"type": "notify", "scope": null}')
         ws.send_text("ping")
@@ -1439,6 +1451,27 @@ def test_unread_counts_and_mentions(env: Env) -> None:
     group = env.client.get("/api/groups").json()["groups"][0]
     assert (group["unread"], group["mentions"]) == (3, 1)
 
+    # 숨긴 채널: 서버 합계는 숨김 알림 설정대로(기본 나를 부른 것만), 채널 자기 수는 그대로
+    def settings(body: dict[str, object]) -> None:
+        assert env.client.patch("/api/settings", json=body, headers=POST).status_code == 200
+
+    def group_counts() -> tuple[int, int]:
+        group = env.client.get("/api/groups").json()["groups"][0]
+        return group["unread"], group["mentions"]
+
+    settings({"hidden": [str(CHANNEL)]})
+    assert group_counts() == (1, 1)
+    settings({"hidden_notify": "none"})
+    assert group_counts() == (0, 0)
+    settings({"hidden_notify": "all"})
+    assert group_counts() == (3, 1)
+    settings({"hidden": [str(GUILD)], "hidden_notify": "mentions"})  # 서버를 숨김
+    assert group_counts() == (1, 1)
+    assert env.client.get(f"/api/groups/{GUILD}/channels").json()["channels"][0]["unread"] == 3
+    bad = env.client.patch("/api/settings", json={"hidden": ["x"]}, headers=POST)
+    assert bad.status_code == 400
+    settings({"hidden": []})
+
     env.client.post(
         f"/api/channels/{CHANNEL}/read", json={"last_id": str(rows[0]["id"])}, headers=POST
     )  # 예전 위치로는 되돌아가지 않는다
@@ -1817,6 +1850,8 @@ def test_settings_per_account(env: Env) -> None:
         "media_view": "full",
         "doc_titles": {},
         "list_order": {},
+        "hidden": [],
+        "hidden_notify": "mentions",
     }
     assert env.client.get("/api/settings").json() == defaults
     changed = env.client.patch(

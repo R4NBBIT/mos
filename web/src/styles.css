@@ -7080,3 +7080,192 @@ body.sorting * {
   color: #1f6e43;
   font-weight: 700;
 }
+
+/* ------------------------------------------------------------ 목록 찾기 칸 */
+.list-search {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  margin: 8px 12px 0;
+  padding: 0 4px 0 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--tint);
+  color: var(--sub);
+}
+
+.list-search:focus-within {
+  border-color: var(--honey);
+}
+
+.list-search svg {
+  flex-shrink: 0;
+}
+
+.list-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.list-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.list-search input::placeholder {
+  color: var(--sub);
+}
+
+.list-search-clear {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--sub);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.list-search-clear:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--ink);
+}
+
+/* 휴대폰: 16px보다 작으면 아이폰이 칸을 누를 때 화면을 확대한다 */
+@media (hover: none) {
+  .list-search input {
+    font-size: 16px;
+  }
+}
+
+/* 스프레드시트: '열기' 창의 찾기 칸처럼 네모 */
+:root[data-theme="sheet"] .list-search {
+  border: 1px solid #c8c8c8;
+  border-radius: 2px;
+  background: #ffffff;
+}
+
+:root[data-theme="sheet"] .list-search:focus-within {
+  border-color: #1f6e43;
+}
+
+/* 메모장: 파일 열기 창의 입력 칸 */
+:root[data-theme="memo"] .list-search {
+  height: 28px;
+  border: 1px solid #7a7a7a;
+  border-radius: 0;
+  background: #ffffff;
+}
+
+:root[data-theme="memo"] .list-search:focus-within {
+  border-color: #0067c0;
+}
+
+/* 노션: 사이드바 검색 */
+:root[data-theme="note"] .list-search {
+  height: 30px;
+  margin: 6px 8px 0;
+  border-radius: 6px;
+  background: rgba(55, 53, 47, 0.06);
+  color: #91918e;
+}
+
+:root[data-theme="note"] .list-search:focus-within {
+  border-color: rgba(35, 131, 226, 0.6);
+}
+
+/* Word: 탐색 창 검색 */
+:root[data-theme="word"] .list-search {
+  border: 1px solid #8a8886;
+  border-radius: 4px;
+  background: #ffffff;
+}
+
+:root[data-theme="word"] .list-search:focus-within {
+  border-color: #185abd;
+}
+
+.list-found .list-sub {
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------ 숨기기(목록 편집 중) */
+.hide-button {
+  flex-shrink: 0;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: none;
+  color: var(--sub);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.hide-button:hover {
+  background: var(--tint);
+  color: var(--ink);
+}
+
+.hide-on {
+  border-color: transparent;
+  background: var(--tint);
+  color: var(--ink);
+}
+
+:root[data-theme="sheet"] .hide-button,
+:root[data-theme="memo"] .hide-button,
+:root[data-theme="word"] .hide-button {
+  border-radius: 2px;
+}
+
+:root[data-theme="note"] .hide-button {
+  border-radius: 4px;
+}
+
+.list-item-dim .list-name,
+.list-item-dim .channel-mark,
+.list-item-dim .unread-badge,
+.list-item-dim .voice-count {
+  opacity: 0.4;
+}
+
+/* 목록 맨 아래 '숨긴 항목' 묶음 */
+.hidden-folder {
+  margin-top: 4px;
+}
+
+.hidden-folder-head {
+  color: var(--sub);
+}
+
+.hidden-folder-head .tree-chevron {
+  margin-right: 2px;
+}
+
+.hidden-folder-list .list-item {
+  padding-left: 28px;
+}
+
+:root[data-theme="note"] .hidden-folder-tree .hidden-folder-head {
+  padding-left: 28px;
+}
+
+:root[data-theme="note"] .hidden-folder-tree .hidden-folder-list .list-item {
+  padding-left: 46px;
+}

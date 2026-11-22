@@ -78,17 +78,26 @@ export function VoiceRow({
   skin,
   active,
   indent = 0,
+  extra,
+  dim,
+  sub,
   onOpen,
 }: {
   voice: VoiceChannel;
   skin: ListSkin;
   active?: boolean;
   indent?: number;
+  /** 목록 편집 중 숨기기 단추, 숨긴 것은 흐리게 */
+  extra?: ReactNode;
+  dim?: boolean;
+  /** 이름 옆 흐린 글자(찾기에서 어느 서버인지) */
+  sub?: string;
   onOpen: (voice: VoiceChannel) => void;
 }) {
   const classes = ["list-item", "voice-item"];
   if (active) classes.push("list-item-active");
   if (indent) classes.push("list-item-indent");
+  if (dim) classes.push("list-item-dim");
   const count = voice.members.length;
   return (
     <>
@@ -106,6 +115,7 @@ export function VoiceRow({
         <span className="list-name">
           {voice.name}
           {skin.voiceExt && <span className="skin-ext">{skin.voiceExt}</span>}
+          {sub && <span className="list-sub">{sub}</span>}
         </span>
         {voice.private && (
           <span className="list-people" title="비공개" aria-label="비공개">
@@ -113,6 +123,7 @@ export function VoiceRow({
           </span>
         )}
         {count > 0 && <span className="voice-count">{skin.voiceCount(count)}</span>}
+        {extra}
       </div>
       {count > 0 && (
         <ul className={indent ? "voice-people voice-people-indent" : "voice-people"}>

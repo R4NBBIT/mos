@@ -2,7 +2,7 @@ import { Collapse, usePresence } from "./motion";
 import BackIcon from "./BackIcon";
 import SplitToggle from "./SplitToggle";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, fetchGroupChannels, fetchGroupMembers, fetchGroups, setPinned } from "./api";
+import { ApiError, fetchGroupChannels, fetchGroupMembers, fetchGroups, fetchGroupVoice, setPinned } from "./api";
 import { type ListSkin, listSkin, lockIcon } from "./listSkin";
 import { useLook } from "./lookContext";
 import { applyOrder, channelSections, OrderBar, ResetOrder, Sortable } from "./listOrder";
@@ -17,6 +17,7 @@ import type {
 } from "./types";
 import { useVoiceChannels } from "./voice";
 import { VoiceRow, withVoice } from "./voiceParts";
+import { HiddenFolder, hiddenCounts, HideButton, ListSearch, nameMatches, useHidden } from "./listFind";
 
 const RETRY_MAX_MS = 15_000;
 const REFRESH_MS = 20_000; // 안 읽음 숫자를 새로 받는 간격(목록을 보고 있을 때만)
@@ -158,6 +159,7 @@ function Shell({
   menu,
   extra,
   top,
+  search,
   notice,
   onNoticeClose,
   children,
@@ -171,6 +173,8 @@ function Shell({
   extra?: ReactNode;
   /** 목록 위 장식(메모장 경로 줄, Word 탭) */
   top?: ReactNode;
+  /** 목록 찾기 칸(목록과 같이 움직이지 않게 목록 위에) */
+  search?: ReactNode;
   notice?: string;
   onNoticeClose?: () => void;
   children: ReactNode;
@@ -199,6 +203,7 @@ function Shell({
           </button>
         </div>
       )}
+      {search}
       {top}
       <div className="list-body">{children}</div>
     </div>
@@ -244,12 +249,17 @@ function ChannelRow({
   indent = 0,
   viewers,
   handle,
+  hideButton,
+  dim,
   onOpen,
   onPin,
 }: {
   channel: ChannelInfo;
   /** 순서 바꾸기 손잡이 */
   handle?: ReactNode;
+  /** 목록 편집 중: 숨기기 단추, 숨긴 것은 흐리게 */
+  hideButton?: ReactNode;
+  dim?: boolean;
   active?: boolean;
   sub?: string;
   skin: ListSkin;
@@ -263,6 +273,7 @@ function ChannelRow({
   if (active) classes.push("list-item-active");
   if (channel.unread) classes.push("list-item-unread");
   if (indent) classes.push("list-item-indent");
+  if (dim) classes.push("list-item-dim");
   const ext = skin.channelExt(channel);
   return (
     <div
@@ -293,6 +304,7 @@ function ChannelRow({
       )}
       {!channel.can_send && channel.kind !== "forum" && skin.readOnly}
       <Badge unread={channel.unread} mentions={channel.mentions} look={skin.badge} />
+      {hideButton}
       <PinButton pinned={Boolean(channel.pinned)} onToggle={() => onPin(channel)} />
     </div>
   );
@@ -304,12 +316,18 @@ function GroupRow({
   skin,
   expanded,
   handle,
+  hideButton,
+  dim,
+  sub,
   onOpen,
   onPin,
 }: {
   group: Group;
   skin: ListSkin;
   handle?: ReactNode;
+  hideButton?: ReactNode;
+  dim?: boolean;
+  sub?: string;
   /** 노션 트리: 펼쳤는지(없으면 트리가 아님) */
   expanded?: boolean;
   onOpen: () => void;
@@ -317,7 +335,7 @@ function GroupRow({
 }) {
   return (
     <div
-      className={group.unread ? "list-item list-item-unread" : "list-item"}
+      className={["list-item", group.unread ? "list-item-unread" : "", dim ? "list-item-dim" : ""].filter(Boolean).join(" ")}
       role="button"
       tabIndex={0}
       aria-expanded={expanded}
@@ -336,8 +354,10 @@ function GroupRow({
       <span className="list-name">
         {group.name}
         {skin.serverExt && <span className="skin-ext">{skin.serverExt}</span>}
+        {sub && <span className="list-sub">{sub}</span>}
       </span>
       <Badge unread={group.unread} mentions={group.mentions} look={skin.badge} />
+      {hideButton}
       <PinButton pinned={Boolean(group.pinned)} onToggle={onPin} />
     </div>
   );
@@ -426,6 +446,148 @@ function MemberPanel({
   );
 }
 
+/** 한 서버의 채널: 카테고리 묶음, 순서, 숨기기, 찾기(채널 목록과 노션 트리가 같이 쓴다) */
+function ChannelTree({
+  channels,
+  voice,
+  orderKey,
+  editing,
+  query,
+  skin,
+  tree = false,
+  activeChannelId,
+  restricted,
+  onOpen,
+  onOpenVoice,
+  onPin,
+}: {
+  channels: ChannelInfo[];
+  voice: VoiceChannel[] | null;
+  orderKey: string;
+  editing: boolean;
+  query: string;
+  skin: ListSkin;
+  /** 노션 트리 안(들여 쓰고 카테고리는 작은 글자) */
+  tree?: boolean;
+  activeChannelId?: string;
+  restricted?: Record<string, string[]>;
+  onOpen: (channel: ChannelInfo) => void;
+  onOpenVoice: (voice: VoiceChannel) => void;
+  onPin: (channel: ChannelInfo) => void;
+}) {
+  const { settings, save } = useLook();
+  const { isHidden, setHidden, mode } = useHidden();
+  const indent = tree ? 1 : 0;
+  const sections = withVoice(channelSections(channels, settings.list_order[orderKey]), voice);
+  const hideButton = (id: string, name: string) =>
+    editing ? <HideButton hidden={isHidden(id)} name={name} onToggle={() => void setHidden(id, !isHidden(id))} /> : undefined;
+  const channelRow = (channel: ChannelInfo, handle?: ReactNode, sub?: string) => (
+    <ChannelRow
+      key={channel.id}
+      channel={channel}
+      skin={skin}
+      indent={indent}
+      handle={handle}
+      sub={sub}
+      hideButton={hideButton(channel.id, channel.name)}
+      dim={editing && isHidden(channel.id)}
+      active={channel.id === activeChannelId}
+      viewers={restricted?.[channel.id]?.length}
+      onOpen={onOpen}
+      onPin={onPin}
+    />
+  );
+  const voiceRow = (room: VoiceChannel) => (
+    <VoiceRow
+      key={room.id}
+      voice={room}
+      skin={skin}
+      indent={indent}
+      extra={hideButton(room.id, room.name)}
+      dim={editing && isHidden(room.id)}
+      active={room.id === activeChannelId}
+      onOpen={onOpenVoice}
+    />
+  );
+
+  if (query) {
+    // 찾기: 카테고리 없이 한 줄로(숨긴 것도 나온다, 이름 옆에 카테고리와 '숨김')
+    const sub = (name: string | null, id: string) => [name, isHidden(id) ? "숨김" : ""].filter(Boolean).join(" ") || undefined;
+    const found = sections.flatMap((section) => [
+      ...section.channels
+        .filter((channel) => nameMatches(channel.name, query))
+        .map((channel) => channelRow(channel, undefined, sub(section.name, channel.id))),
+      ...section.voice.filter((room) => nameMatches(room.name, query)).map(voiceRow),
+    ]);
+    return found.length > 0 ? (
+      <section className="list-section list-found">{found}</section>
+    ) : (
+      <p className="list-note">‘{query}’ 이름이 들어간 채널이 없어요.</p>
+    );
+  }
+
+  const hiddenChannels: { channel: ChannelInfo; category: string | null }[] = [];
+  const hiddenVoice: VoiceChannel[] = [];
+  const blocks = sections.map((section, _, all) => {
+    const shown = editing ? section.channels : section.channels.filter((channel) => !isHidden(channel.id));
+    const shownVoice = editing ? section.voice : section.voice.filter((room) => !isHidden(room.id));
+    if (!editing) {
+      for (const channel of section.channels) if (isHidden(channel.id)) hiddenChannels.push({ channel, category: section.name });
+      hiddenVoice.push(...section.voice.filter((room) => isHidden(room.id)));
+    }
+    if (shown.length === 0 && shownVoice.length === 0) return null;
+    // 숨긴 채널은 끌어 옮긴 묶음의 맨 뒤에 그대로 둔다(순서 기록에서 빠지지 않게)
+    const reorder = (ids: string[]) =>
+      void save({
+        list_order: {
+          [orderKey]: reorderedSections(all, section.key, [
+            ...ids,
+            ...section.channels.filter((channel) => !ids.includes(channel.id)).map((channel) => channel.id),
+          ]),
+        },
+      });
+    const body = (
+      <>
+        <Sortable items={shown} editing={editing} label={(channel) => channel.name} onReorder={reorder}>
+          {(channel, handle) => channelRow(channel, handle)}
+        </Sortable>
+        {shownVoice.map(voiceRow)}
+      </>
+    );
+    return tree ? (
+      <div key={section.key || "-"} role="group" aria-label={section.name ?? undefined}>
+        {section.name && <p className="tree-category">{section.name}</p>}
+        {body}
+      </div>
+    ) : (
+      <section key={section.key || "-"} className="list-section">
+        {section.name && <h2 className="list-section-title">{section.name}</h2>}
+        {body}
+      </section>
+    );
+  });
+  let foldedUnread = 0;
+  let foldedMentions = 0;
+  for (const { channel } of hiddenChannels) {
+    const [unread, mentions] = hiddenCounts(channel.unread ?? 0, channel.mentions ?? 0, mode);
+    foldedUnread += unread;
+    foldedMentions += mentions;
+  }
+  return (
+    <>
+      {blocks}
+      <HiddenFolder
+        tree={tree}
+        count={hiddenChannels.length + hiddenVoice.length}
+        badge={<Badge unread={foldedUnread} mentions={foldedMentions} look={skin.badge} />}
+      >
+        {hiddenChannels.map(({ channel, category }) => channelRow(channel, undefined, category ?? undefined))}
+        {hiddenVoice.map(voiceRow)}
+      </HiddenFolder>
+    </>
+  );
+}
+
 /** 노션 트리: 펼친 서버 아래 채널(하위 페이지) */
 function TreeChannels({
   groupId,
@@ -447,7 +609,7 @@ function TreeChannels({
 }) {
   const [load, reload] = useLoad<GroupChannels>(() => fetchGroupChannels(groupId), [groupId], onAuthLost);
   const members = useMembers(groupId, onAuthLost);
-  const { settings, save } = useLook();
+  const { settings } = useLook();
   const voice = useVoiceChannels(groupId, settings.voice_view);
   const orderKey = `c:${groupId}`;
   const [pinError, togglePin] = usePinToggle(reload);
@@ -458,40 +620,20 @@ function TreeChannels({
   return (
     <>
       {pinError && <p className="list-error">{pinError}</p>}
-      {withVoice(channelSections(load.value.channels, settings.list_order[orderKey]), voice).map((section, _, sections) => (
-        <div key={section.key || "-"} role="group" aria-label={section.name ?? undefined}>
-          {section.name && <p className="tree-category">{section.name}</p>}
-          <Sortable
-            items={section.channels}
-            editing={editing}
-            label={(channel) => channel.name}
-            onReorder={(ids) => void save({ list_order: { [orderKey]: reorderedSections(sections, section.key, ids) } })}
-          >
-            {(channel, handle) => (
-              <ChannelRow
-                channel={channel}
-                skin={skin}
-                indent={1}
-                handle={handle}
-                active={channel.id === activeChannelId}
-                viewers={members?.restricted[channel.id]?.length}
-                onOpen={onOpen}
-                onPin={(item) => togglePin("channel", item.id, !item.pinned)}
-              />
-            )}
-          </Sortable>
-          {section.voice.map((room) => (
-            <VoiceRow
-              key={room.id}
-              voice={room}
-              skin={skin}
-              indent={1}
-              active={room.id === activeChannelId}
-              onOpen={onOpenVoice}
-            />
-          ))}
-        </div>
-      ))}
+      <ChannelTree
+        channels={load.value.channels}
+        voice={voice}
+        orderKey={orderKey}
+        editing={editing}
+        query=""
+        skin={skin}
+        tree
+        activeChannelId={activeChannelId}
+        restricted={members?.restricted}
+        onOpen={onOpen}
+        onOpenVoice={onOpenVoice}
+        onPin={(item) => togglePin("channel", item.id, !item.pinned)}
+      />
       {editing && (
         <div className="order-bar order-bar-tree">
           <ResetOrder keys={[orderKey]} what="이 서버 페이지" />
@@ -522,6 +664,132 @@ function TreeMembers({
   );
 }
 
+const NO_GROUPS: Group[] = [];
+
+/** 서버 목록에서 찾은 것: 서버, 채널(어느 서버인지와 숨김 여부를 이름 옆에) */
+function FoundAcross({
+  query,
+  groups,
+  channels,
+  voice,
+  loading,
+  skin,
+  isHidden,
+  onOpen,
+  onOpenChannel,
+  onOpenVoice,
+  onPinGroup,
+  onPinChannel,
+}: {
+  query: string;
+  groups: Group[];
+  channels: ChannelInfo[];
+  voice: VoiceChannel[];
+  loading: boolean;
+  skin: ListSkin;
+  isHidden: (id: string) => boolean;
+  onOpen: (groupId: string) => void;
+  onOpenChannel: (groupId: string, channel: ChannelInfo) => void;
+  onOpenVoice: (groupId: string, voice: VoiceChannel) => void;
+  onPinGroup: (group: Group) => void;
+  onPinChannel: (channel: ChannelInfo) => void;
+}) {
+  const hiddenMark = (id: string, place?: string) =>
+    [place, isHidden(id) ? "숨김" : ""].filter(Boolean).join(" ") || undefined;
+  const foundGroups = groups.filter((group) => nameMatches(group.name, query));
+  const foundChannels = channels.filter((channel) => nameMatches(channel.name, query));
+  const foundVoice = voice.filter((room) => nameMatches(room.name, query));
+  return (
+    <>
+      {foundGroups.length > 0 && (
+        <section className="list-section list-found">
+          <h2 className="list-section-title">서버</h2>
+          {foundGroups.map((group) => (
+            <GroupRow
+              key={group.id}
+              group={group}
+              skin={skin}
+              sub={hiddenMark(group.id)}
+              onOpen={() => onOpen(group.id)}
+              onPin={() => onPinGroup(group)}
+            />
+          ))}
+        </section>
+      )}
+      {foundChannels.length + foundVoice.length > 0 && (
+        <section className="list-section list-found">
+          <h2 className="list-section-title">채널</h2>
+          {foundChannels.map((channel) => (
+            <ChannelRow
+              key={channel.id}
+              channel={channel}
+              skin={skin}
+              sub={hiddenMark(channel.id, channel.group_name)}
+              onOpen={(item) => onOpenChannel(item.group_id, item)}
+              onPin={onPinChannel}
+            />
+          ))}
+          {foundVoice.map((room) => (
+            <VoiceRow
+              key={room.id}
+              voice={room}
+              skin={skin}
+              sub={hiddenMark(room.id, room.group_name)}
+              onOpen={(item) => onOpenVoice(item.group_id, item)}
+            />
+          ))}
+        </section>
+      )}
+      {loading && <p className="list-note">채널을 찾는 중…</p>}
+      {!loading && foundGroups.length + foundChannels.length + foundVoice.length === 0 && (
+        <p className="list-note">‘{query}’ 이름이 들어간 서버나 채널이 없어요.</p>
+      )}
+    </>
+  );
+}
+
+/** 서버 목록에서 찾을 때: 모든 서버의 채널을 한 번씩만 받아 둔다(찾기 칸을 쓸 때만) */
+function useAllChannels(
+  groups: Group[],
+  enabled: boolean,
+  withVoiceRooms: boolean,
+): { channels: ChannelInfo[]; voice: VoiceChannel[]; loading: boolean } {
+  const [byGroup, setByGroup] = useState<Record<string, { channels: ChannelInfo[]; voice: VoiceChannel[] }>>({});
+  const asked = useRef(new Set<string>());
+  const [pending, setPending] = useState(0);
+  useEffect(() => {
+    if (!enabled) return;
+    for (const group of groups) {
+      if (asked.current.has(group.id)) continue;
+      asked.current.add(group.id);
+      setPending((count) => count + 1);
+      Promise.all([
+        fetchGroupChannels(group.id),
+        // 음성 채널은 못 받아도 글 채널은 찾게
+        withVoiceRooms ? fetchGroupVoice(group.id).catch(() => ({ channels: [] })) : { channels: [] },
+      ])
+        .then(([text, voice]) =>
+          setByGroup((current) => ({ ...current, [group.id]: { channels: text.channels, voice: voice.channels } })),
+        )
+        .catch(() => asked.current.delete(group.id)) // 다음에 찾을 때 다시
+        .finally(() => setPending((count) => count - 1));
+    }
+  }, [groups, enabled, withVoiceRooms]);
+  const names = new Map(groups.map((group) => [group.id, group.name]));
+  const channels = groups.flatMap((group) =>
+    (byGroup[group.id]?.channels ?? []).map((channel) => ({
+      ...channel,
+      group_name: channel.group_name || names.get(group.id) || "",
+    })),
+  );
+  const voice = withVoiceRooms
+    ? groups.flatMap((group) =>
+        (byGroup[group.id]?.voice ?? []).map((room) => ({ ...room, group_name: names.get(group.id) || room.group_name })),
+      )
+    : [];
+  return { channels, voice, loading: pending > 0 };
+}
+
 export function GroupList({
   onOpen,
   onOpenChannel,
@@ -545,6 +813,18 @@ export function GroupList({
   const [editing, setEditing] = useState(false);
   const [load, reload] = useLoad<GroupListData>(fetchGroups, [], common.onAuthLost);
   const [pinError, togglePin] = usePinToggle(reload);
+  const { isHidden, setHidden, mode } = useHidden();
+  const [query, setQuery] = useState("");
+  const startEditing = (value: boolean) => {
+    setQuery("");
+    setEditing(value);
+  };
+  const allGroups = load.state === "ok" ? load.value.groups : NO_GROUPS;
+  const everyChannel = useAllChannels(allGroups, query.length > 0, settings.voice_view);
+  // 숨기면 서버 합계(숨김 알림 설정대로)가 바뀌어 다시 받는다
+  const hide = (id: string, value: boolean) => void setHidden(id, value).then(reload);
+  const hideButton = (id: string, name: string) =>
+    editing ? <HideButton hidden={isHidden(id)} name={name} onToggle={() => hide(id, !isHidden(id))} /> : undefined;
   const [expanded, setExpanded] = useState<string[]>(openGroupId ? [openGroupId] : []);
   useEffect(() => {
     if (openGroupId) setExpanded((current) => (current.includes(openGroupId) ? current : [...current, openGroupId]));
@@ -552,9 +832,19 @@ export function GroupList({
   const toggle = (groupId: string) =>
     setExpanded((current) => (current.includes(groupId) ? current.filter((id) => id !== groupId) : [...current, groupId]));
   const ordered = load.state === "ok" ? applyOrder(load.value.groups, settings.list_order.groups) : [];
+  const pinnedOrdered = load.state === "ok" ? applyOrder(load.value.pinned_channels, settings.list_order.pinned) : [];
+  // 목록 편집 중이 아니면 숨긴 것은 빼서 맨 아래 묶음으로
+  const shownGroups = editing ? ordered : ordered.filter((group) => !isHidden(group.id));
+  const shownPinned = editing ? pinnedOrdered : pinnedOrdered.filter((channel) => !isHidden(channel.id));
+  const hiddenGroups = editing ? [] : ordered.filter((group) => isHidden(group.id) && group.id !== openGroupId);
+  const hiddenPinned = editing ? [] : pinnedOrdered.filter((channel) => isHidden(channel.id));
+  const keepHidden = (ids: string[], all: { id: string }[]) => [
+    ...ids,
+    ...all.filter((item) => !ids.includes(item.id)).map((item) => item.id),
+  ];
   // 노션에서 서버를 연 때(순서 바꾸기 중이 아니면): 지금 서버와 다른 서버 묶음으로 나눈다
-  const current = tree && openGroupId && !editing ? ordered.find((group) => group.id === openGroupId) : undefined;
-  const others = current ? ordered.filter((group) => group.id !== current.id) : [];
+  const current = tree && openGroupId && !editing && !query ? ordered.find((group) => group.id === openGroupId) : undefined;
+  const others = current ? shownGroups.filter((group) => group.id !== current.id) : [];
   const [othersOpen, setOthersOpen] = useState(false);
   useEffect(() => setOthersOpen(false), [openGroupId]);
   const toggleOthers = () => setOthersOpen((value) => !value);
@@ -566,6 +856,8 @@ export function GroupList({
           group={group}
           skin={skin}
           handle={handle}
+          hideButton={hideButton(group.id, group.name)}
+          dim={editing && isHidden(group.id)}
           expanded={tree ? open : undefined}
           onOpen={() => (tree ? toggle(group.id) : onOpen(group.id))}
           onPin={() => togglePin("group", group.id, !group.pinned)}
@@ -591,20 +883,37 @@ export function GroupList({
       title={skin.groupsTitle}
       menu={common.menu}
       top={<ListTop theme={theme} path={"C:\\문서"} inGroup={false} />}
+      search={<ListSearch value={query} placeholder={skin.search(false)} onChange={setQuery} />}
       notice={common.notice}
       onNoticeClose={common.onNoticeClose}
     >
       {pinError && <p className="list-error">{pinError}</p>}
       {load.state === "loading" && <p className="list-note">불러오는 중…</p>}
       {load.state === "error" && <p className="list-note">{load.message}</p>}
-      {load.state === "ok" && load.value.pinned_channels.length > 0 && (
+      {load.state === "ok" && query && (
+        <FoundAcross
+          query={query}
+          groups={ordered}
+          channels={everyChannel.channels}
+          voice={everyChannel.voice}
+          loading={everyChannel.loading}
+          skin={skin}
+          isHidden={isHidden}
+          onOpen={onOpen}
+          onOpenChannel={onOpenChannel}
+          onOpenVoice={onOpenVoice}
+          onPinGroup={(group) => togglePin("group", group.id, !group.pinned)}
+          onPinChannel={(channel) => togglePin("channel", channel.id, !channel.pinned)}
+        />
+      )}
+      {load.state === "ok" && !query && shownPinned.length > 0 && (
         <section className="list-section">
           <h2 className="list-section-title">{skin.pinnedTitle}</h2>
           <Sortable
-            items={applyOrder(load.value.pinned_channels, settings.list_order.pinned)}
+            items={shownPinned}
             editing={editing}
             label={(channel) => channel.name}
-            onReorder={(ids) => void save({ list_order: { pinned: ids } })}
+            onReorder={(ids) => void save({ list_order: { pinned: keepHidden(ids, pinnedOrdered) } })}
           >
             {(channel, handle) => (
               <ChannelRow
@@ -612,6 +921,8 @@ export function GroupList({
                 skin={skin}
                 sub={channel.group_name}
                 handle={handle}
+                hideButton={hideButton(channel.id, channel.name)}
+                dim={editing && isHidden(channel.id)}
                 onOpen={(item) => onOpenChannel(item.group_id, item)}
                 onPin={(item) => togglePin("channel", item.id, false)}
               />
@@ -670,21 +981,61 @@ export function GroupList({
           {treeGroup(current, null)}
         </section>
       )}
-      {load.state === "ok" && !current && load.value.groups.length > 0 && (
+      {load.state === "ok" && !query && !current && shownGroups.length > 0 && (
         <section className="list-section">
           {skin.allTitle && <h2 className="list-section-title">{skin.allTitle}</h2>}
           <Sortable
-            items={ordered}
+            items={shownGroups}
             editing={editing}
             label={(group) => group.name}
-            onReorder={(ids) => void save({ list_order: { groups: ids } })}
+            onReorder={(ids) => void save({ list_order: { groups: keepHidden(ids, ordered) } })}
           >
             {(group, handle) => treeGroup(group, handle)}
           </Sortable>
         </section>
       )}
-      {load.state === "ok" && load.value.groups.length + load.value.pinned_channels.length > 1 && (
-        <OrderBar editing={editing} onEditing={setEditing} keys={["groups", "pinned"]} what="서버" />
+      {load.state === "ok" && !query && (
+        <HiddenFolder
+          count={hiddenGroups.length + hiddenPinned.length}
+          badge={(() => {
+            // 숨긴 서버의 합계는 서버가 이미 숨김 알림 설정대로 세어 보낸다
+            let unread = 0;
+            let mentions = 0;
+            for (const group of hiddenGroups) {
+              unread += group.unread ?? 0;
+              mentions += group.mentions ?? 0;
+            }
+            for (const channel of hiddenPinned) {
+              const [u, m] = hiddenCounts(channel.unread ?? 0, channel.mentions ?? 0, mode);
+              unread += u;
+              mentions += m;
+            }
+            return <Badge unread={unread} mentions={mentions} look={skin.badge} />;
+          })()}
+        >
+          {hiddenPinned.map((channel) => (
+            <ChannelRow
+              key={channel.id}
+              channel={{ ...channel, pinned: true }}
+              skin={skin}
+              sub={channel.group_name}
+              onOpen={(item) => onOpenChannel(item.group_id, item)}
+              onPin={(item) => togglePin("channel", item.id, false)}
+            />
+          ))}
+          {hiddenGroups.map((group) => (
+            <GroupRow
+              key={group.id}
+              group={group}
+              skin={skin}
+              onOpen={() => onOpen(group.id)}
+              onPin={() => togglePin("group", group.id, !group.pinned)}
+            />
+          ))}
+        </HiddenFolder>
+      )}
+      {load.state === "ok" && !query && load.value.groups.length + load.value.pinned_channels.length > 1 && (
+        <OrderBar editing={editing} onEditing={startEditing} keys={["groups", "pinned"]} what="서버" />
       )}
       {tree && openGroupId && (
         <TreeMembers
@@ -820,7 +1171,7 @@ export function ChannelList({
   /** 머리의 서버 이름에서 다른 서버를 골랐을 때 */
   onSwitch: (groupId: string) => void;
 }) {
-  const { settings, save } = useLook();
+  const { settings } = useLook();
   const { theme } = settings;
   const skin = listSkin(theme);
   const [editing, setEditing] = useState(false);
@@ -834,8 +1185,14 @@ export function ChannelList({
   const members = useMembers(groupId, common.onAuthLost);
   const voice = useVoiceChannels(groupId, settings.voice_view);
   const group = load.state === "ok" ? load.value.group : null;
+  const [query, setQuery] = useState("");
+  const startEditing = (value: boolean) => {
+    setQuery("");
+    setEditing(value);
+  };
   return (
     <Shell
+      search={<ListSearch value={query} placeholder={skin.search(true)} onChange={setQuery} />}
       title={group ? skin.channelsTitle(group.name) : "…"}
       titleNode={
         group ? (
@@ -875,43 +1232,23 @@ export function ChannelList({
       {load.state === "ok" && load.value.channels.length === 0 && !voice?.length && (
         <p className="list-note">이 계정으로 볼 수 있는 채널이 없어요.</p>
       )}
-      {load.state === "ok" &&
-        withVoice(channelSections(load.value.channels, settings.list_order[orderKey]), voice).map((section, _, sections) => (
-          <section key={section.key || "-"} className="list-section">
-            {section.name && <h2 className="list-section-title">{section.name}</h2>}
-            <Sortable
-              items={section.channels}
-              editing={editing}
-              label={(channel) => channel.name}
-              onReorder={(ids) =>
-                void save({ list_order: { [orderKey]: reorderedSections(sections, section.key, ids) } })
-              }
-            >
-              {(channel, handle) => (
-                <ChannelRow
-                  channel={channel}
-                  skin={skin}
-                  handle={handle}
-                  active={channel.id === activeChannelId}
-                  viewers={members?.restricted[channel.id]?.length}
-                  onOpen={onOpen}
-                  onPin={(item) => togglePin("channel", item.id, !item.pinned)}
-                />
-              )}
-            </Sortable>
-            {section.voice.map((room) => (
-              <VoiceRow
-                key={room.id}
-                voice={room}
-                skin={skin}
-                active={room.id === activeChannelId}
-                onOpen={onOpenVoice}
-              />
-            ))}
-          </section>
-        ))}
-      {load.state === "ok" && load.value.channels.length > 1 && (
-        <OrderBar editing={editing} onEditing={setEditing} keys={[orderKey]} what="채널" />
+      {load.state === "ok" && (
+        <ChannelTree
+          channels={load.value.channels}
+          voice={voice}
+          orderKey={orderKey}
+          editing={editing}
+          query={query}
+          skin={skin}
+          activeChannelId={activeChannelId}
+          restricted={members?.restricted}
+          onOpen={onOpen}
+          onOpenVoice={onOpenVoice}
+          onPin={(item) => togglePin("channel", item.id, !item.pinned)}
+        />
+      )}
+      {load.state === "ok" && !query && load.value.channels.length + (voice?.length ?? 0) > 1 && (
+        <OrderBar editing={editing} onEditing={startEditing} keys={[orderKey]} what="채널" />
       )}
       {load.state === "ok" && members && (
         <MemberPanel

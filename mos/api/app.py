@@ -344,6 +344,11 @@ def create_app(
                 original["author_id"],
                 original.get("web_sender_id"),
             )
+        hidden, hidden_mode = await hidden_prefs(subscriber.account_id)
+        if hidden & {channel_id, channel.parent_id, channel.guild_id}:
+            # 숨긴 서버, 채널(그 스레드 포함): 숨김 알림 설정을 먼저 따른다
+            if hidden_mode == "none" or (hidden_mode == "mentions" and not mentioned):
+                return None
         if not mentioned and subscriber.notify_scope != "all":
             if subscriber.notify_scope != "pinned":
                 return None
@@ -684,6 +689,18 @@ def create_app(
         ids = [access.channel.id for access in accesses if access.channel.kind != "forum"]
         return await lists.unread(account.account_id, account.discord_user_id, ids)
 
+    async def hidden_prefs(account_id: int) -> tuple[set[int], str]:
+        prefs = await settings_store.get(account_id)
+        return {int(item) for item in prefs["hidden"]}, prefs["hidden_notify"]
+
+    def counted(counts: tuple[int, int], hidden: bool, mode: str) -> tuple[int, int]:
+        """숨긴 곳의 안 읽음: 알리지 않기면 0, 나를 부른 것만이면 부른 수만, 모두면 그대로."""
+        if not hidden or mode == "all":
+            return counts
+        if mode == "mentions":
+            return counts[1], counts[1]
+        return 0, 0
+
     def with_unread(data: dict[str, Any], counts: tuple[int, int] | None) -> dict[str, Any]:
         data["unread"], data["mentions"] = counts or (0, 0)
         return data
@@ -695,14 +712,17 @@ def create_app(
         user = account.discord_user_id
         pins = await lists.pins(account.account_id)
         group_pins = {p["target_id"]: p["position"] for p in pins if p["kind"] == "group"}
+        hidden, hidden_mode = await hidden_prefs(account.account_id)
         groups = []
         for guild in await perms.visible_guilds(user):
             accesses = await perms.visible_channels(user, guild.id) or []
             counts = await unread_for(account, accesses)
+            # 서버 합계: 숨긴 채널은 숨김 알림 설정대로 세고, 서버를 숨겼으면 합계도 그 설정대로
+            parts = [counted(value, cid in hidden, hidden_mode) for cid, value in counts.items()]
+            total = (sum(u for u, _ in parts), sum(m for _, m in parts))
             data = group_to_api(guild)
             data["pinned"] = guild.id in group_pins
-            data["unread"] = sum(count for count, _ in counts.values())
-            data["mentions"] = sum(mention for _, mention in counts.values())
+            data["unread"], data["mentions"] = counted(total, guild.id in hidden, hidden_mode)
             groups.append(data)
         groups.sort(
             key=lambda g: (

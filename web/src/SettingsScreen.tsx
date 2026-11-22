@@ -15,6 +15,7 @@ import {
   type StickersView,
   THEMES,
   type Theme,
+  type HiddenNotify,
 } from "./theme";
 import { playSound, readSound, saveSound, useSound } from "./notifySound";
 import { saveTextSize, TEXT_SIZES, type TextSize, useTextSize } from "./textSize";
@@ -92,6 +93,12 @@ interface Props {
   /** 내 파일을 불러오거나 지웠을 때 */
   onFileChanged: () => void;
 }
+
+const HIDDEN_CHOICES: [HiddenNotify, string][] = [
+  ["none", "알리지 않기(안 읽은 수에도 넣지 않음)"],
+  ["mentions", "나를 부른 메시지만"],
+  ["all", "숨기지 않은 곳과 똑같이"],
+];
 
 export default function SettingsScreen({ settings, onChange, onBack, menu, onFileChanged }: Props) {
   const [title, setTitle] = useState(settings.tab_title ?? "");
@@ -466,6 +473,26 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
               )}
             </>
           )}
+          <div className="settings-item">
+            <h3 className="settings-sub">숨긴 서버와 채널</h3>
+            <div className="boss-choices" role="radiogroup" aria-label="숨긴 서버와 채널의 새 메시지">
+              {HIDDEN_CHOICES.map(([value, label]) => (
+                <label key={value} className="boss-choice">
+                  <input
+                    type="radio"
+                    name="hidden-notify"
+                    checked={settings.hidden_notify === value}
+                    onChange={() => void save({ hidden_notify: value })}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+            <p className="settings-item-note">
+              목록에서 숨긴 곳의 새 메시지를 알림과 안 읽은 수에 넣을지 정해요. 숨기기는 목록 아래 '목록 편집'에서 할 수
+              있어요.
+            </p>
+          </div>
         </section>
 
         <section className="settings-card">

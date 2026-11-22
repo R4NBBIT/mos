@@ -121,10 +121,14 @@ function SheetTabs({
       window.clearInterval(timer);
     };
   }, [groupId]);
-  const order = useLook().settings.list_order[`c:${groupId}`];
+  const { list_order: listOrder, hidden } = useLook().settings;
+  const order = listOrder[`c:${groupId}`];
   const activeId = channel.kind === "thread" ? channel.parent_id : channel.id;
-  // 왼쪽 목록에서 바꾼 순서 그대로
-  const shown = tabs.length > 0 ? orderedChannels(tabs, order) : [channel];
+  // 왼쪽 목록에서 바꾼 순서 그대로, 숨긴 채널은 지금 연 것만
+  const shown =
+    tabs.length > 0
+      ? orderedChannels(tabs, order).filter((tab) => tab.id === activeId || !hidden.includes(tab.id))
+      : [channel];
   return (
     <nav className="sheet-tabs" aria-label="채널">
       {shown.map((tab) => {

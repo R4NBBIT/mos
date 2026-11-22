@@ -1,6 +1,6 @@
 // 왼쪽 목록 순서 바꾸기(이 사이트에서만, 디스코드에는 그대로).
 // 순서는 계정 설정 list_order에 저장돼서 다른 브라우저에서도 같다.
-// PC는 마우스로 줄을 바로 끌고, 휴대폰은 '순서 바꾸기'를 눌러 나오는 손잡이를 끈다.
+// PC는 마우스로 줄을 바로 끌고, 휴대폰은 '목록 편집'을 눌러 나오는 손잡이를 끈다.
 import { type KeyboardEvent, type PointerEvent, type ReactNode, useRef, useState } from "react";
 import { useLook } from "./lookContext";
 import type { ChannelInfo } from "./types";
@@ -224,7 +224,7 @@ export function ResetOrder({ keys, what, children }: { keys: string[]; what: str
   );
 }
 
-/** 목록 아래: 순서 바꾸기 켜고 끄기, 디스코드 순서로 되돌리기 */
+/** 목록 아래: 목록 편집(순서 바꾸기, 숨기기) 켜고 끄기, 디스코드 순서로 되돌리기 */
 export function OrderBar({
   editing,
   onEditing,
@@ -242,7 +242,7 @@ export function OrderBar({
     return (
       <div className="order-bar">
         <button type="button" className="text-button order-toggle" onClick={() => onEditing(true)}>
-          순서 바꾸기
+          목록 편집
         </button>
       </div>
     );

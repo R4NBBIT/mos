@@ -52,6 +52,10 @@ LIST_ORDER_KEY_RE = re.compile(r"groups|pinned|c:[0-9]{15,21}")
 SNOWFLAKE_RE = re.compile(r"[0-9]{15,21}")
 MAX_LIST_ORDERS = 200
 MAX_LIST_ORDER_LEN = 500
+# 목록에서 숨긴 서버와 채널(ID 목록, 디스코드에는 그대로)
+MAX_HIDDEN = 500
+# 숨긴 곳의 새 메시지: 알리지 않기, 나를 부른 것만, 모두(안 읽음 수와 알림에 같이 쓴다)
+HIDDEN_NOTIFY = ("none", "mentions", "all")
 # 자동 위장, 돌아올 때 잠그기, 알림, 알림에 내용 보이기, 처음 사용 안내를 봤는지,
 # 작성자 프로필 사진, 음성 채널 보이기
 BOOL_KEYS = (
@@ -93,6 +97,8 @@ DEFAULTS: dict[str, Any] = {
     "media_view": "full",
     "doc_titles": {},
     "list_order": {},
+    "hidden": [],
+    "hidden_notify": "mentions",
 }
 
 
@@ -133,6 +139,19 @@ def _clean_list_order(value: Any) -> dict[str, list[str] | None]:
             if item not in seen:
                 seen.append(item)
         result[key] = seen or None
+    return result
+
+
+def _clean_hidden(value: Any) -> list[str]:
+    """숨긴 서버, 채널: 통째로 바꾼다(겹치면 처음 것만)."""
+    if not isinstance(value, list) or len(value) > MAX_HIDDEN:
+        raise SettingsError("bad_hidden")
+    result: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or not SNOWFLAKE_RE.fullmatch(item):
+            raise SettingsError("bad_hidden")
+        if item not in result:
+            result.append(item)
     return result
 
 
@@ -194,6 +213,12 @@ def clean(update: dict[str, Any]) -> dict[str, Any]:
             result[key] = _clean_doc_titles(value)
         elif key == "list_order":
             result[key] = _clean_list_order(value)
+        elif key == "hidden":
+            result[key] = _clean_hidden(value)
+        elif key == "hidden_notify":
+            if value not in HIDDEN_NOTIFY:
+                raise SettingsError("bad_hidden_notify")
+            result[key] = value
         elif key == "lock_minutes":
             if isinstance(value, bool) or value not in LOCK_MINUTES:
                 raise SettingsError("bad_lock_minutes")

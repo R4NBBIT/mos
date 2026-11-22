@@ -133,6 +133,8 @@ export interface ListSkin {
   voiceIcon: (voice: VoiceChannel) => ReactNode;
   voiceExt: string;
   voiceCount: (count: number) => string;
+  /** 목록 찾기 칸 안내 글자(서버 안이면 true) */
+  search: (inGroup: boolean) => string;
 }
 
 const plain = (channel: ChannelInfo) => (channel.kind === "forum" ? memoStack : memoNote);
@@ -152,6 +154,7 @@ export function listSkin(theme: Theme): ListSkin {
         channelsTitle: (name) => `${name}.xlsx`,
         badge: "paren",
         membersTitle: "공유 대상",
+        search: (inGroup) => (inGroup ? "시트 찾기" : "통합 문서 찾기"),
         voiceIcon: () => sheetGrid,
         voiceExt: ".xlsx",
         voiceCount: (count) => `공동 편집 ${count}`,
@@ -169,6 +172,7 @@ export function listSkin(theme: Theme): ListSkin {
         channelsTitle: () => "열기",
         badge: "paren",
         membersTitle: "공유 대상",
+        search: () => "파일 이름 찾기",
         voiceIcon: () => textFile,
         voiceExt: ".log",
         voiceCount: (count) => `[${count}명 접속]`,
@@ -186,6 +190,7 @@ export function listSkin(theme: Theme): ListSkin {
         channelsTitle: (name) => name,
         badge: "count",
         membersTitle: "멤버",
+        search: () => "검색",
         voiceIcon: () => <span className="skin-emoji">🗒️</span>,
         voiceExt: "",
         voiceCount: (count) => `👥 ${count}`,
@@ -203,6 +208,7 @@ export function listSkin(theme: Theme): ListSkin {
         channelsTitle: (name) => name,
         badge: "dot",
         membersTitle: "공유 대상",
+        search: () => "문서 찾기",
         voiceIcon: () => wordDoc,
         voiceExt: ".docx",
         voiceCount: (count) => `공동 작업 ${count}`,
@@ -225,6 +231,7 @@ export function listSkin(theme: Theme): ListSkin {
         channelsTitle: (name) => name,
         badge: "count",
         membersTitle: "함께 보는 사람",
+        search: (inGroup) => (inGroup ? "채널 찾기" : "서버와 채널 찾기"),
         voiceIcon: () => speaker,
         voiceExt: "",
         voiceCount: (count) => `${count}명`,
