@@ -138,6 +138,10 @@ public class TodoWidget extends AppWidgetProvider {
         if (message != null) {
             views.setViewVisibility(R.id.message, View.VISIBLE);
             views.setTextViewText(R.id.message, message);
+            // '앱을 열어 로그인해 주세요'를 누르면 위젯 앱(로그인 화면)이 열린다
+            Intent app = new Intent(context, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            views.setOnClickPendingIntent(R.id.message,
+                    PendingIntent.getActivity(context, 4, app, PendingIntent.FLAG_IMMUTABLE));
             views.setTextViewText(R.id.count, "");
         } else {
             views.setViewVisibility(R.id.message, View.GONE);

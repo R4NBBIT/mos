@@ -113,7 +113,7 @@ export default function TodoBoss({ theme, active }: { theme: Theme; active: bool
             <span key={menu}>{menu}</span>
           ))}
         </div>
-        <div className="boss-todo-grid" role="table" aria-label="체크리스트">
+        <div className="boss-todo-grid" role="table" aria-label="TODO">
           <div className="boss-todo-cell boss-todo-head" />
           {columns.map((col) => (
             <div key={col} className="boss-todo-cell boss-todo-head">
@@ -239,7 +239,7 @@ export default function TodoBoss({ theme, active }: { theme: Theme; active: bool
   return (
     <div className="boss-todo boss-todo-note">
       <article className="boss-todo-page">
-        <p className="boss-todo-crumb">업무 공간 / 체크리스트</p>
+        <p className="boss-todo-crumb">업무 공간 / TODO</p>
         <h1>{longLabel(today())}</h1>
         {list}
       </article>

@@ -97,7 +97,13 @@ def test_todo_commands(env: Env) -> None:
     moved = run(env, "/todo 치과 내일로 미뤄줘")["text"]
     assert moved.startswith("📅 옮겼어요: 치과")
     assert "치과" in run(env, "/todo 내일 뭐 있어")["text"]
-    assert "삭제는" in run(env, "/todo 장보기 삭제해줘")["text"]
+    asked = run(env, "/todo 장보기 삭제해줘")
+    assert asked["text"].startswith("삭제할까요?") and "장보기" in asked["text"]
+    assert [c["label"] for c in asked["choices"]] == ["삭제", "취소"]
+    assert run(env, asked["choices"][1]["text"])["text"] == "삭제하지 않았어요."
+    assert run(env, asked["choices"][0]["text"])["text"].startswith("🗑️ 삭제했어요")
+    assert "장보기" not in run(env, "/todo 오늘 뭐 있어")["text"]
+    assert "이미 삭제" in run(env, asked["choices"][0]["text"])["text"]
     missing = run(env, "/todo [없는것] 회의 넣어줘")
     assert "없어요" in missing["text"] and missing["choices"]
 

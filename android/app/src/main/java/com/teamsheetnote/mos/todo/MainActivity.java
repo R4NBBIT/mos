@@ -1,7 +1,10 @@
 package com.teamsheetnote.mos.todo;
 
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
@@ -142,11 +145,35 @@ public class MainActivity extends Activity {
                         .appendQueryParameter("scope", "todo")
                         .appendQueryParameter("state", stateValue)
                         .build();
-                runOnUiThread(() -> startActivity(new Intent(Intent.ACTION_VIEW, uri)));
+                runOnUiThread(() -> openInBrowser(uri));
             } catch (Exception error) {
                 runOnUiThread(() -> status.setText("시작하지 못했어요. 인터넷 연결을 확인해 주세요."));
             }
         }).start();
+    }
+
+    /**
+     * 승인 화면은 브라우저(가능하면 앱 안 탭)로 연다. 그냥 열면 휴대폰에 설치된 ㅁㅇㅅ 웹앱이 주소를 가로채
+     * 승인 화면 없이 웹앱만 열리는 일이 있어서(2026-11-23 사용자 확인), 기본 브라우저를 골라 그쪽으로 보낸다.
+     */
+    private void openInBrowser(Uri uri) {
+        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+        intent.addCategory(Intent.CATEGORY_BROWSABLE);
+        Bundle extras = new Bundle();
+        extras.putBinder("android.support.customtabs.extra.SESSION", null); // 앱 안 탭(Custom Tab)으로
+        intent.putExtras(extras);
+        Intent probe = new Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com/"));
+        ResolveInfo browser = getPackageManager().resolveActivity(probe, PackageManager.MATCH_DEFAULT_ONLY);
+        String target = browser == null || browser.activityInfo == null ? null : browser.activityInfo.packageName;
+        if (target != null && !"android".equals(target)) {
+            intent.setPackage(target);
+        }
+        try {
+            startActivity(intent);
+        } catch (ActivityNotFoundException error) {
+            intent.setPackage(null);
+            startActivity(intent);
+        }
     }
 
     /** 사이트에서 '연결'을 누르면 com.teamsheetnote.mos.todo:/oauth?code=…&state=… 로 돌아온다 */

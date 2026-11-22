@@ -30,6 +30,7 @@ from mos.services.todo_words import HOUR, Understood, understand
 
 DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 SHORT_DAY_RE = re.compile(r"^(\d{1,2})[/.](\d{1,2})$")
+DELETE_CONFIRM = re.compile(r"삭제 확인 ([0-9a-zA-Z:\-]{1,40})")
 
 COMMANDS = [
     {"name": "점메추", "usage": "/점메추", "help": "오늘의 점심 메뉴 추천(리롤 가능)"},
@@ -244,11 +245,17 @@ class BotCommands:
         except CommandError as error:
             return CommandResult(str(error))
         categories = [c for c in await self.todo.categories(account_id) if c["closed_at"] is None]
+        # 삭제 확인 단추가 보내는 말(사람이 쓰는 말이 아님)
+        confirm = DELETE_CONFIRM.fullmatch(raw.strip())
+        if confirm:
+            return await self._delete(account_id, confirm[1])
+        if raw.strip() == "삭제 취소":
+            return CommandResult("삭제하지 않았어요.")
         words = understand(raw, today, [str(c["name"]) for c in categories])
         if words.action == "view":
             return await self._view(account_id, words.days[0] if words.days else today)
         if words.action == "delete":
-            return CommandResult("삭제는 ㅁㅇㅅ TODO 화면이나 연결한 AI에서 해 주세요.")
+            return await self._ask_delete(account_id, today, words)
         if words.action in ("done", "undo", "move"):
             return await self._change(account_id, today, words)
         return await self._add(account_id, today, raw, words, categories)
@@ -319,6 +326,62 @@ class BotCommands:
         start = match.start() + len(match[1] or "")
         return re.sub(r"\s+", " ", raw[:start] + " " + raw[match.end() :]).strip()
 
+    async def _ask_delete(self, account_id: int, today: str, words: Understood) -> CommandResult:
+        """지울 TODO를 찾아 보여 주고 [삭제] [취소] 단추로 한 번 확인한다.
+
+        2026-11-23 사용자 요청. 지운 것은 앱과 같이 휴지통에 7일."""
+        day = words.days[0] if words.days else today
+        found, reply = await self._find(account_id, day, words)
+        if found is None:
+            return reply or CommandResult("무엇을 삭제할지 이름이나 번호를 써 주세요.")
+        parts = [self._day_word(day), found["title"], found["time"] or "", found["place"] or ""]
+        line = " | ".join(part for part in parts if part)
+        repeat = "\n반복 TODO라 이날 것만 삭제돼요." if found.get("repeat") else ""
+        return CommandResult(
+            f"삭제할까요? {line}{repeat}\n휴지통에서 7일 동안 되살릴 수 있어요.",
+            choices=[("삭제", f"/todo 삭제 확인 {found['id']}"), ("취소", "/todo 삭제 취소")],
+        )
+
+    async def _delete(self, account_id: int, item_id: str) -> CommandResult:
+        trash = self.todo.trash
+        try:
+            done = await trash(account_id, item_id) if trash is not None else False
+            if trash is None:
+                await self.todo.delete_item(account_id, item_id, "today")
+                done = True
+        except TodoError:
+            done = False
+        if not done:
+            return CommandResult("이미 삭제했거나 찾지 못했어요.")
+        return CommandResult(
+            "🗑️ 삭제했어요. 휴지통(TODO 카테고리 화면 아래)에서 7일 동안 되살릴 수 있어요."
+        )
+
+    async def _find(
+        self, account_id: int, day: str, words: Understood
+    ) -> tuple[dict[str, Any] | None, CommandResult | None]:
+        """번호나 이름으로 그날 TODO 하나를 찾는다. 못 찾거나 여럿이면 안내를 함께 돌려준다."""
+        items = await self._list(account_id, day)
+        if words.number is not None:
+            if 1 <= words.number <= len(items):
+                return items[words.number - 1], None
+        elif words.title:
+            exact = [item for item in items if item["title"] == words.title]
+            close = exact or [item for item in items if words.title in item["title"]]
+            if words.action == "done":
+                close = [item for item in close if not item["done"]] or close
+            if len(close) > 1:
+                lines = [self._line(items.index(item) + 1, item) for item in close]
+                return None, CommandResult(
+                    "여러 개가 있어요. 번호로 말해 주세요.\n" + "\n".join(lines)
+                )
+            if close:
+                return close[0], None
+        else:
+            return None, None
+        view = await self._view(account_id, day)
+        return None, CommandResult(f"{self._day_word(day)}에서 찾지 못했어요.\n{view.text}")
+
     async def _change(self, account_id: int, today: str, words: Understood) -> CommandResult:
         if words.action == "move":
             if len(words.days) >= 2:
@@ -327,23 +390,9 @@ class BotCommands:
                 source, target = today, words.days[0]
         else:
             source, target = (words.days[0] if words.days else today), ""
-        items = await self._list(account_id, source)
-        found: dict[str, Any] | None = None
-        if words.number is not None:
-            if 1 <= words.number <= len(items):
-                found = items[words.number - 1]
-        elif words.title:
-            exact = [item for item in items if item["title"] == words.title]
-            close = exact or [item for item in items if words.title in item["title"]]
-            if words.action == "done":
-                close = [item for item in close if not item["done"]] or close
-            if len(close) > 1:
-                lines = [self._line(items.index(item) + 1, item) for item in close]
-                return CommandResult("여러 개가 있어요. 번호로 말해 주세요.\n" + "\n".join(lines))
-            found = close[0] if close else None
+        found, reply = await self._find(account_id, source, words)
         if found is None:
-            view = await self._view(account_id, source)
-            return CommandResult(f"{self._day_word(source)}에서 찾지 못했어요.\n{view.text}")
+            return reply or CommandResult("무엇을 할지 이름이나 번호를 써 주세요.")
         if words.action == "move":
             try:
                 await self.todo.update_item(account_id, found["id"], {"day": target})

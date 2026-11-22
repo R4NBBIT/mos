@@ -14,10 +14,10 @@ function nowTime(): string {
 const LABELS: Record<Theme, { name: string; ext: string }> = {
   moon: { name: "TODO", ext: "" },
   night: { name: "TODO", ext: "" },
-  sheet: { name: "체크리스트", ext: ".xlsx" },
-  memo: { name: "체크리스트", ext: ".txt" },
-  note: { name: "체크리스트", ext: "" },
-  word: { name: "체크리스트", ext: ".docx" },
+  sheet: { name: "TODO", ext: ".xlsx" },
+  memo: { name: "TODO", ext: ".txt" },
+  note: { name: "TODO", ext: "" },
+  word: { name: "TODO", ext: ".docx" },
 };
 
 export default function TodoEntry({

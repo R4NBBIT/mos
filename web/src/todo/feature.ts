@@ -26,10 +26,10 @@ export function useTodoAllowed(): boolean {
 
 /** 위장 화면 '내 TODO'의 파일 이름과 탭 아이콘(테마마다 그 프로그램처럼) */
 export function todoBossTitle(theme: string): { name: string; icon: "sheet" | "memo" | "note" | "word" } {
-  if (theme === "sheet") return { name: "업무 체크리스트.xlsx", icon: "sheet" };
-  if (theme === "memo") return { name: "체크리스트.txt - 메모장", icon: "memo" };
-  if (theme === "word") return { name: "업무 체크리스트.docx", icon: "word" };
-  return { name: "업무 체크리스트", icon: "note" };
+  if (theme === "sheet") return { name: "TODO.xlsx", icon: "sheet" };
+  if (theme === "memo") return { name: "TODO.txt - 메모장", icon: "memo" };
+  if (theme === "word") return { name: "TODO.docx", icon: "word" };
+  return { name: "TODO", icon: "note" };
 }
 
 // ------------------------------------------------------------ AI 연결 승인 요청(#/connect/<ID>)

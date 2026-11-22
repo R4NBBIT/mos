@@ -3952,3 +3952,24 @@
   display: inline-block;
   white-space: nowrap;
 }
+
+/* 넣기 칸: 날짜, 시각은 글자 길이만큼(고정폭 글꼴 테마에서도 겹치지 않게), 자리가 없으면 다음 줄로 */
+.todo-add:focus-within .todo-add-fields,
+.todo-add-fields-on {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.todo-add-field {
+  flex: 0 0 auto;
+  max-width: 100%;
+}
+
+.todo-add-field-wide {
+  flex: 1 1 200px;
+}
+
+.todo-add-field-full {
+  flex: 1 1 100%;
+}
