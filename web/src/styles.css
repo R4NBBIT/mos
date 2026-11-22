@@ -8210,3 +8210,666 @@ body.sorting * {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ===== 잠금 화면 테마별(스프레드시트, Word, 메모장, 노션) =====
+   그 프로그램의 '암호' 창이나 잠긴 페이지처럼. 뒤 화면은 장식뿐(대화 내용 없음) */
+.lock-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
+  background: #ffffff;
+  color: #222222;
+  font-size: 13px;
+}
+
+.lock-chrome {
+  flex: 0 0 auto;
+}
+
+.lock-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 38px;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+
+.lock-titlebar > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lock-dim {
+  opacity: 0.72;
+}
+
+.lock-spacer {
+  flex: 1;
+}
+
+.lock-tabs {
+  display: flex;
+  gap: 18px;
+  padding: 0 14px;
+  overflow: hidden;
+  border-bottom: 1px solid #e1e1e1;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.lock-tabs > span {
+  padding: 6px 2px;
+}
+
+.lock-ribbon {
+  height: 52px;
+  border-bottom: 1px solid #e1e1e1;
+  background: #f8f8f8;
+}
+
+.lock-stage {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 24px 16px;
+  overflow: auto;
+}
+
+.lock-backdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.lock-dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(410px, 100%);
+  box-sizing: border-box;
+  background: #ffffff;
+}
+
+.lock-dialog-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.lock-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lock-message {
+  margin: 0;
+  line-height: 1.55;
+  word-break: keep-all;
+}
+
+.lock-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lock-user strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lock-user-note {
+  color: #737373;
+  font-size: 12px;
+}
+
+.lock-user .avatar {
+  flex: 0 0 auto;
+}
+
+.lock-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lock-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+}
+
+.lock-field input {
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid #8a8a8a;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #222222;
+  font: inherit;
+  font-size: 14px;
+}
+
+.lock-shell .check-row {
+  font-size: 12.5px;
+  word-break: keep-all;
+}
+
+.lock-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lock-actions .login-forgot {
+  padding: 4px 0;
+  font-size: 12.5px;
+}
+
+.lock-actions .primary-button {
+  min-width: 88px;
+  height: 32px;
+  margin-left: auto;
+  padding: 0 18px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.lock-dialog-foot .login-foot,
+.lock-dialog-foot .login-confirm {
+  border-top: 1px solid #ececec;
+  font-size: 12.5px;
+}
+
+.lock-dialog-foot .text-button {
+  font-size: 12.5px;
+}
+
+.lock-dialog .other-accounts {
+  margin-top: 10px;
+}
+
+.lock-status {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  height: 24px;
+  padding: 0 12px;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+/* --- 스프레드시트: 초록 제목 줄, 빈 시트, 엑셀 '암호' 창 --- */
+.lock-sheet {
+  font-family: "Malgun Gothic", Pretendard, "Apple SD Gothic Neo", sans-serif;
+}
+
+.lock-sheet .lock-titlebar,
+.lock-sheet .lock-status {
+  background: #1f6e43;
+  color: #ffffff;
+}
+
+.lock-sheet .lock-tab-on,
+.lock-word .lock-tab-on {
+  border-bottom: 2px solid currentColor;
+  font-weight: 700;
+}
+
+.lock-sheet .lock-tab-on {
+  color: #1f6e43;
+}
+
+.lock-formula {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-bottom: 1px solid #e1e1e1;
+  font-size: 12px;
+}
+
+.lock-namebox {
+  width: 64px;
+  padding: 1px 6px;
+  border: 1px solid #d4d4d4;
+}
+
+.lock-fx {
+  color: #888888;
+  font-style: italic;
+}
+
+.lock-formula-input {
+  flex: 1;
+  height: 20px;
+  border: 1px solid #d4d4d4;
+}
+
+.lock-sheet .lock-backdrop {
+  /* 행 번호 칸 + 열 머리 + 칸 선 */
+  background:
+    linear-gradient(#f3f3f3, #f3f3f3) 0 0 / 36px 100% no-repeat,
+    linear-gradient(#f3f3f3, #f3f3f3) 0 0 / 100% 22px no-repeat,
+    repeating-linear-gradient(to right, transparent 0 35px, #d4d4d4 35px 36px, transparent 36px 109px, #e6e6e6 109px 110px)
+      0 0 / 100% 100%,
+    repeating-linear-gradient(to bottom, transparent 0 21px, #e6e6e6 21px 22px);
+}
+
+.lock-sheet .lock-dialog {
+  gap: 12px;
+  padding: 0 0 14px;
+  border: 1px solid #b9b9b9;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+}
+
+.lock-sheet .lock-dialog-title {
+  padding: 8px 14px;
+  border-bottom: 1px solid #e3e3e3;
+  font-size: 12.5px;
+}
+
+.lock-sheet .lock-dialog-body,
+.lock-sheet .lock-dialog-foot,
+.lock-sheet .other-accounts {
+  padding: 0 20px;
+}
+
+.lock-sheet .lock-field input {
+  border: 1px solid #1f6e43;
+  border-radius: 0;
+  outline-color: #1f6e43;
+}
+
+.lock-sheet .primary-button {
+  border-radius: 0;
+  background: #1f6e43;
+  color: #ffffff;
+}
+
+.lock-sheet .login-forgot {
+  color: #1f6e43;
+}
+
+/* --- Word: 파란 제목 줄, 회색 바탕 흰 종이, '문서 보호 해제' 창 --- */
+.lock-word {
+  font-family: "Segoe UI", "Malgun Gothic", Pretendard, sans-serif;
+}
+
+.lock-word .lock-titlebar {
+  height: 40px;
+  background: #185abd;
+  color: #ffffff;
+}
+
+.lock-word .lock-tab-on {
+  color: #185abd;
+}
+
+.lock-word .lock-ribbon {
+  background: #faf9f8;
+}
+
+.lock-word .lock-stage,
+.lock-word .lock-status {
+  background: #f3f2f1;
+}
+
+.lock-word .lock-status {
+  border-top: 1px solid #e1dfdd;
+  color: #555555;
+}
+
+.lock-paper {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  width: min(620px, calc(100% - 24px));
+  height: 900px;
+  box-sizing: border-box;
+  transform: translateX(-50%);
+  background:
+    linear-gradient(#e3e3e3, #e3e3e3) 70px 64px / 40% 20px no-repeat,
+    repeating-linear-gradient(to bottom, transparent 0 14px, #ececec 14px 23px) 70px 120px / calc(100% - 140px) 100%
+      no-repeat,
+    #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  opacity: 0.55;
+}
+
+.lock-word .lock-dialog {
+  gap: 12px;
+  padding: 18px 22px 18px;
+  border-radius: 8px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.22);
+}
+
+.lock-word .lock-dialog-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.lock-word .lock-message {
+  color: #424242;
+}
+
+.lock-word .lock-user {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #f5f5f5;
+}
+
+.lock-word .lock-field input {
+  border-bottom: 2px solid #185abd;
+}
+
+.lock-word .primary-button {
+  background: #185abd;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.lock-word .login-forgot {
+  color: #185abd;
+}
+
+/* --- 메모장: 빈 메모장 위 윈도우 '암호 입력' 창 --- */
+.lock-memo {
+  font-family: "Segoe UI", "Malgun Gothic", Pretendard, sans-serif;
+}
+
+.lock-memo .lock-titlebar {
+  height: 34px;
+  background: #f3f3f3;
+  font-size: 12px;
+}
+
+.lock-memo .lock-tabs {
+  border-bottom-color: #ececec;
+}
+
+.lock-memo .lock-tabs > span {
+  padding: 5px 0;
+}
+
+.lock-caret {
+  position: absolute;
+  top: 10px;
+  left: 14px;
+  width: 1px;
+  height: 18px;
+  background: #111111;
+  animation: lock-blink 1.06s steps(1) infinite;
+}
+
+@keyframes lock-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.lock-memo .lock-dialog {
+  overflow: hidden;
+  border: 1px solid #c8c8c8;
+  border-radius: 8px;
+  background: #f3f3f3;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+}
+
+.lock-memo .lock-dialog-title {
+  padding: 16px 20px 0;
+  background: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.lock-memo .lock-dialog-body {
+  padding: 12px 20px 16px;
+  background: #ffffff;
+}
+
+.lock-memo .lock-message {
+  color: #444444;
+}
+
+.lock-memo .lock-field > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.lock-memo .lock-field input {
+  border: 1px solid #c4c4c4;
+  border-bottom: 2px solid #0067c0;
+}
+
+.lock-memo .primary-button {
+  background: #0067c0;
+  color: #ffffff;
+}
+
+.lock-memo .login-forgot {
+  color: #0067c0;
+}
+
+.lock-memo .lock-dialog-foot .login-foot,
+.lock-memo .lock-dialog-foot .login-confirm {
+  padding: 10px 20px;
+  border-top: 1px solid #e5e5e5;
+}
+
+.lock-memo .other-accounts {
+  padding: 0 20px 12px;
+}
+
+.lock-memo .lock-status {
+  justify-content: flex-end;
+  gap: 28px;
+  border-top: 1px solid #e5e5e5;
+  background: #f3f3f3;
+  color: #444444;
+}
+
+/* --- 노션: 사이드바 + 잠긴 페이지(창 없이) --- */
+.lock-note {
+  color: #37352f;
+  font-family: ui-sans-serif, -apple-system, "Segoe UI", Pretendard, sans-serif;
+}
+
+.lock-note {
+  /* 왼쪽 사이드바 칸은 맨 위부터 끝까지 */
+  background: linear-gradient(to right, #f7f7f5 0 240px, #ededec 240px 241px, #ffffff 241px);
+}
+
+.lock-note .lock-titlebar {
+  height: 44px;
+  padding-left: 0;
+  font-size: 13px;
+}
+
+.lock-note-ws {
+  flex: 0 0 240px;
+  box-sizing: border-box;
+  padding-left: 16px;
+  color: #37352f;
+  font-weight: 600;
+}
+
+.lock-note .lock-stage {
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 80px 24px 24px calc(240px + clamp(24px, 10vw, 140px));
+}
+
+.lock-sidebar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 240px;
+  box-sizing: border-box;
+  padding: 6px 16px;
+  color: #5f5e5b;
+  font-size: 13px;
+}
+
+.lock-sidebar span {
+  color: #9b9a97;
+  font-size: 11.5px;
+}
+
+.lock-sidebar i {
+  display: block;
+  height: 8px;
+  border-radius: 3px;
+  background: #dcdbd8;
+}
+
+.lock-note .lock-dialog {
+  gap: 14px;
+  width: min(420px, 100%);
+  background: transparent;
+}
+
+.lock-note-icon {
+  width: 48px;
+  height: 48px;
+  fill: none;
+  stroke: #9b9a97;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lock-note-title {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.lock-note .lock-message {
+  color: #787774;
+  font-size: 14px;
+}
+
+.lock-note .lock-user-note {
+  color: #9b9a97;
+}
+
+.lock-note .lock-field > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.lock-note .lock-field input {
+  height: 36px;
+  border: 1px solid #e3e2e0;
+  border-radius: 6px;
+  background: #f7f6f3;
+}
+
+.lock-note .primary-button {
+  border-radius: 6px;
+  background: #2383e2;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.lock-note .login-forgot {
+  color: #787774;
+}
+
+.lock-note .lock-dialog-foot .login-foot,
+.lock-note .lock-dialog-foot .login-confirm {
+  border-top-color: #ededec;
+}
+
+/* 휴대폰: 창을 위쪽에(키보드에 안 가리게), 장식 줄은 줄이고 칸과 단추는 크게 */
+@media (max-width: 640px) {
+  .lock-tabs,
+  .lock-ribbon,
+  .lock-formula,
+  .lock-wide,
+  .lock-sidebar {
+    display: none;
+  }
+
+  .lock-titlebar {
+    height: 46px;
+    font-size: 14px;
+  }
+
+  .lock-stage {
+    align-items: flex-start;
+    padding: 48px 16px 24px;
+  }
+
+  .lock-sheet .lock-stage,
+  .lock-memo .lock-stage {
+    background-color: rgba(0, 0, 0, 0.06);
+  }
+
+  .lock-field input {
+    height: 44px;
+    font-size: 16px; /* 16px보다 작으면 아이폰이 확대한다 */
+  }
+
+  .lock-actions .primary-button {
+    height: 44px;
+  }
+
+  .lock-note {
+    background: #ffffff;
+  }
+
+  .lock-note-ws {
+    display: none;
+  }
+
+  .lock-note .lock-titlebar {
+    padding-left: 14px;
+    border-bottom: 1px solid #ededec;
+  }
+
+  .lock-note .lock-stage {
+    padding: 40px 22px 24px;
+  }
+
+  .lock-note-title {
+    font-size: 28px;
+  }
+
+  .lock-note .lock-actions .primary-button {
+    width: 100%;
+  }
+
+  .lock-paper {
+    top: 14px;
+  }
+}
