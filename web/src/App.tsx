@@ -33,6 +33,7 @@ import SplitToggle, { SplitContext } from "./SplitToggle";
 import { ChannelList, GroupList } from "./Lists";
 import Posts from "./Posts";
 import SettingsScreen from "./SettingsScreen";
+import SwipeDeck from "./SwipeDeck";
 import WordChrome from "./WordChrome";
 import { LookContext, type LookValue } from "./lookContext";
 import { applyDisguise, applyLook, type BossTemplate, cachedLook, type Settings } from "./theme";
@@ -84,6 +85,20 @@ function parseRoute(hash: string): Route {
   const channels = /^#\/g\/(\d{1,21})$/.exec(hash);
   if (channels?.[1]) return { view: "channels", groupId: channels[1] };
   return { view: "groups" };
+}
+
+/** 휴대폰에서 옆으로 넘기는 단계: 서버 목록 0, 채널 목록 1, 채팅(채팅방, 글, 음성) 2 */
+function routeLevel(route: Route): number {
+  if (route.view === "groups" || route.view === "settings") return 0;
+  if (route.view === "channels") return 1;
+  return 2;
+}
+
+/** 채널 목록에서 밝게 보일 채널(글이면 그 포럼, 스레드면 부모 채널) */
+function routeChannel(route: Route): string | undefined {
+  if (route.view === "chat" || route.view === "voice") return route.channelId;
+  if (route.view === "posts" || route.view === "thread") return route.parentId;
+  return undefined;
 }
 
 function useHashRoute(): [Route, (hash: string) => void] {
@@ -180,6 +195,13 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
   const [notice, setNotice] = useState(takeConnectError);
   const [route, go] = useHashRoute();
   const wide = useWide();
+  // 휴대폰에서 왼쪽으로 밀었을 때 돌아갈 곳: 마지막에 연 서버와 서버마다 마지막에 본 채팅
+  const lastPlace = useRef<{ group: string | null; chats: Record<string, string> }>({ group: null, chats: {} });
+  useEffect(() => {
+    if (route.view === "groups" || route.view === "settings") return;
+    lastPlace.current.group = route.groupId;
+    if (routeLevel(route) === 2) lastPlace.current.chats[route.groupId] = window.location.hash;
+  }, [route]);
   const [listOpen, setListOpen] = useListOpen();
   const listPresence = usePresence(listOpen, 240);
   // 넓은 화면 왼쪽 목록에서 둘러보는 서버(null이면 서버 목록). 오른쪽 화면과 따로 움직이고,
@@ -439,7 +461,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     );
 
     if (route.view === "settings") {
-      return (
+      const settingsScreen = (
         <SettingsScreen
           settings={look}
           onChange={setLook}
@@ -448,18 +470,47 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           onFileChanged={onFileChanged}
         />
       );
+      if (wide) return settingsScreen;
+      // 휴대폰: 오른쪽으로 밀면 뒤로
+      return (
+        <SwipeDeck
+          level={1}
+          render={(level) => (level === 1 ? settingsScreen : null)}
+          canGo={(level) => level === 0}
+          onGo={() => window.history.back()}
+        />
+      );
     }
 
     // 목록 없이 한 화면(좁은 창, 또는 넓은 창에서 목록을 접었을 때)
-    const single = () => {
-      if (route.view === "chat") return chatRoom(route.groupId, route.channelId, false);
-      if (route.view === "voice") return voiceRoom(route.groupId, route.channelId, false);
-      if (route.view === "posts") return posts(route.groupId, route.parentId);
-      if (route.view === "thread") return chatRoom(route.groupId, route.threadId, false, route.parentId);
-      if (route.view === "channels") return channelList(route.groupId);
+    const single = (at: Route = route) => {
+      if (at.view === "chat") return chatRoom(at.groupId, at.channelId, false);
+      if (at.view === "voice") return voiceRoom(at.groupId, at.channelId, false);
+      if (at.view === "posts") return posts(at.groupId, at.parentId);
+      if (at.view === "thread") return chatRoom(at.groupId, at.threadId, false, at.parentId);
+      if (at.view === "channels") return channelList(at.groupId);
       return groupList();
     };
-    if (!wide) return single();
+    if (!wide) {
+      // 휴대폰: 서버 목록(0), 채널 목록(1), 채팅(2) 사이를 옆으로 밀어서 오간다
+      const level = routeLevel(route);
+      const groupId = route.view === "groups" ? lastPlace.current.group : route.groupId;
+      const lastChat = groupId ? lastPlace.current.chats[groupId] : undefined;
+      const nextChat = lastChat ? parseRoute(lastChat) : null;
+      return (
+        <SwipeDeck
+          level={level}
+          render={(at) => {
+            if (at === level) return single();
+            if (at === 0) return groupList();
+            if (at === 1) return groupId ? channelList(groupId, level === 2 && route.view !== "groups" ? routeChannel(route) : undefined) : null;
+            return nextChat ? single(nextChat) : null;
+          }}
+          canGo={(at) => (at === 0 ? true : at === 1 ? Boolean(groupId) : Boolean(nextChat && routeLevel(nextChat) === 2))}
+          onGo={(at) => go(at === 0 ? "#/" : at === 1 ? `#/g/${groupId}` : (lastChat ?? "#/"))}
+        />
+      );
+    }
 
     // 넓은 화면: 접고 펴는 버튼은 오른쪽 화면 머리 줄 맨 앞, 계정 메뉴는 오른쪽 위에 늘 같은 자리.
     // 왼쪽 목록은 접어도 자리(aside)는 남겨 두고 폭만 줄여서 부드럽게 여닫는다

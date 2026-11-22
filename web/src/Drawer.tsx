@@ -6,6 +6,7 @@ import { isDiscordMediaUrl, formatSize, thumbnailUrl, viaServer } from "./format
 import { useLook } from "./lookContext";
 import { Avatar } from "./MessageItem";
 import { plainText } from "./SheetView";
+import { useSwipeToClose } from "./SwipeDeck";
 import type { Attachment, ChannelInfo, GroupMember, Message } from "./types";
 
 export type DrawerTab = "search" | "pins" | "photos" | "files" | "people";
@@ -438,6 +439,9 @@ export default function Drawer({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
+  // 휴대폰: 오른쪽으로 밀어서 닫기
+  const panelRef = useRef<HTMLElement>(null);
+  useSwipeToClose(panelRef, onClose);
   let body: ReactNode;
   if (tab === "search") body = <SearchTab channel={channel} onJump={onJump} onAuthLost={onAuthLost} />;
   else if (tab === "pins") body = <PinsTab channel={channel} onJump={onJump} onAuthLost={onAuthLost} />;
@@ -445,7 +449,7 @@ export default function Drawer({
   else if (tab === "files") body = <FilesTab files={files} onJump={onJump} />;
   else body = <PeopleTab channel={channel} onJump={onJump} onAuthLost={onAuthLost} />;
   return (
-    <aside className="drawer" aria-label={drawerTitle(theme)}>
+    <aside className="drawer" aria-label={drawerTitle(theme)} ref={panelRef}>
       <header className="drawer-header">
         <strong>{drawerTitle(theme)}</strong>
         <button type="button" className="drawer-close" onClick={onClose} aria-label="닫기">

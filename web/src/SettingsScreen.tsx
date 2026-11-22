@@ -222,9 +222,8 @@ export default function SettingsScreen({ settings, onChange, onBack, menu, onFil
       <div className="list-body settings">
         {error && <p className="list-error">{error}</p>}
         <p className="settings-device-note">
-          여기 설정은 <strong>지금 쓰는 이 기기</strong>(브라우저나 설치한 앱)에만 적용돼요. 회사 컴퓨터와 휴대폰을
-          다르게 쓰려면 기기마다 따로 정해 주세요. 위장 화면에 올린 파일, 고정, 목록 순서와 숨기기, 고친 문서 제목은
-          모든 기기에서 같아요.
+          설정은 <strong>지금 이 기기</strong>에만 적용돼요. 다른 기기는 그 기기에서 따로 바꿔 주세요. 위장 화면에
+          올린 파일, 고정, 목록 순서, 숨긴 항목, 바꾼 문서 제목은 모든 기기에서 같아요.
         </p>
         <section className="settings-card">
           <h2 className="settings-title">테마</h2>
