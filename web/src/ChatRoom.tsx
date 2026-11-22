@@ -17,7 +17,7 @@ import Composer from "./Composer";
 import EditableText from "./EditableText";
 import { useLook } from "./lookContext";
 import { compareIds, dayKey, formatDay, formatTime } from "./format";
-import MessageItem, { Avatar, MessageBody, paraColor, type ReplyPreview } from "./MessageItem";
+import MessageItem, { Avatar, MessageBody, paraColor, personId, type ReplyPreview } from "./MessageItem";
 import SheetView, { plainText } from "./SheetView";
 import type { Theme } from "./theme";
 import type { ChannelInfo, Message, RealtimeEvent } from "./types";
@@ -77,8 +77,9 @@ function Coauthors({ messages, myUserId }: { messages: Message[]; myUserId: stri
     if (people.length >= 4) break;
     const { author } = message;
     if (isSystemMessage(message) || author.id === myUserId || message.web_sender_id === myUserId) continue;
-    if (!people.some((person) => person.id === author.id && person.name === author.name)) {
-      people.push({ id: author.id, name: author.name });
+    const id = personId(message);
+    if (!people.some((person) => person.id === id)) {
+      people.push({ id, name: author.name });
     }
   }
   if (people.length === 0) return null;

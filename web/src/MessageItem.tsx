@@ -237,6 +237,11 @@ function bareBubble(message: Message, stickersView: string): boolean {
 // Word 테마: 사람마다 같은 색(본문 왼쪽 막대, 이름표)
 const PARA_COLORS = ["#1f5fa8", "#a3620a", "#2f6b2f", "#8a5a2b", "#7a3e9d", "#b03a48", "#0f7b7b", "#5c5c9e"];
 
+/** 색을 정할 사람 ID: 이 사이트에서 보낸 메시지는 웹훅 ID가 아니라 진짜 보낸 사람 ID */
+export function personId(message: Message): string {
+  return message.web_sender_id ?? message.author.id;
+}
+
 export function paraColor(id: string): string {
   let hash = 0;
   for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
@@ -397,7 +402,7 @@ function MessageItem({
     if (grouped && !message.reference_id) paraClasses.push("para-grouped");
     if (mine) paraClasses.push("para-mine");
     return (
-      <div className={paraClasses.join(" ")} style={{ "--who": paraColor(author.id) } as CSSProperties}>
+      <div className={paraClasses.join(" ")} style={{ "--who": paraColor(personId(message)) } as CSSProperties}>
         <span className="para-bar" aria-hidden="true" />
         {message.reference_id && (
           <div className="msg-reply">
