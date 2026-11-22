@@ -6201,3 +6201,52 @@ body.sorting * {
   width: 0.8em;
   height: 0.8em;
 }
+
+/* ------------------------------------------------------------ 글자와 아이콘 줄 맞춤(화면에서 잰 값)
+   한글 글꼴은 글자 상자 가운데보다 조금 아래에 그려져서, 상자끼리 가운데를 맞춰도
+   아이콘이 글자보다 1~2px 떠 보인다. 글자 쪽을 그만큼 올리거나 아이콘을 내린다 */
+:root:not([data-theme]) .list-item .list-name,
+:root[data-theme="night"] .list-item .list-name,
+:root[data-theme="sheet"] .list-item .list-name {
+  translate: 0 -1px;
+}
+
+:root[data-theme="memo"] .list-item .list-name {
+  translate: 0 -1px;
+}
+
+:root[data-theme="memo"] .member-count {
+  translate: 0 1px;
+}
+
+:root[data-theme="note"] .list-item .pin-button {
+  translate: 0 0.8px;
+}
+
+:root:not([data-theme]) .server-switch-button strong,
+:root[data-theme="night"] .server-switch-button strong,
+:root[data-theme="sheet"] .server-switch-button strong,
+:root[data-theme="word"] .server-switch-button strong {
+  translate: 0 -1px;
+}
+
+/* 뒤로 꺾쇠: 옆 제목 글자 높이에 맞춰 조금 아래로(스프레드시트 목록 머리는 이미 맞음) */
+:root:not([data-theme="sheet"]) .back-button .back-icon {
+  translate: 0 1.5px;
+}
+
+.sheet-back .back-icon {
+  translate: 0 1px;
+}
+
+:root[data-theme="memo"] .member-name {
+  translate: 0 2px;
+}
+
+:root[data-theme="word"] .member-name {
+  translate: 0 1px;
+}
+
+:root[data-theme="memo"] .list-item .list-people {
+  translate: 0 1px;
+}
