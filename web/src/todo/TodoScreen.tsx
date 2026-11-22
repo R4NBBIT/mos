@@ -29,6 +29,8 @@ import {
   type TodoItem,
   updateTodo,
   fetchTodoNews,
+  fetchFriendsToday,
+  type TodoPerson,
   TODO_NEWS_EVENT,
 } from "./todoApi";
 import "./todo.css";
@@ -77,6 +79,8 @@ export interface TodoScreenProps {
   version?: number;
   /** 카테고리 관리 화면으로 */
   onCategories: () => void;
+  /** 친구 관리(휴대폰은 왼쪽 목록이 없어 머리에서) */
+  onFriends?: () => void;
 }
 
 export default function TodoScreen({
@@ -90,6 +94,7 @@ export default function TodoScreen({
   onChanged,
   version = 0,
   onCategories,
+  onFriends,
 }: TodoScreenProps) {
   const day = isDayKey(rawDay) ? rawDay : today();
   const [data, setData] = useState<TodoDay | null>(null);
@@ -254,6 +259,16 @@ export default function TodoScreen({
             </svg>
             <span className="header-tool-label">AI</span>
           </button>
+          {onFriends && (
+            <button type="button" className="header-tool" aria-label="친구" onClick={onFriends}>
+              <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <circle cx="7.5" cy="7" r="3" />
+                <path d="M2 17c.6-3 2.8-4.5 5.5-4.5S12.4 14 13 17" strokeLinecap="round" />
+                <path d="M13 4.5a2.8 2.8 0 0 1 0 5M15 12.8c1.6.6 2.6 2 3 4.2" strokeLinecap="round" />
+              </svg>
+              <span className="header-tool-label">친구</span>
+            </button>
+          )}
           <button type="button" className="header-tool" aria-label="카테고리 관리" onClick={onCategories}>
             <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
               <rect x="3" y="3.5" width="6" height="6" rx="1.5" />
@@ -350,6 +365,9 @@ export function TodoSide({
   onDay,
   onServers,
   version = 0,
+  friendId = null,
+  onFriend,
+  onFriends,
 }: {
   day: string;
   name: string;
@@ -357,7 +375,21 @@ export function TodoSide({
   /** 머리의 '할 일'을 누르면 서버 목록으로 */
   onServers: () => void;
   version?: number;
+  /** 보고 있는 친구(없으면 나) */
+  friendId?: string | null;
+  onFriend?: (id: string | null) => void;
+  onFriends?: () => void;
 }) {
+  const [friends, setFriends] = useState<(TodoPerson & { done: number; total: number })[]>([]);
+  useEffect(() => {
+    let stopped = false;
+    fetchFriendsToday(isDayKey(day) ? day : today())
+      .then((value) => !stopped && setFriends(value.friends))
+      .catch(() => {});
+    return () => {
+      stopped = true;
+    };
+  }, [day, version]);
   const [month, setMonth] = useState(() => monthStart(isDayKey(day) ? day : today()));
   useEffect(() => {
     if (isDayKey(day)) setMonth(monthStart(day));
@@ -424,10 +456,30 @@ export function TodoSide({
         </div>
         <section className="list-section">
           <h2 className="list-section-title">나와 친구</h2>
-          <div className="list-item list-item-active todo-person">
+          <button
+            type="button"
+            className={friendId === null ? "list-item list-item-active todo-person" : "list-item todo-person"}
+            onClick={() => onFriend?.(null)}
+          >
             <span className="todo-person-name">{name}</span>
             <span className="list-sub">{mine ? `${mine.done}/${mine.total}` : "0/0"}</span>
-          </div>
+          </button>
+          {friends.map((friend) => (
+            <button
+              key={friend.id}
+              type="button"
+              className={friendId === friend.id ? "list-item list-item-active todo-person" : "list-item todo-person"}
+              onClick={() => onFriend?.(friend.id)}
+            >
+              <span className="todo-person-name">{friend.name}</span>
+              <span className="list-sub">{`${friend.done}/${friend.total}`}</span>
+            </button>
+          ))}
+          {onFriends && (
+            <button type="button" className="todo-link-button todo-friends-link" onClick={onFriends}>
+              친구 관리
+            </button>
+          )}
         </section>
       </div>
     </div>

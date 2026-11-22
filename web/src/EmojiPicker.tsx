@@ -65,7 +65,9 @@ function EmojiButton({ value, title, onPick }: { value: string; title: string; o
 }
 
 interface Props {
-  channelId: string;
+  /** 채널 이모지(채팅). 없으면 loadCustom으로 받는다(할 일 반응) */
+  channelId?: string;
+  loadCustom?: () => Promise<{ emojis: ChannelEmoji[]; nitro?: "none" | "pending" | "verified" }>;
   onPick: (text: string) => void;
   onClose: () => void;
   /** 있으면 모임 스티커도 보여 주고, 고르면 바로 보낸다 */
@@ -78,11 +80,11 @@ function stickerImage(sticker: ChannelSticker): string {
   );
 }
 
-export default function EmojiPicker({ channelId, onPick, onClose, onPickSticker }: Props) {
+export default function EmojiPicker({ channelId, loadCustom, onPick, onClose, onPickSticker }: Props) {
   const [stickers, setStickers] = useState<ChannelSticker[]>([]);
   const wantStickers = Boolean(onPickSticker);
   useEffect(() => {
-    if (!wantStickers) return;
+    if (!wantStickers || !channelId) return;
     let stopped = false;
     fetchStickers(channelId)
       .then((list) => {
@@ -103,11 +105,16 @@ export default function EmojiPicker({ channelId, onPick, onClose, onPickSticker 
 
   useEffect(() => {
     let stopped = false;
-    fetchEmojis(channelId)
+    const source: Promise<{ emojis: ChannelEmoji[]; nitro?: "none" | "pending" | "verified" }> = channelId
+      ? fetchEmojis(channelId)
+      : loadCustom
+        ? loadCustom()
+        : Promise.resolve({ emojis: [] });
+    source
       .then((body) => {
         if (stopped) return;
         setCustom(body.emojis);
-        setNitro(body.nitro);
+        setNitro(body.nitro ?? "none");
       })
       .catch(() => {
         if (!stopped) setFailed(true);
@@ -120,7 +127,7 @@ export default function EmojiPicker({ channelId, onPick, onClose, onPickSticker 
     return () => {
       stopped = true;
     };
-  }, [channelId]);
+  }, [channelId, loadCustom]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {

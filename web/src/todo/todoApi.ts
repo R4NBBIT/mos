@@ -22,6 +22,15 @@ export interface TodoItem {
   source: string;
   position: number;
   repeat: TodoRepeat | null;
+  /** 반응(T4). 내 하루 보기, 친구 하루 보기에서 온다 */
+  reactions?: TodoReaction[];
+}
+
+export interface TodoReaction {
+  /** 유니코드 이모지 또는 디스코드 이모지 코드 <a:이름:ID> */
+  emoji: string;
+  count: number;
+  mine: boolean;
 }
 
 export type RepeatRule = "daily" | "weekdays" | "weekly" | "monthly";
@@ -115,7 +124,10 @@ export const deleteCategory = (id: string) => call<void>(`/api/todo/categories/$
 export const addCategory = (name: string, color: string) =>
   call<TodoCategory>("/api/todo/categories", "POST", { name, color });
 
-export const updateCategory = (id: string, changes: Partial<Pick<TodoCategory, "name" | "color" | "closed">>) =>
+export const updateCategory = (
+  id: string,
+  changes: Partial<Pick<TodoCategory, "name" | "color" | "closed" | "visibility" | "memo_shared">>,
+) =>
   call<TodoCategory>(`/api/todo/categories/${id}`, "PATCH", changes);
 
 /** 화면에 보여 줄 짧은 안내(서버 코드 → 문장) */
@@ -142,6 +154,10 @@ export function todoErrorText(error: unknown): string {
     bad_tz: "이 기기의 시간대를 알 수 없어요.",
     bad_morning_via: "아침 요약 방법을 다시 골라 주세요.",
     bad_boss_mode: "위장 중 알림을 다시 골라 주세요.",
+    bad_emoji: "이 이모지는 쓸 수 없어요.",
+    too_many_reactions: "한 할 일에 반응은 10개까지예요.",
+    too_many_requests: "보낸 친구 요청이 너무 많아요(20개).",
+    too_many_friends: "친구는 200명까지예요.",
   };
   return words[code] ?? "저장하지 못했어요. 다시 해 주세요.";
 }
@@ -231,3 +247,38 @@ export const decideAiPending = (id: string, approve: boolean) =>
   call<{ message: string }>(`/api/todo/ai/pending/${encodeURIComponent(id)}`, "POST", { approve });
 
 export const restoreAiTrash = (id: string) => call<void>(`/api/todo/ai/trash/${encodeURIComponent(id)}/restore`, "POST");
+
+// ------------------------------------------------------------ 친구(T4)
+
+export interface TodoPerson {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+}
+
+export interface TodoPeople {
+  friends: TodoPerson[];
+  incoming: TodoPerson[];
+  outgoing: TodoPerson[];
+  candidates: TodoPerson[];
+  accept_requests: boolean;
+}
+
+export interface FriendDay extends TodoDay {
+  relation: "self" | "friend" | "server";
+  person: TodoPerson | null;
+}
+
+export const fetchPeople = () => call<TodoPeople>("/api/todo/people");
+export const requestFriend = (id: string) => call<{ state: string }>(`/api/todo/people/${encodeURIComponent(id)}/request`, "POST");
+export const acceptFriend = (id: string) => call<{ state: string }>(`/api/todo/people/${encodeURIComponent(id)}/accept`, "POST");
+export const removeFriend = (id: string) => call<void>(`/api/todo/people/${encodeURIComponent(id)}`, "DELETE");
+export const setAcceptRequests = (value: boolean) => call<void>("/api/todo/people/settings", "PATCH", { accept_requests: value });
+export const fetchFriendsToday = (day: string) =>
+  call<{ friends: (TodoPerson & { done: number; total: number })[] }>(`/api/todo/friends/today?day=${day}`);
+export const fetchFriendDay = (id: string, day: string) =>
+  call<FriendDay>(`/api/todo/friends/${encodeURIComponent(id)}/day/${day}`);
+export const reactTodo = (owner: string | null, item: string, emoji: string, on: boolean) =>
+  call<{ reactions: TodoReaction[] }>("/api/todo/react", "POST", owner ? { owner, item, emoji, on } : { item, emoji, on });
+export const fetchTodoEmojis = () =>
+  call<{ emojis: { id: string; name: string; animated: boolean; group_id: string; group_name: string }[] }>("/api/todo/emojis");

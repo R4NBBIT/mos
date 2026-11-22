@@ -29,6 +29,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from mos.api.rate_limit import RateLimiter
 from mos.api.todo_ai_routes import register_todo_ai_routes
+from mos.api.todo_friend_routes import register_todo_friend_routes
 from mos.api.todo_routes import register_todo_routes
 from mos.config import Settings
 from mos.db.auth_repo import AuthRepo
@@ -83,6 +84,7 @@ from mos.services.todo_access import FEATURE_NAME as TODO_FEATURE
 from mos.services.todo_access import TodoAccess
 from mos.services.todo_ai_actions import TodoAiActions
 from mos.services.todo_alerts import TodoAlerts
+from mos.services.todo_friends import TodoFriends
 from mos.services.todo_mcp import TodoMcp
 from mos.services.todo_oauth import TodoOAuth
 from mos.version import current_version
@@ -665,15 +667,70 @@ def create_app(
                     )
             if alert.push is None:
                 continue
-            event = {"type": "todo_alert", "data": {**alert.push, "boss_mode": alert.boss}}
-            in_tabs = await hub.send_to_account(alert.account_id, event)
-            for device_id, target_account in targets:
-                if target_account != alert.account_id or device_id in in_tabs:
-                    continue
-                if not (await notify_prefs.get(device_id, alert.account_id))["notify"]:
-                    continue
-                last_push[(device_id, alert.account_id)] = {**alert.push, "at": clock()}
-                await push.send(alert.account_id, device_id)
+            await deliver_todo(alert.account_id, alert.push, alert.boss, targets)
+
+    async def deliver_todo(
+        account_id: int,
+        payload: dict[str, Any],
+        boss_mode: str,
+        targets: list[tuple[int, int]] | None = None,
+    ) -> None:
+        """할 일 알림 하나: 열린 탭(위장 규칙은 탭이), 나머지 기기는 웹 푸시(알림 켠 기기만)."""
+        event = {"type": "todo_alert", "data": {**payload, "boss_mode": boss_mode}}
+        in_tabs = await hub.send_to_account(account_id, event)
+        for device_id, target_account in targets if targets is not None else await push.targets():
+            if target_account != account_id or device_id in in_tabs:
+                continue
+            if not (await notify_prefs.get(device_id, account_id))["notify"]:
+                continue
+            last_push[(device_id, account_id)] = {**payload, "at": clock()}
+            await push.send(account_id, device_id)
+
+    async def notify_todo(account_id: int, title: str, body: str) -> None:
+        """친구 소식(NOTI-02): 할 일 알림과 같은 길로(위장 중 규칙도 같은 설정)."""
+        prefs = await todo_service.alert_prefs(account_id)
+        payload = {"kind": "todo", "title": title, "body": body, "url": "/#/todo"}
+        await deliver_todo(account_id, payload, prefs["boss_mode"])
+
+    async def todo_guilds_of(user_id: int) -> set[int]:
+        return {guild.id for guild in await perms.visible_guilds(user_id)}
+
+    async def todo_emoji_codes(user_id: int, premium: bool) -> set[str]:
+        return {
+            f"<{'a' if item.emoji.animated else ''}:{item.emoji.name}:{item.emoji.id}>"
+            for item in await emojis.usable_anywhere(user_id, premium)
+        }
+
+    async def todo_emoji_list(user_id: int, premium: bool) -> list[dict[str, Any]]:
+        return [
+            {
+                "id": str(item.emoji.id),
+                "name": item.emoji.name,
+                "animated": item.emoji.animated,
+                "group_id": str(item.emoji.guild_id),
+                "group_name": item.group_name,
+            }
+            for item in await emojis.usable_anywhere(user_id, premium)
+        ]
+
+    todo_friends = TodoFriends(
+        db,
+        todo_service,
+        todo_repo,
+        todo_access,
+        guilds_of=todo_guilds_of,
+        emojis_of=todo_emoji_codes,
+        notify=notify_todo,
+        clock=clock,
+    )
+    todo_service.decorate = todo_friends.annotate
+    register_todo_friend_routes(
+        app,
+        todo_account=todo_account,
+        friends=todo_friends,
+        emoji_list=todo_emoji_list,
+        clock=clock,
+    )
 
     async def todo_alert_loop() -> None:
         while True:

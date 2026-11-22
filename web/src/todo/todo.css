@@ -2278,3 +2278,173 @@
   display: block;
   margin-top: 10px;
 }
+
+/* ============================================================ 친구(T4) */
+.todo-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 0 4px 34px;
+  position: relative;
+}
+
+.todo-react {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.todo-react:hover {
+  background: var(--tint);
+}
+
+.todo-react-mine {
+  border-color: var(--btn-bg);
+  background: var(--tint);
+  font-weight: 700;
+}
+
+.todo-react-img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.todo-react-char {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.todo-react-add {
+  color: var(--sub);
+  padding: 0 6px;
+}
+
+.todo-react-add svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.todo-react-picker {
+  position: absolute;
+  z-index: 20;
+  top: 30px;
+  left: 0;
+}
+
+.todo-react-picker > * {
+  position: static;
+}
+
+.todo-check-readonly {
+  cursor: default;
+}
+
+.todo-check-readonly::after {
+  display: none;
+}
+
+.todo-title-readonly {
+  cursor: default;
+}
+
+.todo-friend-avatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  object-fit: cover;
+  background: var(--tint);
+}
+
+.todo-friend-initial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sub);
+}
+
+.todo-friend-section {
+  margin-bottom: 18px;
+  max-width: 640px;
+}
+
+.todo-friend-section ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.todo-friend-title {
+  font-size: 14px;
+  margin: 0 0 6px;
+}
+
+.todo-friend-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.todo-friend-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  text-align: left;
+}
+
+.todo-link-like {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.todo-link-like:hover {
+  text-decoration: underline;
+}
+
+.todo-friend-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.todo-friends-link {
+  margin: 6px 12px;
+}
+
+.todo-next-day svg {
+  transform: scaleX(-1);
+}
+
+.todo-switch-off {
+  opacity: 0.45;
+}
+
+.todo-person {
+  width: 100%;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}

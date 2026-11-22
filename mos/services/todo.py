@@ -6,7 +6,7 @@ import json
 import re
 import time
 from calendar import monthrange
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import date, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -199,6 +199,9 @@ def day_range(start: str, end: str) -> list[str]:
 
 
 class TodoService:
+    # 하루 보기에 덧붙이기(친구 기능의 반응). (보는 사람, 주인, 할 일들)
+    decorate: Callable[[int, int, list[dict[str, Any]]], Awaitable[None]] | None = None
+
     def __init__(self, repo: TodoRepo, clock: Callable[[], float] = time.time) -> None:
         self.repo = repo
         self.clock = clock
@@ -335,10 +338,11 @@ class TodoService:
         used = {item["category_id"] for item in items}
         # 끝낸 카테고리는 그날 할 일이 남아 있을 때만(지난 기록)
         shown = [row for row in categories if row["closed_at"] is None or row["id"] in used]
+        api_items = [item_to_api(item, repeats.get(item["repeat_id"])) for item in items]
         return {
             "day": day,
             "categories": [category_to_api(row) for row in shown],
-            "items": [item_to_api(item, repeats.get(item["repeat_id"])) for item in items],
+            "items": api_items,
         }
 
     async def days(self, account_id: int, raw_start: Any, raw_end: Any) -> dict[str, Any]:
@@ -604,6 +608,27 @@ class TodoService:
         except ValueError:
             prefs = {}
         return prefs if isinstance(prefs, dict) else {}
+
+    async def raw_prefs(self, account_id: int) -> dict[str, Any]:
+        return await self._prefs(account_id)
+
+    async def save_raw_prefs(self, account_id: int, changes: dict[str, Any]) -> None:
+        await self._save_prefs(account_id, changes)
+
+    async def row_for_reaction(
+        self, account_id: int, raw_id: Any, materialize: bool
+    ) -> dict[str, Any] | None:
+        """반응을 달 할 일 행. 반복 회차는 반응을 달 때만 행을 만든다(뗄 때는 만들지 않음)."""
+        if not materialize and isinstance(raw_id, str):
+            match = VIRTUAL_RE.match(raw_id)
+            if match is not None:
+                return await self.repo.item_for_repeat(
+                    account_id, int(match.group(1)), clean_day(match.group(2))
+                )
+        try:
+            return await self._row(account_id, raw_id)
+        except TodoError:
+            return None
 
     async def _save_prefs(self, account_id: int, changes: dict[str, Any]) -> None:
         """다른 키는 그대로 두고 바꾼 키만 덮는다."""

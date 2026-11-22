@@ -127,6 +127,12 @@ function ColorPicker({ value, recent, onChange }: { value: string; recent: strin
   );
 }
 
+const VISIBILITY = [
+  { value: "private", label: "나만", help: "나만 볼 수 있어요." },
+  { value: "friends", label: "친구", help: "친구가 볼 수 있어요(반응도 달 수 있어요)." },
+  { value: "public", label: "전체", help: "같은 디스코드 서버의 할 일 사용자 모두가 볼 수 있어요." },
+] as const;
+
 function CategoryEditor({
   category,
   recent,
@@ -142,15 +148,19 @@ function CategoryEditor({
 }) {
   const [name, setName] = useState(category.name);
   const [color, setColor] = useState(category.color);
+  const [visibility, setVisibility] = useState(category.visibility);
+  const [memoShared, setMemoShared] = useState(category.memo_shared);
   const [error, setError] = useState("");
   const [confirming, setConfirming] = useState(false);
   const nameRef = useRef(name);
   nameRef.current = name;
   const save = async () => {
     try {
-      const changes: { name?: string; color?: string } = {};
+      const changes: { name?: string; color?: string; visibility?: TodoCategory["visibility"]; memo_shared?: boolean } = {};
       if (nameRef.current.trim() !== category.name) changes.name = nameRef.current.trim();
       if (color !== category.color) changes.color = color;
+      if (visibility !== category.visibility) changes.visibility = visibility;
+      if (memoShared !== category.memo_shared) changes.memo_shared = memoShared;
       if (Object.keys(changes).length > 0) onSaved(await updateCategory(category.id, changes));
       onClose();
     } catch (failure) {
@@ -174,6 +184,35 @@ function CategoryEditor({
       <div className="todo-field todo-field-wide">
         색
         <ColorPicker value={color} recent={recent} onChange={setColor} />
+      </div>
+      <div className="todo-field todo-field-wide">
+        누가 볼 수 있나요
+        <div className="todo-segment" role="radiogroup" aria-label="공개 범위">
+          {VISIBILITY.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={visibility === option.value}
+              className={visibility === option.value ? "todo-segment-on" : undefined}
+              onClick={() => setVisibility(option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <span className="todo-setting-help">{VISIBILITY.find((option) => option.value === visibility)?.help}</span>
+        <label className={visibility === "private" ? "todo-switch todo-switch-off" : "todo-switch"}>
+          <input
+            type="checkbox"
+            role="switch"
+            disabled={visibility === "private"}
+            checked={memoShared && visibility !== "private"}
+            onChange={(event) => setMemoShared(event.target.checked)}
+          />
+          <span className="todo-switch-track" aria-hidden="true" />
+          <span>메모도 보여 주기</span>
+        </label>
       </div>
       {error && <p className="todo-error">{error}</p>}
       <div className="todo-edit-actions">

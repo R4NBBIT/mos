@@ -57,6 +57,8 @@ import { isDayKey, today } from "./todo/dates";
 const TodoScreen = lazy(() => import("./todo/TodoScreen"));
 const TodoBoss = lazy(() => import("./todo/TodoBoss"));
 const TodoConnect = lazy(() => import("./todo/TodoConnect"));
+const TodoFriends = lazy(() => import("./todo/TodoFriends"));
+const TodoFriendDay = lazy(() => import("./todo/TodoFriendDay"));
 const TodoSide = lazy(() => import("./todo/TodoScreen").then((module) => ({ default: module.TodoSide })));
 const TodoCategories = lazy(() => import("./todo/TodoCategories"));
 const TODO_FEATURE = "todo";
@@ -79,6 +81,8 @@ type Route =
   | { view: "settings" }
   | { view: "todo"; day: string }
   | { view: "todoCategories" }
+  | { view: "todoFriends" }
+  | { view: "todoFriend"; friendId: string; day: string }
   | { view: "channels"; groupId: string }
   | { view: "chat"; groupId: string; channelId: string }
   | { view: "voice"; groupId: string; channelId: string }
@@ -102,6 +106,12 @@ function parseRoute(hash: string): Route {
   if (hash === "#/settings") return { view: "settings" };
   if (hash === "#/todo") return { view: "todo", day: today() };
   if (hash === "#/todo/categories") return { view: "todoCategories" };
+  if (hash === "#/todo/friends") return { view: "todoFriends" };
+  const friend = /^#\/todo\/f\/(\d{1,18})(?:\/(\d{4}-\d{2}-\d{2}))?$/.exec(hash);
+  if (friend?.[1]) {
+    const friendDay = friend[2] && isDayKey(friend[2]) ? friend[2] : today();
+    return { view: "todoFriend", friendId: friend[1], day: friendDay };
+  }
   const todoDay = /^#\/todo\/(\d{4}-\d{2}-\d{2})$/.exec(hash);
   if (todoDay?.[1] && isDayKey(todoDay[1])) return { view: "todo", day: todoDay[1] };
   const thread = /^#\/g\/(\d{1,21})\/p\/(\d{1,21})\/t\/(\d{1,21})$/.exec(hash);
@@ -119,11 +129,19 @@ function parseRoute(hash: string): Route {
   return { view: "groups" };
 }
 
+/** 할 일 화면들(오늘, 카테고리, 친구 관리, 친구 할 일) */
+type TodoRoute = Extract<Route, { view: "todo" | "todoCategories" | "todoFriends" | "todoFriend" }>;
+function isTodoRoute(route: Route): route is TodoRoute {
+  return (
+    route.view === "todo" || route.view === "todoCategories" || route.view === "todoFriends" || route.view === "todoFriend"
+  );
+}
+
 /** 휴대폰에서 옆으로 넘기는 단계: 서버 목록 0, 채널 목록 1, 채팅(채팅방, 글, 음성) 2 */
 function routeLevel(route: Route): number {
   if (route.view === "groups" || route.view === "settings") return 0;
   if (route.view === "channels" || route.view === "todo") return 1;
-  if (route.view === "todoCategories") return 2;
+  if (route.view === "todoCategories" || route.view === "todoFriends" || route.view === "todoFriend") return 2;
   return 2;
 }
 
@@ -231,7 +249,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
   // 휴대폰에서 왼쪽으로 밀었을 때 돌아갈 곳: 마지막에 연 서버와 서버마다 마지막에 본 채팅
   const lastPlace = useRef<{ group: string | null; chats: Record<string, string> }>({ group: null, chats: {} });
   useEffect(() => {
-    if (route.view === "groups" || route.view === "settings" || route.view === "todo" || route.view === "todoCategories") return;
+    if (route.view === "groups" || route.view === "settings" || isTodoRoute(route)) return;
     lastPlace.current.group = route.groupId;
     if (routeLevel(route) === 2) lastPlace.current.chats[route.groupId] = window.location.hash;
   }, [route]);
@@ -438,7 +456,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
         <TodoEntry
           theme={look.theme}
           preview={Boolean(active.preview_features?.includes(TODO_FEATURE))}
-          active={route.view === "todo" || route.view === "todoCategories"}
+          active={isTodoRoute(route)}
           version={todoVersion}
           onOpen={() => {
             if (side) setBrowse(null);
@@ -446,7 +464,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           }}
         />
       ) : undefined;
-    const todoDay = route.view === "todo" ? route.day : today();
+    const todoDay = route.view === "todo" || route.view === "todoFriend" ? route.day : today();
     const todoScreen = (inSplit: boolean) => (
       <Suspense fallback={<div className="center-note">불러오는 중…</div>}>
         <TodoScreen
@@ -461,6 +479,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           onChanged={bumpTodo}
           version={todoVersion}
           onCategories={() => go("#/todo/categories")}
+          onFriends={inSplit ? undefined : () => go("#/todo/friends")}
         />
       </Suspense>
     );
@@ -475,6 +494,31 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
         />
       </Suspense>
     );
+    const todoFriends = (inSplit: boolean) => (
+      <Suspense fallback={<div className="center-note">불러오는 중…</div>}>
+        <TodoFriends
+          key={active.id}
+          showBack={!inSplit}
+          onBack={() => go("#/todo")}
+          menu={common.menu}
+          onOpenFriend={(id) => go(`#/todo/f/${id}`)}
+          onChanged={bumpTodo}
+        />
+      </Suspense>
+    );
+    const todoFriend = (friendId: string, day: string, inSplit: boolean) => (
+      <Suspense fallback={<div className="center-note">불러오는 중…</div>}>
+        <TodoFriendDay
+          key={`${active.id}:${friendId}`}
+          friendId={friendId}
+          day={day}
+          onDay={(next) => go(next === today() ? `#/todo/f/${friendId}` : `#/todo/f/${friendId}/${next}`)}
+          showBack={!inSplit}
+          onBack={() => go("#/todo")}
+          menu={common.menu}
+        />
+      </Suspense>
+    );
     const todoSide = () => (
       <Suspense fallback={<div className="center-note">불러오는 중…</div>}>
         <TodoSide
@@ -484,6 +528,9 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           onDay={(day) => go(day === today() ? "#/todo" : `#/todo/${day}`)}
           onServers={() => browseTo(null)}
           version={todoVersion}
+          friendId={route.view === "todoFriend" ? route.friendId : null}
+          onFriend={(id) => go(id === null ? "#/todo" : `#/todo/f/${id}${todoDay === today() ? "" : `/${todoDay}`}`)}
+          onFriends={() => go("#/todo/friends")}
         />
       </Suspense>
     );
@@ -596,6 +643,8 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     const single = (at: Route = route) => {
       if (at.view === "todo") return todoAllowed ? todoScreen(false) : groupList();
       if (at.view === "todoCategories") return todoAllowed ? todoCategories(false) : groupList();
+      if (at.view === "todoFriends") return todoAllowed ? todoFriends(false) : groupList();
+      if (at.view === "todoFriend") return todoAllowed ? todoFriend(at.friendId, at.day, false) : groupList();
       if (at.view === "chat") return chatRoom(at.groupId, at.channelId, false);
       if (at.view === "voice") return voiceRoom(at.groupId, at.channelId, false);
       if (at.view === "posts") return posts(at.groupId, at.parentId);
@@ -606,7 +655,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     if (!wide) {
       // 휴대폰: 서버 목록(0), 채널 목록(1), 채팅(2) 사이를 옆으로 밀어서 오간다
       const level = routeLevel(route);
-      if (route.view === "todo" || route.view === "todoCategories") {
+      if (isTodoRoute(route)) {
         // 할 일: 서버 목록(0), 할 일(1), 카테고리 관리(2). 오른쪽으로 밀면 앞 단계
         return (
           <SwipeDeck
@@ -642,10 +691,10 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     const split = { open: listOpen, toggle: () => setListOpen(!listOpen) };
     // 왼쪽 목록: 둘러보는 중이면 그 서버, 아니면 주소의 서버
     const routeGroup =
-      route.view === "groups" || route.view === "todo" || route.view === "todoCategories" ? null : route.groupId;
+      route.view === "groups" || isTodoRoute(route) ? null : route.groupId;
     const browsing = Boolean(browse && browse.from === route);
     const leftGroup = browse && browse.from === route ? browse.groupId : routeGroup;
-    const leftTodo = (route.view === "todo" || route.view === "todoCategories") && todoAllowed && !browsing;
+    const leftTodo = isTodoRoute(route) && todoAllowed && !browsing;
     const routeActive =
       route.view === "chat" || route.view === "voice"
         ? route.channelId
@@ -677,6 +726,10 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
               todoScreen(true)
             ) : route.view === "todoCategories" && todoAllowed ? (
               todoCategories(true)
+            ) : route.view === "todoFriends" && todoAllowed ? (
+              todoFriends(true)
+            ) : route.view === "todoFriend" && todoAllowed ? (
+              todoFriend(route.friendId, route.day, true)
             ) : route.view === "chat" ? (
               chatRoom(route.groupId, route.channelId, true)
             ) : route.view === "voice" ? (

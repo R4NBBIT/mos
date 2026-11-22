@@ -148,7 +148,7 @@ class TodoAlerts:
             push = {
                 "kind": "todo",
                 "title": parts[0]["title"],
-                "body": " · ".join(part["body"] for part in parts),
+                "body": " / ".join(part["body"] for part in parts),
                 "url": URL,
             }
         if push is None and dm is None:

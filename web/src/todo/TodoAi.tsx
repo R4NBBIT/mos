@@ -87,7 +87,7 @@ function AiRequests({ onChanged }: { onChanged: () => void }) {
               <li key={item.id} className="todo-ai-item">
                 <span className="todo-news-title">{item.title}</span>
                 <span className="todo-news-time">
-                  {dateWithWeekday(item.day)} · {item.client}
+                  {dateWithWeekday(item.day)}, {item.client}
                 </span>
                 <button type="button" className="todo-small-button" onClick={() => void restore(item.id)}>
                   되돌리기

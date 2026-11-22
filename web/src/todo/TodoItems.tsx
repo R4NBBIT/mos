@@ -2,6 +2,7 @@
 import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, dateWithWeekday, longLabel, timeLabel, today, WEEKDAY_NAMES } from "./dates";
 import { useEnterKey } from "./enterKey";
+import { TodoReactions } from "./TodoReactions";
 import { parseWhen } from "./parseWhen";
 import {
   createRepeat,
@@ -16,7 +17,7 @@ import {
   updateTodo,
 } from "./todoApi";
 
-const CHECK_PATH = "M5 12.5l4.5 4.5L19 7.5";
+export const CHECK_PATH = "M5 12.5l4.5 4.5L19 7.5";
 
 function needsRing(color: string): boolean {
   const value = Number.parseInt(color.slice(1), 16);
@@ -39,7 +40,7 @@ export function repeatLabel(repeat: TodoRepeat): string {
 }
 
 /** 메모 글자: http, https 주소만 누를 수 있는 링크로(ㅁㅇㅅ 본문 링크 규칙과 같음) */
-function MemoText({ text }: { text: string }) {
+export function MemoText({ text }: { text: string }) {
   const parts = text.split(/(https?:\/\/[^\s<>"]+)/g);
   return (
     <p className="todo-memo">
@@ -431,6 +432,8 @@ export function TodoRow({
   onToggle: () => void;
   onDone: (notice?: string) => void;
 }) {
+  const [reactions, setReactions] = useState(item.reactions ?? []);
+  useEffect(() => setReactions(item.reactions ?? []), [item.reactions]);
   const [open, setOpen] = useState(false);
   // 열린 메뉴의 이름을 다시 누르면 '취소'와 같게(바꾼 것이 있으면 확인)
   const [closeAsk, setCloseAsk] = useState(0);
@@ -476,6 +479,9 @@ export function TodoRow({
           </button>
         )}
       </div>
+      {reactions.length > 0 && (
+        <TodoReactions owner={null} itemId={item.id} reactions={reactions} canAdd={false} onChange={setReactions} />
+      )}
       {memoOpen && item.memo && !open && <MemoText text={item.memo} />}
       {open && (
         <TodoMenu

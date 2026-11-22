@@ -79,7 +79,10 @@ def register_todo_routes(
     @app.get("/api/todo/day/{day}")
     async def todo_day(day: str, request: Request) -> dict[str, Any]:
         account = await todo_account(request)
-        return await todo.day(account.account_id, day)
+        data = await todo.day(account.account_id, day)
+        if todo.decorate is not None:  # 내 할 일에 달린 반응(T4)
+            await todo.decorate(account.account_id, account.account_id, data["items"])
+        return data
 
     @app.get("/api/todo/days")
     async def todo_days(request: Request, start: str = "", end: str = "") -> dict[str, Any]:
