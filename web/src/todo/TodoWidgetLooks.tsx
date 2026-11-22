@@ -19,7 +19,13 @@ export interface WidgetModel {
 }
 
 export function widgetLook(theme: string | undefined): WidgetLookName {
-  if (theme === "sheet" || theme === "memo" || theme === "note" || theme === "word") return theme;
+  if (
+    theme === "sheet" ||
+    theme === "memo" ||
+    theme === "note" ||
+    theme === "word"
+  )
+    return theme;
   return "card"; // moon, night
 }
 
@@ -46,7 +52,9 @@ function Check({ model, item }: { model: WidgetModel; item: TodoItem }) {
 
 /** 위젯 한 줄: 'TODO | 시각 | 장소', 같은 글꼴과 크기(2026-11-23 사용자 요청). 메모는 안 보임 */
 function lineOf(item: TodoItem): string {
-  return [item.title, item.time ? timeLabel(item.time) : "", item.place ?? ""].filter(Boolean).join(" | ");
+  return [item.title, item.time ? timeLabel(item.time) : "", item.place ?? ""]
+    .filter(Boolean)
+    .join(" | ");
 }
 
 // ------------------------------------------------------------ 기본, 다크: 카드
@@ -60,7 +68,10 @@ function CardLook({ model }: { model: WidgetModel }) {
           <span className="todo-widget-brand">TODO</span>
           <strong>{longLabel(model.day)}</strong>
         </div>
-        <span className="todo-widget-count" aria-label={`${total}개 중 ${model.done}개 했어요`}>
+        <span
+          className="todo-widget-count"
+          aria-label={`${total}개 중 ${model.done}개 했어요`}
+        >
           {model.done}
           <small>/{total}</small>
         </span>
@@ -70,13 +81,22 @@ function CardLook({ model }: { model: WidgetModel }) {
       </div>
       <ul className="todo-widget-list">
         {model.items.map((item) => (
-          <li key={item.id} className={item.done ? "todo-widget-item todo-widget-done" : "todo-widget-item"}>
+          <li
+            key={item.id}
+            className={
+              item.done
+                ? "todo-widget-item todo-widget-done"
+                : "todo-widget-item"
+            }
+          >
             <Check model={model} item={item} />
             <span className="todo-widget-title">{lineOf(item)}</span>
           </li>
         ))}
       </ul>
-      {model.note && <p className="todo-widget-note todo-widget-empty">{model.note}</p>}
+      {model.note && (
+        <p className="todo-widget-note todo-widget-empty">{model.note}</p>
+      )}
     </>
   );
 }
@@ -119,7 +139,11 @@ function SheetLook({ model }: { model: WidgetModel }) {
           <span>장소</span>
         </div>
         {model.items.map((item, index) => (
-          <div key={item.id} className={item.done ? "tw-sheet-row tw-done" : "tw-sheet-row"} role="row">
+          <div
+            key={item.id}
+            className={item.done ? "tw-sheet-row tw-done" : "tw-sheet-row"}
+            role="row"
+          >
             <span className="tw-sheet-num">{index + 2}</span>
             <span className="tw-sheet-check">
               <Check model={model} item={item} />
@@ -130,7 +154,11 @@ function SheetLook({ model }: { model: WidgetModel }) {
           </div>
         ))}
         {Array.from({ length: blanks }, (_, index) => (
-          <div key={`blank-${index}`} className="tw-sheet-row" aria-hidden="true">
+          <div
+            key={`blank-${index}`}
+            className="tw-sheet-row"
+            aria-hidden="true"
+          >
             <span className="tw-sheet-num">{total + 3 + index}</span>
             <span />
             <span />
@@ -178,16 +206,15 @@ function MemoLook({ model }: { model: WidgetModel }) {
             onClick={() => model.onToggle(item)}
           >
             <span className="tw-memo-mark">{item.done ? "[✓]" : "[ ]"}</span>
-            {" "}
-            {lineOf(item)}
+            <span className="tw-memo-text"> {lineOf(item)}</span>
           </button>
         ))}
-        {model.note && <div className="tw-memo-line tw-memo-dim">{model.note}</div>}
+        {model.note && (
+          <div className="tw-memo-line tw-memo-dim">{model.note}</div>
+        )}
       </div>
       <div className="tw-memo-status">
-        <span className="tw-grow">
-          줄 {total + 1}, 열 1
-        </span>
+        <span className="tw-grow">줄 {total + 1}, 열 1</span>
         <span>100%</span>
         <span>UTF-8</span>
       </div>
@@ -218,7 +245,10 @@ function NoteLook({ model }: { model: WidgetModel }) {
         </div>
         <ul className="tw-note-list">
           {model.items.map((item) => (
-            <li key={item.id} className={item.done ? "tw-note-todo tw-done" : "tw-note-todo"}>
+            <li
+              key={item.id}
+              className={item.done ? "tw-note-todo tw-done" : "tw-note-todo"}
+            >
               <Check model={model} item={item} />
               <span className="tw-note-text">{lineOf(item)}</span>
             </li>
@@ -253,7 +283,10 @@ function WordLook({ model }: { model: WidgetModel }) {
           <h2 className="tw-word-heading">{longLabel(model.day)}</h2>
           <ul className="tw-word-list">
             {model.items.map((item) => (
-              <li key={item.id} className={item.done ? "tw-word-item tw-done" : "tw-word-item"}>
+              <li
+                key={item.id}
+                className={item.done ? "tw-word-item tw-done" : "tw-word-item"}
+              >
                 <Check model={model} item={item} />
                 <span className="tw-word-text">{lineOf(item)}</span>
               </li>
@@ -273,7 +306,13 @@ function WordLook({ model }: { model: WidgetModel }) {
   );
 }
 
-export function WidgetLook({ look, model }: { look: WidgetLookName; model: WidgetModel }) {
+export function WidgetLook({
+  look,
+  model,
+}: {
+  look: WidgetLookName;
+  model: WidgetModel;
+}) {
   if (look === "sheet") return <SheetLook model={model} />;
   if (look === "memo") return <MemoLook model={model} />;
   if (look === "note") return <NoteLook model={model} />;

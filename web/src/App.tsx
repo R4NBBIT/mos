@@ -531,6 +531,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           onAlerts={() => go("#/todo/alerts")}
           onAi={() => go("#/todo/ai")}
           onRepeats={() => go("#/todo/repeats")}
+          onTrash={() => go("#/todo/trash")}
         />
       </Suspense>
     );
@@ -542,7 +543,6 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           onBack={() => go("#/todo")}
           menu={common.menu}
           onChanged={bumpTodo}
-          onTrash={() => go("#/todo/trash")}
         />
       </Suspense>
     );

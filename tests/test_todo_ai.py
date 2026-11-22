@@ -274,6 +274,22 @@ def test_disconnect(env: Env) -> None:
     assert rpc(env, issued["access_token"], "ping").status_code == 401
 
 
+def test_reconnect_same_app_replaces_old(env: Env) -> None:
+    _old_id, old = connect(env)
+    new_id = register(env)
+    query = approve(env, authorize(env, new_id))
+    tokens(env, query["code"][0], new_id)
+    listed = env.client.get("/api/todo/connections").json()["connections"]
+    assert [c["name"] for c in listed] == ["Claude"]
+    assert rpc(env, old["access_token"], "ping").status_code == 401
+    other = env.client.post(
+        "/oauth/register", json={"client_name": "ChatGPT", "redirect_uris": [REDIRECT]}
+    ).json()["client_id"]
+    approve(env, authorize(env, other))
+    names = [c["name"] for c in env.client.get("/api/todo/connections").json()["connections"]]
+    assert sorted(names) == ["ChatGPT", "Claude"]
+
+
 def test_delete_needs_confirm_and_goes_to_trash(env: Env) -> None:
     _client_id, issued = connect(env)
     token = issued["access_token"]

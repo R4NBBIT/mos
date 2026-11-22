@@ -274,6 +274,9 @@ class TodoOAuth:
         )
         if row is not None:
             return int(row[0])
+        # 앱을 지웠다 다시 깔거나 다시 연결하면 새 client_id로 등록된다.
+        # 이름과 돌아갈 주소가 똑같은 앱의 예전 연결은 끊어서 목록에 겹쳐 보이지 않게 한다.
+        await self._drop_same_app(account_id, client_id)
         count = await self.db.fetch_one(
             "SELECT COUNT(*) FROM oauth_grant WHERE account_id = ? AND revoked_at IS NULL",
             (account_id,),
@@ -286,6 +289,21 @@ class TodoOAuth:
                 (account_id, client_id, self.now()),
             )
             return int(cursor.lastrowid or 0)
+
+    async def _drop_same_app(self, account_id: int, client_id: str) -> None:
+        current = await self._client(client_id)
+        if current is None:
+            return
+        rows = await self.db.fetch_all(
+            "SELECT g.id, c.name, c.redirect_uris FROM oauth_grant g"
+            " JOIN oauth_client c ON c.id = g.client_id"
+            " WHERE g.account_id = ? AND g.revoked_at IS NULL AND g.client_id <> ?",
+            (account_id, client_id),
+        )
+        same = sorted(current["redirect_uris"])
+        for row in rows:
+            if str(row[1]) == current["name"] and sorted(json.loads(row[2])) == same:
+                await self.revoke_grant(int(row[0]))
 
     # ------------------------------------------------------------ 토큰
 

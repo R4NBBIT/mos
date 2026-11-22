@@ -2,7 +2,11 @@
 // 실제 알림은 ㅁㅇㅅ 웹 푸시로 온다(기기 알림은 ㅁㅇㅅ 설정 > 알림에서 켬)
 import { type ReactNode, useEffect, useState } from "react";
 import { useNotifyPrefs } from "../notifyPrefs";
-import { askPopupPermission, popupSupport, type PopupSupport } from "../useNotifications";
+import {
+  askPopupPermission,
+  popupSupport,
+  type PopupSupport,
+} from "../useNotifications";
 import {
   type AlertLead,
   type BossMode,
@@ -49,16 +53,25 @@ function TodoNewsList({ onSeen }: { onSeen: () => void }) {
       .then((news) => {
         setItems(news.items);
         setUnreadAt(news.unread);
-        if (news.unread > 0) void markTodoNewsSeen().then(onSeen).catch(() => {});
+        if (news.unread > 0)
+          void markTodoNewsSeen()
+            .then(onSeen)
+            .catch(() => {});
       })
       .catch(() => setItems([]));
   }, [onSeen]);
   if (items === null) return null;
-  if (items.length === 0) return <p className="todo-hint">아직 소식이 없어요.</p>;
+  if (items.length === 0)
+    return <p className="todo-hint">아직 소식이 없어요.</p>;
   return (
     <ul className="todo-news">
       {items.slice(0, 10).map((item, index) => (
-        <li key={item.id} className={index < unreadAt ? "todo-news-item todo-news-new" : "todo-news-item"}>
+        <li
+          key={item.id}
+          className={
+            index < unreadAt ? "todo-news-item todo-news-new" : "todo-news-item"
+          }
+        >
           <span className="todo-news-title">{item.title}</span>
           <span className="todo-news-body">{item.body}</span>
           <span className="todo-news-time">{agoLabel(item.created_at)}</span>
@@ -72,16 +85,15 @@ function TodoNewsList({ onSeen }: { onSeen: () => void }) {
 function DeviceTodoSetting() {
   const { prefs: device, save } = useNotifyPrefs();
   const [popup, setPopup] = useState<PopupSupport>(popupSupport);
-  const note =
-    !device.todo
-      ? "이 기기에서는 TODO 알림을 받지 않아요. 알림 받는 곳이 봇 DM이면 DM은 그대로 와요."
-      : popup === "denied"
-        ? "브라우저에서 알림이 막혀 있어서 알림 창은 뜨지 않고, 화면 안 작은 알림과 소식에만 남아요. 주소창 왼쪽 자물쇠에서 알림을 허용해 주세요."
-        : popup === "unsupported"
-          ? "이 브라우저는 알림 창을 띄울 수 없어서 화면 안 작은 알림과 소식에만 남아요. 아이폰은 사파리에서 '홈 화면에 추가'한 뒤에 받을 수 있어요."
-          : popup === "default"
-            ? "알림 창을 띄우려면 이 브라우저에서 알림을 허용해 주세요."
-            : "이 기기에서 TODO 알림을 받아요. ㅁㅇㅅ 설정의 채팅 알림과는 따로예요.";
+  const note = !device.todo
+    ? "이 기기에서는 TODO 알림을 받지 않아요. 알림 받는 곳이 봇 DM이면 DM은 그대로 와요."
+    : popup === "denied"
+      ? "브라우저에서 알림이 막혀 있어서 알림 창은 뜨지 않고, 화면 안 작은 알림과 소식에만 남아요. 주소창 왼쪽 자물쇠에서 알림을 허용해 주세요."
+      : popup === "unsupported"
+        ? "이 브라우저는 알림 창을 띄울 수 없어서 화면 안 작은 알림과 소식에만 남아요. 아이폰은 사파리에서 '홈 화면에 추가'한 뒤에 받을 수 있어요."
+        : popup === "default"
+          ? "알림 창을 띄우려면 이 브라우저에서 알림을 허용해 주세요."
+          : "이 기기에서 TODO 알림을 받아요. ㅁㅇㅅ 설정의 채팅 알림과는 따로예요.";
   return (
     <Setting name="이 기기" help={note}>
       <div className="todo-setting-row">
@@ -96,7 +108,11 @@ function DeviceTodoSetting() {
           <span>{device.todo ? "TODO 알림 받기" : "받지 않기"}</span>
         </label>
         {device.todo && popup === "default" && (
-          <button type="button" className="todo-small-button todo-primary" onClick={() => void askPopupPermission().then(setPopup)}>
+          <button
+            type="button"
+            className="todo-small-button todo-primary"
+            onClick={() => void askPopupPermission().then(setPopup)}
+          >
             알림 허용하기
           </button>
         )}
@@ -135,13 +151,33 @@ function Segment<T extends string | number | null>({
 }
 
 const BOSS: { value: BossMode; label: string; help: string }[] = [
-  { value: "off", label: "안 받기", help: "위장 화면일 때는 알림을 띄우지 않아요." },
-  { value: "silent", label: "조용히", help: "내용과 소리 없이 알림 창만 떠요." },
-  { value: "full", label: "그대로", help: "평소처럼 TODO 내용과 소리까지 알려요." },
+  {
+    value: "off",
+    label: "안 받기",
+    help: "위장 화면일 때는 알림을 띄우지 않아요.",
+  },
+  {
+    value: "silent",
+    label: "조용히",
+    help: "내용과 소리 없이 알림 창만 떠요.",
+  },
+  {
+    value: "full",
+    label: "그대로",
+    help: "평소처럼 TODO 내용과 소리까지 알려요.",
+  },
 ];
 
 /** 설정 한 줄: 왼쪽 이름, 오른쪽 고르기와 그 아래 짧은 설명 */
-function Setting({ name, help, children }: { name: string; help?: string; children: ReactNode }) {
+function Setting({
+  name,
+  help,
+  children,
+}: {
+  name: string;
+  help?: string;
+  children: ReactNode;
+}) {
   return (
     <div className="todo-setting">
       <span className="todo-setting-name">{name}</span>
@@ -187,13 +223,24 @@ export default function TodoAlertPanel({ onSeen }: { onSeen: () => void }) {
 
   return (
     <section className="todo-alerts todo-alerts-page" aria-label="소식과 알림">
+      <p className="settings-device-note">
+        알림 설정의 <strong>'이 기기'</strong>는 지금 쓰는 이 기기에만 적용돼요.
+        그 아래 설정은 이 계정을 쓰는 모든 기기에 같이 적용돼요.
+      </p>
       <div className="todo-alerts-head">
         <strong>소식</strong>
       </div>
+      <p className="todo-setting-help">
+        친구 요청과 수락, 내 TODO에 달린 반응, 보낸 TODO 알림과 아침 요약이 여기
+        모여요.
+      </p>
       <TodoNewsList onSeen={onSeen} />
       <div className="todo-alerts-head todo-alerts-sub">
         <strong>알림 설정</strong>
-        <span className={saved ? "todo-saved todo-saved-on" : "todo-saved"} role="status">
+        <span
+          className={saved ? "todo-saved todo-saved-on" : "todo-saved"}
+          role="status"
+        >
           {saved ? "저장됨" : ""}
         </span>
       </div>
@@ -202,7 +249,10 @@ export default function TodoAlertPanel({ onSeen }: { onSeen: () => void }) {
       ) : (
         <>
           <DeviceTodoSetting />
-          <Setting name="TODO 알림" help="시각을 정한 TODO 중 아직 끝내지 않은 것만 알려요.">
+          <Setting
+            name="TODO 알림"
+            help="시각을 정한 TODO 중 아직 끝내지 않은 것만 알려요."
+          >
             <Segment
               label="TODO 알림"
               options={LEADS}
@@ -217,7 +267,11 @@ export default function TodoAlertPanel({ onSeen }: { onSeen: () => void }) {
                   type="checkbox"
                   role="switch"
                   checked={prefs.morning !== null}
-                  onChange={(event) => void save({ morning: event.target.checked ? morningText : null })}
+                  onChange={(event) =>
+                    void save({
+                      morning: event.target.checked ? morningText : null,
+                    })
+                  }
                 />
                 <span className="todo-switch-track" aria-hidden="true" />
                 <span>{prefs.morning !== null ? "켜짐" : "꺼짐"}</span>
@@ -230,7 +284,8 @@ export default function TodoAlertPanel({ onSeen }: { onSeen: () => void }) {
                   value={morningText}
                   onChange={(event) => {
                     setMorningText(event.target.value);
-                    if (event.target.value) void save({ morning: event.target.value });
+                    if (event.target.value)
+                      void save({ morning: event.target.value });
                   }}
                 />
               )}
