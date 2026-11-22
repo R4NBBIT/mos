@@ -1,3 +1,4 @@
+import { Collapse, usePresence } from "./motion";
 import BackIcon from "./BackIcon";
 import SplitToggle from "./SplitToggle";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
@@ -393,7 +394,7 @@ function MemberPanel({
           <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
-      {open && (
+      <Collapse open={open}>
         <>
           {scope && <p className="member-scope">{scope}</p>}
           <ul className="member-list">
@@ -411,7 +412,7 @@ function MemberPanel({
             </button>
           )}
         </>
-      )}
+      </Collapse>
     </section>
   );
 }
@@ -567,15 +568,17 @@ export function GroupList({
                     onOpen={() => (tree ? toggle(group.id) : onOpen(group.id))}
                     onPin={() => togglePin("group", group.id, !group.pinned)}
                   />
-                  {open && (
-                    <TreeChannels
-                      groupId={group.id}
-                      activeChannelId={activeChannelId}
-                      skin={skin}
-                      editing={editing}
-                      onOpen={(channel) => onOpenChannel(group.id, channel)}
-                      onAuthLost={common.onAuthLost}
-                    />
+                  {tree && (
+                    <Collapse open={open}>
+                      <TreeChannels
+                        groupId={group.id}
+                        activeChannelId={activeChannelId}
+                        skin={skin}
+                        editing={editing}
+                        onOpen={(channel) => onOpenChannel(group.id, channel)}
+                        onAuthLost={common.onAuthLost}
+                      />
+                    </Collapse>
                   )}
                 </>
               );
@@ -605,6 +608,7 @@ function ServerSwitch({
   const { theme, list_order: listOrder } = useLook().settings;
   const skin = listSkin(theme);
   const [open, setOpen] = useState(false);
+  const presence = usePresence(open, 150);
   const [groups, setGroups] = useState<Group[] | null>(null);
   const [failed, setFailed] = useState(false);
   const boxRef = useRef<HTMLSpanElement>(null);
@@ -654,8 +658,8 @@ function ServerSwitch({
           <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
-      {open && (
-        <div className="server-switch-menu" role="menu">
+      {presence.shown && (
+        <div className={presence.closing ? "server-switch-menu pop-out" : "server-switch-menu"} role="menu" inert={presence.closing}>
           {!groups && !failed && <p className="server-switch-note">불러오는 중…</p>}
           {failed && <p className="server-switch-note">불러오지 못했어요.</p>}
           {groups && applyOrder(groups, listOrder.groups).map((group) => (

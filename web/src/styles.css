@@ -486,9 +486,29 @@ button {
 }
 
 .split-list {
-  width: clamp(240px, 30vw, 320px);
+  --list-w: clamp(240px, 30vw, 320px);
+  width: var(--list-w);
   flex-shrink: 0;
   border-right: 1px solid var(--line);
+  transition:
+    width 0.22s ease,
+    border-color 0.22s ease;
+}
+
+/* 여닫는 동안 안쪽은 원래 폭 그대로(글자가 줄바꿈되며 출렁이지 않게) */
+.split-list-inner {
+  width: var(--list-w);
+  height: 100%;
+}
+
+.split-list.split-list-closed {
+  width: 0;
+  overflow: hidden;
+  border-right-color: transparent;
+}
+
+.split-list.split-list-gone {
+  border-right-width: 0;
 }
 
 .split-main {
@@ -1538,7 +1558,7 @@ button.tag-chip:disabled {
 
 /* 메모장 앱처럼 보이는 메뉴 줄(장식) */
 /* 넓은 화면: 메뉴 글자는 창 왼쪽(목록 위)에만, 오른쪽은 같은 높이의 빈 줄로 이어 붙여 머리 줄 높이를 맞춘다 */
-:root[data-theme="memo"] .split-list ~ .split-main .room::before {
+:root[data-theme="memo"] .split-list:not(.split-list-closed) ~ .split-main .room::before {
   content: " ";
 }
 
@@ -6249,4 +6269,166 @@ body.sorting * {
 
 :root[data-theme="memo"] .list-item .list-people {
   translate: 0 1px;
+}
+
+/* ------------------------------------------------------------ 여닫는 움직임
+   펼치고 접기(.collapse), 떠 있는 창(살짝 내려오며 나타나고 흐려지며 사라짐),
+   화면 안에 새로 생기는 줄(흐려졌다 또렷해짐). 0.15~0.22초 */
+.collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.collapse.collapse-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.collapse-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pop-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* 떠 있는 창 */
+.account-menu-list,
+.server-switch-menu {
+  transform-origin: top;
+  animation: pop-in 0.15s ease-out;
+}
+
+.account-menu-list {
+  transform-origin: top right;
+}
+
+.account-menu-list.pop-out,
+.server-switch-menu.pop-out {
+  animation: pop-out 0.15s ease-in forwards;
+  pointer-events: none;
+}
+
+.emoji-picker,
+.reaction-picker,
+.boss-key-panel {
+  animation: pop-in 0.16s ease-out;
+}
+
+.notify-toast.notify-toast-out {
+  animation: fade-out 0.2s ease-in forwards;
+  pointer-events: none;
+}
+
+.guide-layer {
+  animation: fade-in 0.2s ease-out;
+}
+
+.guide-layer .guide-card {
+  animation: pop-in 0.22s ease-out;
+}
+
+.guide-layer.guide-layer-out {
+  animation: fade-out 0.2s ease-in forwards;
+  pointer-events: none;
+}
+
+/* 화면 안에 새로 생기는 줄 */
+.msg-actions,
+.sheet-actions,
+.composer-banner,
+.composer-confirm,
+.confirm-box,
+.menu-confirm,
+.inline-confirm,
+.room-notice {
+  animation: fade-in 0.16s ease-out;
+}
+
+@keyframes pill-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+}
+
+.unseen-pill {
+  animation: pill-in 0.18s ease-out;
+}
+
+.sort-handle {
+  animation: fade-in 0.18s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .split-list,
+  .collapse {
+    transition: none;
+  }
+
+  .account-menu-list,
+  .server-switch-menu,
+  .emoji-picker,
+  .reaction-picker,
+  .boss-key-panel,
+  .notify-toast,
+  .guide-layer,
+  .guide-layer .guide-card,
+  .msg-actions,
+  .sheet-actions,
+  .composer-banner,
+  .composer-confirm,
+  .confirm-box,
+  .menu-confirm,
+  .inline-confirm,
+  .room-notice,
+  .unseen-pill,
+  .sort-handle {
+    animation: none !important;
+  }
 }

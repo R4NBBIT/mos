@@ -1,3 +1,4 @@
+import { usePresence } from "./motion";
 import { useEffect, useRef, useState } from "react";
 import { lock, logout, removeAccount, setNitroClaim, startConnect, switchAccount } from "./api";
 import { disablePush } from "./webPush";
@@ -33,6 +34,7 @@ function nitroHelp(account: SessionAccount): string {
 /** 채팅방 오른쪽 위: 잠그기, 니트로, 계정 바꾸기·추가·빼기 */
 export default function AccountMenu({ session, account, onChanged, onOpenSettings, onOpenGuide }: Props) {
   const [open, setOpen] = useState(false);
+  const presence = usePresence(open, 150);
   const [askRemove, setAskRemove] = useState(false);
   const [askLogout, setAskLogout] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -107,8 +109,8 @@ export default function AccountMenu({ session, account, onChanged, onOpenSetting
       >
         <AccountFace account={account} size={28} />
       </button>
-      {open && (
-        <div className="account-menu-list" role="menu">
+      {presence.shown && (
+        <div className={presence.closing ? "account-menu-list pop-out" : "account-menu-list"} role="menu" inert={presence.closing}>
           <div className="account-menu-head">
             <strong>{account.name}</strong>
             {account.kept && <span className="account-state">로그인 유지 중</span>}

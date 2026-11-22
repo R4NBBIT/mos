@@ -299,9 +299,11 @@ interface Props {
   settings: Settings;
   wide: boolean;
   onClose: () => void;
+  /** 닫히는 중(흐려지며 사라짐) */
+  closing?: boolean;
 }
 
-export default function Guide({ settings, wide, onClose }: Props) {
+export default function Guide({ settings, wide, onClose, closing = false }: Props) {
   const [situation, setSituation] = useState<Situation | null>(null);
   const [step, setStep] = useState(0);
   const [popup, setPopup] = useState<PopupSupport>(popupSupport);
@@ -335,7 +337,13 @@ export default function Guide({ settings, wide, onClose }: Props) {
 
   if (!card) return null;
   return (
-    <div className="guide-layer" role="dialog" aria-modal="true" aria-labelledby="guide-title">
+    <div
+      className={closing ? "guide-layer guide-layer-out" : "guide-layer"}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="guide-title"
+      inert={closing}
+    >
       <div className="guide-card">
         <div className="guide-top">
           <span className="guide-step">

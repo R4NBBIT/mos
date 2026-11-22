@@ -1,3 +1,4 @@
+import { usePresence } from "./motion";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AccountMenu from "./AccountMenu";
 import BossScreen from "./boss/BossScreen";
@@ -159,6 +160,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
   const [route, go] = useHashRoute();
   const wide = useWide();
   const [listOpen, setListOpen] = useListOpen();
+  const listPresence = usePresence(listOpen, 240);
   // 넓은 화면 왼쪽 목록에서 둘러보는 서버(null이면 서버 목록). 오른쪽 화면과 따로 움직이고,
   // 채널을 열거나 뒤로 가서 주소가 바뀌면 다시 주소를 따른다
   const [browse, setBrowse] = useState<{ from: Route; groupId: string | null } | null>(null);
@@ -196,6 +198,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
   const openAccountId = open ? active?.id : undefined;
   // 열린 계정의 설정(테마·탭 제목)을 받아 온다. 계정을 바꾸면 그 계정 것으로
   const [showGuide, setShowGuide] = useState(false);
+  const guidePresence = usePresence(showGuide);
   useEffect(() => {
     if (!openAccountId) return;
     let stopped = false;
@@ -384,17 +387,9 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
     };
     if (!wide) return single();
 
-    // 넓은 화면: 접고 펴는 버튼은 오른쪽 화면 머리 줄 맨 앞, 계정 메뉴는 오른쪽 위에 늘 같은 자리
+    // 넓은 화면: 접고 펴는 버튼은 오른쪽 화면 머리 줄 맨 앞, 계정 메뉴는 오른쪽 위에 늘 같은 자리.
+    // 왼쪽 목록은 접어도 자리(aside)는 남겨 두고 폭만 줄여서 부드럽게 여닫는다
     const split = { open: listOpen, toggle: () => setListOpen(!listOpen) };
-    if (!listOpen) {
-      return (
-        <SplitContext.Provider value={split}>
-          <div className="split">
-            <main className="split-main">{single()}</main>
-          </div>
-        </SplitContext.Provider>
-      );
-    }
     // 왼쪽 목록: 둘러보는 중이면 그 서버, 아니면 주소의 서버
     const routeGroup = route.view === "groups" ? null : route.groupId;
     const leftGroup = browse && browse.from === route ? browse.groupId : routeGroup;
@@ -402,14 +397,24 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
       route.view === "chat" ? route.channelId : route.view === "posts" || route.view === "thread" ? route.parentId : undefined;
     return (
       <div className="split">
-        <aside className="split-list">
-          {leftGroup === null
-            ? groupList(true)
-            : channelList(leftGroup, leftGroup === routeGroup ? routeActive : undefined, true)}
+        <aside
+          className={listOpen ? "split-list" : listPresence.closing ? "split-list split-list-closed" : "split-list split-list-closed split-list-gone"}
+          aria-hidden={!listOpen}
+          inert={!listOpen}
+        >
+          {listPresence.shown && (
+            <div className="split-list-inner">
+              {leftGroup === null
+                ? groupList(true)
+                : channelList(leftGroup, leftGroup === routeGroup ? routeActive : undefined, true)}
+            </div>
+          )}
         </aside>
         <SplitContext.Provider value={split}>
           <main className="split-main">
-            {route.view === "chat" ? (
+            {!listOpen ? (
+              single()
+            ) : route.view === "chat" ? (
               chatRoom(route.groupId, route.channelId, true)
             ) : route.view === "posts" ? (
               posts(route.groupId, route.parentId)
@@ -448,7 +453,9 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
       ) : (
         screen()
       )}
-      {showGuide && <Guide settings={look} wide={wide} onClose={closeGuide} />}
+      {guidePresence.shown && (
+        <Guide settings={look} wide={wide} onClose={closeGuide} closing={guidePresence.closing} />
+      )}
       <NotifyToast toast={notify.toast} onOpen={go} onClose={notify.closeToast} />
     </LookContext.Provider>
   );
