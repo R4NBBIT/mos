@@ -3,6 +3,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { ApiError, fetchGroupChannels, fetchGroupMembers, fetchGroups, setPinned } from "./api";
 import { type ListSkin, listSkin, lockIcon } from "./listSkin";
 import { useLook } from "./lookContext";
+import { applyOrder, channelSections, OrderBar, ResetOrder, Sortable } from "./listOrder";
 import { Avatar } from "./MessageItem";
 import type { ChannelInfo, Group, GroupChannels, GroupList as GroupListData, GroupMembers } from "./types";
 
@@ -231,10 +232,13 @@ function ChannelRow({
   skin,
   indent = 0,
   viewers,
+  handle,
   onOpen,
   onPin,
 }: {
   channel: ChannelInfo;
+  /** 순서 바꾸기 손잡이 */
+  handle?: ReactNode;
   active?: boolean;
   sub?: string;
   skin: ListSkin;
@@ -259,6 +263,7 @@ function ChannelRow({
         if (event.key === "Enter") onOpen(channel);
       }}
     >
+      {handle}
       <span className="channel-mark">{skin.channelIcon(channel)}</span>
       <span className="list-name">
         {channel.name}
@@ -282,31 +287,18 @@ function ChannelRow({
   );
 }
 
-function groupByCategory(
-  channels: ChannelInfo[],
-): { key: string; name: string | null; channels: ChannelInfo[] }[] {
-  const sections: { key: string; name: string | null; channels: ChannelInfo[] }[] = [];
-  for (const channel of channels) {
-    const key = channel.category_id ?? "";
-    let section = sections.find((item) => item.key === key);
-    if (!section) {
-      section = { key, name: channel.category_name, channels: [] };
-      sections.push(section);
-    }
-    section.channels.push(channel);
-  }
-  return sections;
-}
 
 function GroupRow({
   group,
   skin,
   expanded,
+  handle,
   onOpen,
   onPin,
 }: {
   group: Group;
   skin: ListSkin;
+  handle?: ReactNode;
   /** 노션 트리: 펼쳤는지(없으면 트리가 아님) */
   expanded?: boolean;
   onOpen: () => void;
@@ -323,6 +315,7 @@ function GroupRow({
         if (event.key === "Enter") onOpen();
       }}
     >
+      {handle}
       {expanded !== undefined && (
         <span className="tree-chevron" aria-hidden="true">
           {expanded ? "▾" : "▸"}
@@ -337,6 +330,11 @@ function GroupRow({
       <PinButton pinned={Boolean(group.pinned)} onToggle={onPin} />
     </div>
   );
+}
+
+/** 한 묶음(카테고리) 안 순서를 바꾼 뒤 서버 전체 채널 순서 */
+function reorderedSections(sections: { key: string; channels: ChannelInfo[] }[], key: string, ids: string[]): string[] {
+  return sections.flatMap((section) => (section.key === key ? ids : section.channels.map((channel) => channel.id)));
 }
 
 const MEMBERS_SHOWN = 30;
@@ -422,40 +420,57 @@ function TreeChannels({
   groupId,
   activeChannelId,
   skin,
+  editing,
   onOpen,
   onAuthLost,
 }: {
   groupId: string;
   activeChannelId?: string;
   skin: ListSkin;
+  /** 순서 바꾸기 중 */
+  editing: boolean;
   onOpen: (channel: ChannelInfo) => void;
   onAuthLost: () => void;
 }) {
   const [load, reload] = useLoad<GroupChannels>(() => fetchGroupChannels(groupId), [groupId], onAuthLost);
   const members = useMembers(groupId, onAuthLost);
+  const { settings, save } = useLook();
+  const orderKey = `c:${groupId}`;
   const [pinError, togglePin] = usePinToggle(reload);
   if (load.state !== "ok") return <p className="list-note tree-note">{load.state === "loading" ? "불러오는 중…" : load.message}</p>;
   if (load.value.channels.length === 0) return <p className="list-note tree-note">볼 수 있는 페이지가 없어요.</p>;
   return (
     <>
       {pinError && <p className="list-error">{pinError}</p>}
-      {groupByCategory(load.value.channels).map((section) => (
+      {channelSections(load.value.channels, settings.list_order[orderKey]).map((section, _, sections) => (
         <div key={section.key || "-"} role="group" aria-label={section.name ?? undefined}>
           {section.name && <p className="tree-category">{section.name}</p>}
-          {section.channels.map((channel) => (
-            <ChannelRow
-              key={channel.id}
-              channel={channel}
-              skin={skin}
-              indent={1}
-              active={channel.id === activeChannelId}
-              viewers={members?.restricted[channel.id]?.length}
-              onOpen={onOpen}
-              onPin={(item) => togglePin("channel", item.id, !item.pinned)}
-            />
-          ))}
+          <Sortable
+            items={section.channels}
+            editing={editing}
+            label={(channel) => channel.name}
+            onReorder={(ids) => void save({ list_order: { [orderKey]: reorderedSections(sections, section.key, ids) } })}
+          >
+            {(channel, handle) => (
+              <ChannelRow
+                channel={channel}
+                skin={skin}
+                indent={1}
+                handle={handle}
+                active={channel.id === activeChannelId}
+                viewers={members?.restricted[channel.id]?.length}
+                onOpen={onOpen}
+                onPin={(item) => togglePin("channel", item.id, !item.pinned)}
+              />
+            )}
+          </Sortable>
         </div>
       ))}
+      {editing && (
+        <div className="order-bar order-bar-tree">
+          <ResetOrder keys={[orderKey]} what="이 서버 페이지" />
+        </div>
+      )}
       {members && (
         <MemberPanel
           data={members}
@@ -482,8 +497,10 @@ export function GroupList({
   openGroupId?: string;
   activeChannelId?: string;
 }) {
-  const { theme } = useLook().settings;
+  const { settings, save } = useLook();
+  const { theme } = settings;
   const skin = listSkin(theme);
+  const [editing, setEditing] = useState(false);
   const [load, reload] = useLoad<GroupListData>(fetchGroups, [], common.onAuthLost);
   const [pinError, togglePin] = usePinToggle(reload);
   const [expanded, setExpanded] = useState<string[]>(openGroupId ? [openGroupId] : []);
@@ -506,16 +523,23 @@ export function GroupList({
       {load.state === "ok" && load.value.pinned_channels.length > 0 && (
         <section className="list-section">
           <h2 className="list-section-title">{skin.pinnedTitle}</h2>
-          {load.value.pinned_channels.map((channel) => (
-            <ChannelRow
-              key={channel.id}
-              channel={{ ...channel, pinned: true }}
-              skin={skin}
-              sub={channel.group_name}
-              onOpen={(item) => onOpenChannel(item.group_id, item)}
-              onPin={(item) => togglePin("channel", item.id, false)}
-            />
-          ))}
+          <Sortable
+            items={applyOrder(load.value.pinned_channels, settings.list_order.pinned)}
+            editing={editing}
+            label={(channel) => channel.name}
+            onReorder={(ids) => void save({ list_order: { pinned: ids } })}
+          >
+            {(channel, handle) => (
+              <ChannelRow
+                channel={{ ...channel, pinned: true }}
+                skin={skin}
+                sub={channel.group_name}
+                handle={handle}
+                onOpen={(item) => onOpenChannel(item.group_id, item)}
+                onPin={(item) => togglePin("channel", item.id, false)}
+              />
+            )}
+          </Sortable>
         </section>
       )}
       {load.state === "ok" && load.value.groups.length === 0 && (
@@ -524,30 +548,42 @@ export function GroupList({
       {load.state === "ok" && load.value.groups.length > 0 && (
         <section className="list-section">
           {skin.allTitle && <h2 className="list-section-title">{skin.allTitle}</h2>}
-          {load.value.groups.map((group) => {
-            const open = tree && expanded.includes(group.id);
-            return (
-              <div key={group.id}>
-                <GroupRow
-                  group={group}
-                  skin={skin}
-                  expanded={tree ? open : undefined}
-                  onOpen={() => (tree ? toggle(group.id) : onOpen(group.id))}
-                  onPin={() => togglePin("group", group.id, !group.pinned)}
-                />
-                {open && (
-                  <TreeChannels
-                    groupId={group.id}
-                    activeChannelId={activeChannelId}
+          <Sortable
+            items={applyOrder(load.value.groups, settings.list_order.groups)}
+            editing={editing}
+            label={(group) => group.name}
+            onReorder={(ids) => void save({ list_order: { groups: ids } })}
+          >
+            {(group, handle) => {
+              const open = tree && expanded.includes(group.id);
+              return (
+                <>
+                  <GroupRow
+                    group={group}
                     skin={skin}
-                    onOpen={(channel) => onOpenChannel(group.id, channel)}
-                    onAuthLost={common.onAuthLost}
+                    handle={handle}
+                    expanded={tree ? open : undefined}
+                    onOpen={() => (tree ? toggle(group.id) : onOpen(group.id))}
+                    onPin={() => togglePin("group", group.id, !group.pinned)}
                   />
-                )}
-              </div>
-            );
-          })}
+                  {open && (
+                    <TreeChannels
+                      groupId={group.id}
+                      activeChannelId={activeChannelId}
+                      skin={skin}
+                      editing={editing}
+                      onOpen={(channel) => onOpenChannel(group.id, channel)}
+                      onAuthLost={common.onAuthLost}
+                    />
+                  )}
+                </>
+              );
+            }}
+          </Sortable>
         </section>
+      )}
+      {load.state === "ok" && load.value.groups.length + load.value.pinned_channels.length > 1 && (
+        <OrderBar editing={editing} onEditing={setEditing} keys={["groups", "pinned"]} what="서버" />
       )}
     </Shell>
   );
@@ -565,7 +601,7 @@ function ServerSwitch({
   onSwitch: (groupId: string) => void;
   onAll: () => void;
 }) {
-  const { theme } = useLook().settings;
+  const { theme, list_order: listOrder } = useLook().settings;
   const skin = listSkin(theme);
   const [open, setOpen] = useState(false);
   const [groups, setGroups] = useState<Group[] | null>(null);
@@ -621,7 +657,7 @@ function ServerSwitch({
         <div className="server-switch-menu" role="menu">
           {!groups && !failed && <p className="server-switch-note">불러오는 중…</p>}
           {failed && <p className="server-switch-note">불러오지 못했어요.</p>}
-          {groups?.map((group) => (
+          {groups && applyOrder(groups, listOrder.groups).map((group) => (
             <button
               key={group.id}
               type="button"
@@ -672,8 +708,11 @@ export function ChannelList({
   /** 머리의 서버 이름에서 다른 서버를 골랐을 때 */
   onSwitch: (groupId: string) => void;
 }) {
-  const { theme } = useLook().settings;
+  const { settings, save } = useLook();
+  const { theme } = settings;
   const skin = listSkin(theme);
+  const [editing, setEditing] = useState(false);
+  const orderKey = `c:${groupId}`;
   const [load, reload] = useLoad<GroupChannels>(
     () => fetchGroupChannels(groupId),
     [groupId, activeChannelId],
@@ -724,22 +763,34 @@ export function ChannelList({
         <p className="list-note">이 계정으로 볼 수 있는 채널이 없어요.</p>
       )}
       {load.state === "ok" &&
-        groupByCategory(load.value.channels).map((section) => (
+        channelSections(load.value.channels, settings.list_order[orderKey]).map((section, _, sections) => (
           <section key={section.key || "-"} className="list-section">
             {section.name && <h2 className="list-section-title">{section.name}</h2>}
-            {section.channels.map((channel) => (
-              <ChannelRow
-                key={channel.id}
-                channel={channel}
-                skin={skin}
-                active={channel.id === activeChannelId}
-                viewers={members?.restricted[channel.id]?.length}
-                onOpen={onOpen}
-                onPin={(item) => togglePin("channel", item.id, !item.pinned)}
-              />
-            ))}
+            <Sortable
+              items={section.channels}
+              editing={editing}
+              label={(channel) => channel.name}
+              onReorder={(ids) =>
+                void save({ list_order: { [orderKey]: reorderedSections(sections, section.key, ids) } })
+              }
+            >
+              {(channel, handle) => (
+                <ChannelRow
+                  channel={channel}
+                  skin={skin}
+                  handle={handle}
+                  active={channel.id === activeChannelId}
+                  viewers={members?.restricted[channel.id]?.length}
+                  onOpen={onOpen}
+                  onPin={(item) => togglePin("channel", item.id, !item.pinned)}
+                />
+              )}
+            </Sortable>
           </section>
         ))}
+      {load.state === "ok" && load.value.channels.length > 1 && (
+        <OrderBar editing={editing} onEditing={setEditing} keys={[orderKey]} what="채널" />
+      )}
       {load.state === "ok" && members && (
         <MemberPanel
           data={members}

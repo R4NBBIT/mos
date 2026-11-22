@@ -1653,6 +1653,7 @@ def test_settings_per_account(env: Env) -> None:
         "stickers_view": "full",
         "media_view": "full",
         "doc_titles": {},
+        "list_order": {},
     }
     assert env.client.get("/api/settings").json() == defaults
     changed = env.client.patch(
@@ -1689,6 +1690,26 @@ def test_settings_per_account(env: Env) -> None:
         "/api/settings", json={"doc_titles": {f"{CHANNEL}:sub": ""}}, headers=POST
     ).json()
     assert second["doc_titles"] == {str(CHANNEL): "운영 회의 정리"}  # 보낸 것만 바뀜
+    # 왼쪽 목록 순서: 보낸 목록만 바뀌고, 겹친 ID는 하나로, 빈 목록은 지움(디스코드 순서로)
+    order = env.client.patch(
+        "/api/settings",
+        json={"list_order": {"groups": [str(OTHER_GUILD), str(GUILD), str(GUILD)]}},
+        headers=POST,
+    ).json()
+    assert order["list_order"] == {"groups": [str(OTHER_GUILD), str(GUILD)]}
+    order = env.client.patch(
+        "/api/settings",
+        json={"list_order": {f"c:{GUILD}": [str(SECRET), str(CHANNEL)]}},
+        headers=POST,
+    ).json()
+    assert order["list_order"] == {
+        "groups": [str(OTHER_GUILD), str(GUILD)],
+        f"c:{GUILD}": [str(SECRET), str(CHANNEL)],
+    }
+    order = env.client.patch(
+        "/api/settings", json={"list_order": {"groups": []}}, headers=POST
+    ).json()
+    assert order["list_order"] == {f"c:{GUILD}": [str(SECRET), str(CHANNEL)]}
     key = env.client.patch("/api/settings", json={"boss_key": "Ctrl+Shift+KeyK"}, headers=POST)
     assert key.json()["boss_key"] == "Ctrl+Shift+KeyK"
     for bad in (
@@ -1710,6 +1731,10 @@ def test_settings_per_account(env: Env) -> None:
         {"doc_titles": {"general": "x"}},
         {"doc_titles": {str(CHANNEL): "가" * 81}},
         {"doc_titles": [str(CHANNEL)]},
+        {"list_order": {"channels": [str(CHANNEL)]}},
+        {"list_order": {"groups": ["../x"]}},
+        {"list_order": {"groups": str(GUILD)}},
+        {"list_order": {"groups": [str(GUILD)] * 501}},
     ):
         assert env.client.patch("/api/settings", json=bad, headers=POST).status_code == 400
     assert (

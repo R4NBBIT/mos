@@ -47,6 +47,11 @@ MEDIA_VIEWS = ("full", "small", "hidden")  # 사진과 동영상
 DOC_TITLE_KEY_RE = re.compile(r"[0-9]{15,21}(?::sub)?")
 MAX_DOC_TITLE = 80
 MAX_DOC_TITLES = 300
+# 왼쪽 목록 순서(이 사이트에서만): groups(서버), pinned(고정한 채널), c:<서버 ID>(그 서버의 채널)
+LIST_ORDER_KEY_RE = re.compile(r"groups|pinned|c:[0-9]{15,21}")
+SNOWFLAKE_RE = re.compile(r"[0-9]{15,21}")
+MAX_LIST_ORDERS = 200
+MAX_LIST_ORDER_LEN = 500
 # 자동 위장, 돌아올 때 잠그기, 알림, 알림에 내용 보이기, 처음 사용 안내를 봤는지, 작성자 프로필 사진
 BOOL_KEYS = (
     "boss_auto",
@@ -84,6 +89,7 @@ DEFAULTS: dict[str, Any] = {
     "stickers_view": "full",
     "media_view": "full",
     "doc_titles": {},
+    "list_order": {},
 }
 
 
@@ -102,6 +108,29 @@ def _clean_url(value: Any) -> str | None:
     if parts.scheme != "https" or not parts.hostname or any(ch.isspace() for ch in url):
         raise SettingsError("bad_boss_url")
     return url
+
+
+def _clean_list_order(value: Any) -> dict[str, list[str] | None]:
+    """목록 순서: ID 목록(겹치면 처음 것만). 비었거나 None이면 그 순서를 지운다(디스코드 순서로)."""
+    if not isinstance(value, dict) or len(value) > MAX_LIST_ORDERS:
+        raise SettingsError("bad_list_order")
+    result: dict[str, list[str] | None] = {}
+    for key, ids in value.items():
+        if not isinstance(key, str) or not LIST_ORDER_KEY_RE.fullmatch(key):
+            raise SettingsError("bad_list_order")
+        if ids is None:
+            result[key] = None
+            continue
+        if not isinstance(ids, list) or len(ids) > MAX_LIST_ORDER_LEN:
+            raise SettingsError("bad_list_order")
+        seen: list[str] = []
+        for item in ids:
+            if not isinstance(item, str) or not SNOWFLAKE_RE.fullmatch(item):
+                raise SettingsError("bad_list_order")
+            if item not in seen:
+                seen.append(item)
+        result[key] = seen or None
+    return result
 
 
 def _clean_doc_titles(value: Any) -> dict[str, str | None]:
@@ -160,6 +189,8 @@ def clean(update: dict[str, Any]) -> dict[str, Any]:
             result[key] = value
         elif key == "doc_titles":
             result[key] = _clean_doc_titles(value)
+        elif key == "list_order":
+            result[key] = _clean_list_order(value)
         elif key == "lock_minutes":
             if isinstance(value, bool) or value not in LOCK_MINUTES:
                 raise SettingsError("bad_lock_minutes")
@@ -213,7 +244,15 @@ class SettingsStore:
         changes = clean(update)
         current = await self.get(account_id)
         titles = changes.pop("doc_titles", None)
+        orders = changes.pop("list_order", None)
         current.update(changes)
+        if orders is not None:
+            # 보낸 목록만 바꾼다(다른 서버 순서는 그대로)
+            merged_orders = {**current["list_order"], **orders}
+            merged_orders = {key: ids for key, ids in merged_orders.items() if ids}
+            if len(merged_orders) > MAX_LIST_ORDERS:
+                raise SettingsError("too_many_list_orders")
+            current["list_order"] = merged_orders
         if titles is not None:
             # 보낸 것만 합친다(다른 채널 제목은 그대로)
             merged = {**current["doc_titles"], **titles}

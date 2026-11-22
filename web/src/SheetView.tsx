@@ -2,6 +2,7 @@ import Reactions, { ReactionPickerButton } from "./Reactions";
 import SplitToggle from "./SplitToggle";
 import EditableText from "./EditableText";
 import { useLook } from "./lookContext";
+import { orderedChannels } from "./listOrder";
 import { defaultTitle } from "./theme";
 import { type CSSProperties, type ReactNode, type RefObject, useEffect, useMemo, useState } from "react";
 import { fetchGroupChannels } from "./api";
@@ -113,8 +114,10 @@ function SheetTabs({
       window.clearInterval(timer);
     };
   }, [groupId]);
+  const order = useLook().settings.list_order[`c:${groupId}`];
   const activeId = channel.kind === "thread" ? channel.parent_id : channel.id;
-  const shown = tabs.length > 0 ? tabs : [channel];
+  // 왼쪽 목록에서 바꾼 순서 그대로
+  const shown = tabs.length > 0 ? orderedChannels(tabs, order) : [channel];
   return (
     <nav className="sheet-tabs" aria-label="채널">
       {shown.map((tab) => {

@@ -221,13 +221,18 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
       settings: look,
       save: async (changes: SettingsChanges) => {
         const before = lookRef.current;
-        const { doc_titles: titleChanges, ...rest } = changes;
+        const { doc_titles: titleChanges, list_order: orderChanges, ...rest } = changes;
         const titles = { ...before.doc_titles };
         for (const [key, title] of Object.entries(titleChanges ?? {})) {
           if (title) titles[key] = title;
           else delete titles[key];
         }
-        setLook({ ...before, ...rest, doc_titles: titles });
+        const orders = { ...before.list_order };
+        for (const [key, ids] of Object.entries(orderChanges ?? {})) {
+          if (ids && ids.length > 0) orders[key] = ids;
+          else delete orders[key];
+        }
+        setLook({ ...before, ...rest, doc_titles: titles, list_order: orders });
         try {
           setLook(await updateSettings(changes));
         } catch {

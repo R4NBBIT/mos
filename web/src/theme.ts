@@ -57,6 +57,8 @@ export interface Settings {
   media_view: MediaView;
   /** 화면에서 바로 고친 문서 제목: 채널 ID → 제목, 'ID:sub' → 부제목 */
   doc_titles: Record<string, string>;
+  /** 왼쪽 목록 순서(이 사이트에서만): groups, pinned, c:<서버 ID> → ID 순서 */
+  list_order: Record<string, string[]>;
 }
 
 export type ReactionsView = "full" | "compact" | "hidden";
@@ -107,6 +109,7 @@ export const DEFAULT_SETTINGS: Settings = {
   stickers_view: "full",
   media_view: "full",
   doc_titles: {},
+  list_order: {},
 };
 
 const BOSS_KEY_RE = /^(?:(?:Ctrl|Alt|Shift|Meta)\+){0,4}[A-Za-z][A-Za-z0-9]{0,24}(?:\*2)?$/;
@@ -216,6 +219,18 @@ function cleanTitles(value: unknown): Record<string, string> {
   return result;
 }
 
+function cleanOrder(value: unknown): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+  if (value && typeof value === "object") {
+    for (const [key, ids] of Object.entries(value)) {
+      if (/^(groups|pinned|c:[0-9]{15,21})$/.test(key) && Array.isArray(ids)) {
+        result[key] = ids.filter((id): id is string => typeof id === "string" && /^[0-9]{15,21}$/.test(id));
+      }
+    }
+  }
+  return result;
+}
+
 /** 잠금 화면 등 로그인 전: 이 브라우저에 기억해 둔 모양 */
 export function cachedLook(): Settings {
   try {
@@ -249,6 +264,7 @@ export function cachedLook(): Settings {
             value.stickers_view === "small" || value.stickers_view === "hidden" ? value.stickers_view : "full",
           media_view: value.media_view === "small" || value.media_view === "hidden" ? value.media_view : "full",
           doc_titles: cleanTitles(value.doc_titles),
+          list_order: cleanOrder(value.list_order),
         };
       }
     }

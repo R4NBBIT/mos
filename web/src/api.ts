@@ -249,8 +249,10 @@ export async function fetchSettings(): Promise<import("./theme").Settings> {
 }
 
 /** 바꿀 설정. 문서 제목은 보낸 것만 합쳐지고 null이면 지운다 */
-export type SettingsChanges = Partial<Omit<import("./theme").Settings, "doc_titles">> & {
+export type SettingsChanges = Partial<Omit<import("./theme").Settings, "doc_titles" | "list_order">> & {
   doc_titles?: Record<string, string | null>;
+  /** 보낸 목록만 바뀌고 null이면 그 순서를 지운다(디스코드 순서로) */
+  list_order?: Record<string, string[] | null>;
 };
 
 export async function updateSettings(changes: SettingsChanges): Promise<import("./theme").Settings> {

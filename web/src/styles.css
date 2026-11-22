@@ -6062,3 +6062,114 @@ a.attachment-image.attachment-image-small img {
     margin: 0;
   }
 }
+
+/* ------------------------------------------------------------ 왼쪽 목록 순서 바꾸기 */
+.sortable-item {
+  touch-action: auto;
+}
+
+.sortable-dragging {
+  position: relative;
+  z-index: 2;
+  opacity: 0.85;
+}
+
+.sortable-dragging > .list-item {
+  background: var(--surface);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.16);
+}
+
+body.sorting,
+body.sorting * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+.sort-handle {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: -6px 0 -6px -6px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--sub);
+  cursor: grab;
+  touch-action: none; /* 휴대폰: 손잡이를 끌 때 화면이 같이 스크롤되지 않게 */
+}
+
+.sort-handle:hover,
+.sort-handle:focus-visible {
+  background: var(--tint);
+  color: var(--ink);
+}
+
+.order-bar {
+  margin: 10px 12px 4px;
+  font-size: 12.5px;
+}
+
+.order-toggle {
+  font-size: 12.5px;
+  color: var(--sub);
+}
+
+.order-bar-on {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.order-bar-tree {
+  margin: 2px 12px 8px 30px;
+}
+
+.order-hint {
+  margin: 0 0 8px;
+  color: var(--sub);
+  line-height: 1.45;
+}
+
+.order-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.order-actions .text-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.order-done {
+  min-height: 32px;
+  padding: 4px 14px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.order-confirm {
+  font-size: 12.5px;
+}
+
+.order-confirm .confirm-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.order-confirm .confirm-actions button {
+  min-height: 32px;
+  padding: 4px 12px;
+}
