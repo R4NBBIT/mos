@@ -6685,3 +6685,153 @@ body.sorting * {
   ) {
   zoom: calc(1 / var(--text-zoom));
 }
+
+/* ------------------------------------------------------------ 앱으로 설치(계정 메뉴) */
+.install-card {
+  height: auto;
+  max-height: calc(100dvh - 32px);
+}
+
+.install-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.install-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.install-field > span,
+.install-field > legend {
+  padding: 0;
+  font-weight: 600;
+}
+
+.install-field input {
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+}
+
+.install-field small {
+  color: var(--sub);
+  font-size: 12px;
+}
+
+.install-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 56px);
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.install-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 16px;
+  background: none;
+  cursor: pointer;
+}
+
+.install-icon img {
+  display: block;
+  border-radius: 11px;
+}
+
+.install-icon-on {
+  border-color: var(--ink);
+}
+
+.install-note,
+.install-ok {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--tint);
+}
+
+.install-ok {
+  background: var(--honey-soft);
+}
+
+.install-steps ol {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.install-inline-icon {
+  vertical-align: -3px;
+}
+
+.install-later {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  color: var(--sub);
+  font-size: 12.5px;
+}
+
+.install-later strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.install-later p {
+  margin: 4px 0 0;
+}
+
+.install-warn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.install-warn p {
+  margin: 0;
+}
+
+.install-open {
+  text-decoration: none;
+}
+
+/* 계정 연결 화면: 앱 안의 브라우저 안내 한 줄 */
+.inapp-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--honey-soft);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.inapp-notice span {
+  flex: 1 1 200px;
+}
+
+.inapp-open {
+  color: var(--link);
+  font-weight: 600;
+}

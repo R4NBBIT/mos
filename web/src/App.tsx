@@ -23,6 +23,7 @@ import { LookContext, type LookValue } from "./lookContext";
 import { applyDisguise, applyLook, type BossTemplate, cachedLook, type Settings } from "./theme";
 import type { ChannelInfo, SessionAccount, SessionState, VoiceChannel } from "./types";
 import VoiceRoom from "./VoiceRoom";
+import InstallDialog from "./InstallDialog";
 import NotifyToast from "./NotifyToast";
 import { useNotifications } from "./useNotifications";
 
@@ -204,6 +205,9 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
   // 열린 계정의 설정(테마·탭 제목)을 받아 온다. 계정을 바꾸면 그 계정 것으로
   const [showGuide, setShowGuide] = useState(false);
   const guidePresence = usePresence(showGuide);
+  const [showInstall, setShowInstall] = useState(false);
+  const installPresence = usePresence(showInstall);
+  const closeInstall = useCallback(() => setShowInstall(false), []);
   useEffect(() => {
     if (!openAccountId) return;
     let stopped = false;
@@ -294,6 +298,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
           onChanged={changed}
           onOpenSettings={() => go("#/settings")}
         onOpenGuide={() => setShowGuide(true)}
+          onOpenInstall={() => setShowInstall(true)}
         />
       ),
       onAuthLost: changed,
@@ -485,6 +490,7 @@ function Screens({ look, setLook, refreshKey, onFileChanged, onAccountOpen }: Sc
       {guidePresence.shown && (
         <Guide settings={look} wide={wide} onClose={closeGuide} closing={guidePresence.closing} />
       )}
+      {installPresence.shown && <InstallDialog onClose={closeInstall} closing={installPresence.closing} />}
       <NotifyToast toast={notify.toast} onOpen={go} onClose={notify.closeToast} />
     </LookContext.Provider>
   );

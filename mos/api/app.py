@@ -163,6 +163,57 @@ def channel_to_api(
     return data
 
 
+# 홈 화면 앱(설치형 웹앱) 아이콘: 키 → 바탕색. 그림은 web/public/app-icons/
+APP_ICONS = {
+    "a": "#f3f1ea",
+    "b": "#ffd66b",
+    "c": "#e9f0fb",
+    "d": "#fdecea",
+    "e": "#8ab4f8",
+    "f": "#e4f1e8",
+    "g": "#efeaf8",
+    "h": "#26272b",
+}
+APP_DEFAULT_NAME = "ㅁㅇㅅ"
+APP_DEFAULT_ICON = "h"
+APP_NAME_MAX = 20
+
+
+def clean_app_name(raw: str | None) -> str:
+    """홈 화면 이름: 제어 문자와 앞뒤 공백을 빼고, 공백은 하나로, 20자까지. 비면 기본 이름."""
+    text = "".join(ch for ch in (raw or "") if ch.isprintable())
+    text = " ".join(text.split())[:APP_NAME_MAX].strip()
+    return text or APP_DEFAULT_NAME
+
+
+def app_manifest_data(name: str | None, icon: str | None) -> dict[str, Any]:
+    """설치할 때 쓰는 정보(manifest). 이름과 아이콘은 설치하는 사람이 고른 것."""
+    key = icon if icon in APP_ICONS else APP_DEFAULT_ICON
+    label = clean_app_name(name)
+    color = APP_ICONS[key]
+    return {
+        "id": "/",
+        "name": label,
+        "short_name": label,
+        "lang": "ko",
+        "start_url": "/",
+        "scope": "/",
+        "display": "standalone",
+        "background_color": color,
+        "theme_color": color,
+        "icons": [
+            {"src": f"/app-icons/{key}-192.png", "sizes": "192x192", "type": "image/png"},
+            {"src": f"/app-icons/{key}-512.png", "sizes": "512x512", "type": "image/png"},
+            {
+                "src": f"/app-icons/{key}-maskable.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "maskable",
+            },
+        ],
+    }
+
+
 def voice_to_api(voice: VoiceChannelInfo, guild: GuildInfo) -> dict[str, Any]:
     channel = voice.channel
     members = sorted(voice.members, key=lambda m: (m.is_bot, m.display_name.casefold()))
@@ -492,6 +543,15 @@ def create_app(
             raise SessionError("rate_limited", status=429, retry_after=60)
 
     # ------------------------------------------------------------ 상태 확인(자동 배포가 본다)
+
+    @app.get("/api/app/manifest")
+    async def app_manifest(name: str | None = None, icon: str | None = None) -> JSONResponse:
+        """로그인 없이 받는다(설치할 때 브라우저가 쿠키 없이 가져감). 값은 검사해서만 쓴다."""
+        return JSONResponse(
+            app_manifest_data(name, icon),
+            media_type="application/manifest+json",
+            headers={"Cache-Control": "no-cache"},
+        )
 
     @app.get("/api/healthz")
     async def healthz() -> JSONResponse:

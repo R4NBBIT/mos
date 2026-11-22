@@ -2,6 +2,7 @@ import { type FormEvent, type ReactNode, useState } from "react";
 import { ApiError, removeAccount, setPassword, startConnect, switchAccount, unlock } from "./api";
 import { authText } from "./authText";
 import { isDiscordMediaUrl } from "./format";
+import { externalOpenUrl, inAppBrowser, platform } from "./appInstall";
 import { lookTitle } from "./theme";
 import type { SessionAccount, SessionState } from "./types";
 
@@ -38,9 +39,35 @@ function Card({ title, hint, children }: { title: string; hint?: string; childre
 }
 
 /** 이 브라우저에 계정이 하나도 없을 때 */
+/** 카카오톡 같은 앱 안의 브라우저: 로그인이 막히거나 유지되지 않을 수 있어 바깥 브라우저를 권한다 */
+function InAppNotice() {
+  const [closed, setClosed] = useState(false);
+  const app = inAppBrowser();
+  if (!app || closed) return null;
+  const url = externalOpenUrl(app);
+  const browser = platform() === "ios" ? "사파리" : "크롬";
+  return (
+    <div className="inapp-notice" role="status">
+      <span>
+        {app.name} 안에서는 로그인이 잘 안 될 수 있어요. {browser}로 열어 주세요.
+        {!url && " (메뉴 › 다른 브라우저로 열기)"}
+      </span>
+      {url && (
+        <a className="inapp-open" href={url}>
+          {browser}로 열기
+        </a>
+      )}
+      <button type="button" className="text-button" onClick={() => setClosed(true)} aria-label="안내 닫기">
+        닫기
+      </button>
+    </div>
+  );
+}
+
 export function ConnectScreen({ notice }: { notice: string }) {
   return (
     <Card title={lookTitle()} hint="처음 쓰는 브라우저예요. 계정을 연결해 주세요.">
+      <InAppNotice />
       {notice && <p className="login-error">{notice}</p>}
       <button type="button" className="primary-button" onClick={() => startConnect("connect")}>
         계정 연결하기
