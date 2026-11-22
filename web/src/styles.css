@@ -7020,3 +7020,63 @@ body.sorting * {
 .sheet-title-row .post-edit-open {
   font-weight: 400;
 }
+
+/* ------------------------------------------------------------ 새 메시지 구분선(채널을 연 때의 읽은 위치) */
+.new-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 8px;
+  color: #b8860b;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.new-divider::before,
+.new-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--honey);
+}
+
+:root[data-theme="night"] .new-divider {
+  color: var(--honey);
+}
+
+/* 메모장 A: 사람이 친 듯한 구분 줄 */
+.new-divider-memo {
+  font-family: var(--mono);
+  white-space: pre;
+  overflow: hidden;
+  color: inherit;
+}
+
+/* Word C: 검토 메모 한 줄 */
+.new-divider-word {
+  margin: 6px 0 8px;
+  padding: 4px 8px;
+  border-left: 3px solid #185abd;
+  background: #f3f2f1;
+  color: #555555;
+  font-size: 12px;
+}
+
+/* 노션 C: 새 행 시각 앞 작은 파란 점 */
+:root[data-theme="note"] .msg-new .db-time::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #2383e2;
+  vertical-align: 2px;
+}
+
+/* 스프레드시트 A: 새 행의 행 번호 칸만 연한 초록과 굵은 숫자(행을 골랐을 때 행 머리처럼) */
+.sheet-row-new .sheet-rownum {
+  background: #d3eadb;
+  color: #1f6e43;
+  font-weight: 700;
+}

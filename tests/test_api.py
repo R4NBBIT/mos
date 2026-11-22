@@ -1090,6 +1090,15 @@ def test_voice_changes_reach_only_members_who_asked(env: Env) -> None:
         assert ws.receive_text() == "pong"  # 그 사이 아무것도 안 왔다
 
 
+def test_channel_detail_tells_last_read_for_divider(env: Env) -> None:
+    signed_up(env)
+    assert env.client.get(f"/api/channels/{CHANNEL}").json()["last_read_id"] is None
+    last = "1573319705849102999"
+    read = env.client.post(f"/api/channels/{CHANNEL}/read", json={"last_id": last}, headers=POST)
+    assert read.status_code == 204
+    assert env.client.get(f"/api/channels/{CHANNEL}").json()["last_read_id"] == last
+
+
 def test_forum_messages_are_not_served_yet(env: Env) -> None:
     signed_up(env)
     assert env.client.get(f"/api/channels/{FORUM}/messages").status_code == 404

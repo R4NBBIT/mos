@@ -119,6 +119,8 @@ export interface ChannelInfo {
   parent_name?: string;
   parent_kind?: ChannelKind;
   applied_tags?: ForumTag[];
+  /** 이 채널을 열기 전까지 읽은 마지막 메시지(새 메시지 구분선, 처음이면 null) */
+  last_read_id?: string | null;
   /** 글, 스레드: 내가 제목과 태그를 고칠 수 있는지(글쓴이나 스레드 관리 권한) */
   can_edit_post?: boolean;
   starter?: Message | null;

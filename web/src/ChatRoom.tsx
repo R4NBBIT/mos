@@ -359,6 +359,32 @@ export default function ChatRoom({
   const isForumPost = isThread && channel?.parent_kind === "forum";
   // 글 ID = 첫 메시지 ID. 일반 채널 스레드는 시작 메시지가 부모 채널에 있다
   const starter = isThread ? (channel?.starter ?? byId.get(channel?.id ?? "") ?? null) : null;
+  // 새 메시지 구분선: 채널을 연 때의 읽은 위치를 그대로 기억(읽어 내려가도 줄은 그 자리)
+  const [readAtOpen, setReadAtOpen] = useState<string | null>(null);
+  useEffect(() => {
+    if (channel && readAtOpen === null) setReadAtOpen(channel.last_read_id ?? "");
+  }, [channel, readAtOpen]);
+  // 처음 열 때 새 메시지가 화면보다 많으면 구분선이 위쪽에 오게(적으면 평소처럼 맨 아래)
+  const jumpedToNew = useRef(false);
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list || jumpedToNew.current || !readAtOpen || messages.length === 0) return;
+    jumpedToNew.current = true;
+    const mark = list.querySelector<HTMLElement>(NEW_MARK_SELECTOR);
+    if (!mark) return;
+    const top = mark.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+    if (list.scrollHeight - top > list.clientHeight) {
+      stickToBottom.current = false;
+      list.scrollTop = Math.max(0, top - 16);
+    }
+  }, [messages, readAtOpen]);
+  const isNewMessage = (message: Message) =>
+    Boolean(readAtOpen) &&
+    BigInt(message.id) > BigInt(readAtOpen as string) &&
+    !isSystemMessage(message) &&
+    message.author.id !== myUserId &&
+    message.web_sender_id !== myUserId;
+  const newMarks: { first: string | null; count: number } = { first: null, count: 0 };
   const shownMessages = (isThread ? messages.filter((message) => message.id !== channel?.id) : messages).filter(
     (message) => !isHiddenMessage(message),
   );
@@ -487,6 +513,7 @@ export default function ChatRoom({
         onReact={react}
         reactError={reactError}
         composer={composer}
+        isNewMessage={isNewMessage}
         onPostEdited={(changes) => setChannel((current) => (current ? { ...current, ...changes } : current))}
         showBack={Boolean(showBack)}
         onBack={onBack}
@@ -683,6 +710,12 @@ export default function ChatRoom({
           </button>
         )}
         {error && <p className="room-error">{error}</p>}
+        {(() => {
+          // 첫 새 메시지 앞에 구분선(노션은 새 메시지마다 시각 앞 작은 점만)
+          newMarks.first = shownMessages.find(isNewMessage)?.id ?? null;
+          newMarks.count = newMarks.first ? shownMessages.filter(isNewMessage).length : 0;
+          return null;
+        })()}
         {shownMessages.map((message, index) => {
           const previous = index > 0 ? shownMessages[index - 1] : undefined;
           const newDay = !previous || dayKey(previous.created_at) !== dayKey(message.created_at);
@@ -694,9 +727,11 @@ export default function ChatRoom({
             previous.author.name === message.author.name &&
             new Date(message.created_at).getTime() - new Date(previous.created_at).getTime() <
               GROUP_GAP_MS;
+          const fresh = theme === "note" && isNewMessage(message);
           return (
-            <div key={message.id}>
+            <div key={message.id} className={fresh ? "msg-new" : undefined}>
               {newDay && <div className="day-divider">{formatDay(message.created_at)}</div>}
+              {message.id === newMarks.first && <NewDivider theme={theme} first={message} count={newMarks.count} />}
               <MessageItem
                 message={message}
                 grouped={grouped}
@@ -743,6 +778,35 @@ export default function ChatRoom({
         </button>
       )}
       {composer}
+    </div>
+  );
+}
+
+const NEW_MARK_SELECTOR = ".new-divider, .new-divider-memo, .new-divider-word, .msg-new, .sheet-row-new";
+
+/**
+ * 새 메시지 구분선. 위장 테마는 그 프로그램에 원래 있는 표시를 빌린다(시안 결정: 메모장 A, Word C).
+ * 기본, 다크는 분명한 꿀색 줄. 노션은 줄 대신 행마다 작은 점(CSS .msg-new)
+ */
+function NewDivider({ theme, first, count }: { theme: string; first: Message; count: number }) {
+  if (theme === "note") return null;
+  if (theme === "memo") {
+    return (
+      <div className="new-divider-memo" role="separator" aria-label="여기부터 새 메시지">
+        --------------------------------
+      </div>
+    );
+  }
+  if (theme === "word") {
+    return (
+      <div className="new-divider-word" role="note" aria-label="여기부터 새 메시지">
+        메모: {formatTime(first.created_at)} 이후 내용 {count}개
+      </div>
+    );
+  }
+  return (
+    <div className="new-divider" role="separator" aria-label="여기부터 새 메시지">
+      <span>새 메시지</span>
     </div>
   );
 }

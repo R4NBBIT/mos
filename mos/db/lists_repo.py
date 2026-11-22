@@ -65,6 +65,13 @@ class ListsRepo:
                 (account_id, channel_id, last_id),
             )
 
+    async def read_position(self, account_id: int, channel_id: int) -> int | None:
+        row = await self.db.fetch_one(
+            "SELECT last_read_id FROM read_state WHERE account_id = ? AND channel_id = ?",
+            (account_id, channel_id),
+        )
+        return int(row[0]) if row else None
+
     async def unread(
         self, account_id: int, user_id: int, channel_ids: Sequence[int]
     ) -> dict[int, tuple[int, int]]:

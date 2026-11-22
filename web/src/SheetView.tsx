@@ -86,6 +86,8 @@ interface Props {
   onReact: (message: Message, emoji: string) => void;
   reactError: string;
   composer: ReactNode;
+  /** 새 메시지(이 ID보다 뒤, 남이 쓴 것)의 행 번호를 연한 초록으로(시안 A) */
+  isNewMessage?: (message: Message) => boolean;
   /** 글 제목, 태그를 고친 뒤 */
   onPostEdited?: (changes: { name: string; applied_tags: ForumTag[] }) => void;
   showBack: boolean;
@@ -228,6 +230,7 @@ export default function SheetView(props: Props) {
     if (isSelected) classes.push("sheet-row-selected");
     const isStarter = isThread && message.id === channel?.id;
     if (isStarter) classes.push("sheet-row-starter");
+    if (props.isNewMessage?.(message)) classes.push("sheet-row-new");
     const text = plainText(message);
     const pictures = message.attachments.filter(isPicture);
     const stickers = message.stickers ?? [];

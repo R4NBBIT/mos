@@ -880,6 +880,9 @@ def create_app(
         access = await require_channel(account, channel_id)
         guild = directory.guild(access.channel.guild_id)
         data = channel_to_api(access, group_name=guild.name if guild else "", guild=guild)
+        # 새 메시지 구분선: 이 채널을 열기 전에 어디까지 읽었는지(처음이면 없음)
+        last_read = await lists.read_position(account.account_id, channel_id)
+        data["last_read_id"] = str(last_read) if last_read is not None else None
         channel = access.channel
         if channel.kind == "thread" and channel.parent_id:
             # 글·스레드 화면: 부모 이름, 붙은 태그, 첫 메시지(글 ID = 첫 메시지 ID)
