@@ -4874,10 +4874,29 @@ button.tag-chip:disabled {
 }
 
 .tree-chevron {
+  display: inline-flex;
   flex-shrink: 0;
-  width: 10px;
-  color: #a5a29a;
-  font-size: 10px;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: #8f8c85;
+  transition: transform 0.15s ease;
+}
+
+.tree-chevron svg {
+  width: 16px;
+  height: 16px;
+}
+
+.tree-chevron-open {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tree-chevron {
+    transition: none;
+  }
 }
 
 .tree-category {

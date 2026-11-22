@@ -79,6 +79,17 @@ export function HideButton({ hidden, name, onToggle }: { hidden: boolean; name: 
   );
 }
 
+/** 여닫는 묶음 앞 화살표(글자 삼각형은 너무 작아서 그림으로, 열리면 아래로 돈다) */
+export function FoldChevron({ open }: { open: boolean }) {
+  return (
+    <span className={open ? "tree-chevron tree-chevron-open" : "tree-chevron"} aria-hidden="true">
+      <svg viewBox="0 0 16 16" width="16" height="16">
+        <path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </span>
+  );
+}
+
 /** 목록 맨 아래 '숨긴 항목 n' 묶음(처음엔 접힘) */
 export function HiddenFolder({
   count,
@@ -106,9 +117,7 @@ export function HiddenFolder({
           if (event.key === "Enter") setOpen((value) => !value);
         }}
       >
-        <span className="tree-chevron" aria-hidden="true">
-          {open ? "▾" : "▸"}
-        </span>
+        <FoldChevron open={open} />
         <span className="list-name">
           숨긴 항목<span className="tree-others-count">{count}</span>
         </span>

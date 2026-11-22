@@ -17,7 +17,7 @@ import type {
 } from "./types";
 import { useVoiceChannels } from "./voice";
 import { VoiceRow, withVoice } from "./voiceParts";
-import { HiddenFolder, hiddenCounts, HideButton, ListSearch, nameMatches, useHidden } from "./listFind";
+import { FoldChevron, HiddenFolder, hiddenCounts, HideButton, ListSearch, nameMatches, useHidden } from "./listFind";
 
 const RETRY_MAX_MS = 15_000;
 const REFRESH_MS = 20_000; // 안 읽음 숫자를 새로 받는 간격(목록을 보고 있을 때만)
@@ -346,9 +346,7 @@ function GroupRow({
     >
       {handle}
       {expanded !== undefined && (
-        <span className="tree-chevron" aria-hidden="true">
-          {expanded ? "▾" : "▸"}
-        </span>
+        <FoldChevron open={expanded} />
       )}
       <span className="channel-mark">{skin.serverIcon(group)}</span>
       <span className="list-name">
@@ -949,9 +947,7 @@ export function GroupList({
                   if (event.key === "Enter") toggleOthers();
                 }}
               >
-                <span className="tree-chevron" aria-hidden="true">
-                  {othersOpen ? "▾" : "▸"}
-                </span>
+                <FoldChevron open={othersOpen} />
                 <span className="list-name">
                   다른 서버<span className="tree-others-count">{others.length}</span>
                 </span>
