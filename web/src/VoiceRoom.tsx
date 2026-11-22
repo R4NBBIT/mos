@@ -3,8 +3,6 @@
 // 휴대폰과 태블릿은 웹 주소를 그대로 연다(앱이 있으면 기기가 앱으로 연다)
 import { type ReactNode, useEffect, useState } from "react";
 import BackIcon from "./BackIcon";
-import { listSkin } from "./listSkin";
-import { useLook } from "./lookContext";
 import { Avatar } from "./MessageItem";
 import SplitToggle from "./SplitToggle";
 import { isTouchOnly } from "./device";
@@ -72,8 +70,6 @@ export default function VoiceRoom({
   notice?: string;
   onNoticeClose?: () => void;
 }) {
-  const { theme } = useLook().settings;
-  const skin = listSkin(theme);
   // 설정에서 목록에 안 보이게 했어도, 주소로 직접 온 화면은 보여 준다
   const channels = useVoiceChannels(groupId, true);
   const voice = channels?.find((item) => item.id === channelId);
@@ -90,7 +86,7 @@ export default function VoiceRoom({
         )}
         <div className="room-title">
           <strong>{voice ? voice.name : "…"}</strong>
-          <span className="room-sub">{skin.voiceSub}</span>
+          <span className="room-sub">{voice?.group_name ?? ""}</span>
         </div>
         {menu}
       </header>

@@ -129,11 +129,10 @@ export interface ListSkin {
   badge: "count" | "paren" | "dot";
   /** 왼쪽 아래 서버 인원 묶음 이름 */
   membersTitle: string;
-  /** 음성 채널: 아이콘, 이름 뒤 확장자, 들어가 있는 사람 수 표시, 화면 머리의 작은 글자 */
+  /** 음성 채널: 아이콘, 이름 뒤 확장자, 들어가 있는 사람 수 표시 */
   voiceIcon: (voice: VoiceChannel) => ReactNode;
   voiceExt: string;
   voiceCount: (count: number) => string;
-  voiceSub: string;
 }
 
 const plain = (channel: ChannelInfo) => (channel.kind === "forum" ? memoStack : memoNote);
@@ -156,7 +155,6 @@ export function listSkin(theme: Theme): ListSkin {
         voiceIcon: () => sheetGrid,
         voiceExt: ".xlsx",
         voiceCount: (count) => `공동 편집 ${count}`,
-        voiceSub: "공동 편집",
       };
     case "memo":
       return {
@@ -174,7 +172,6 @@ export function listSkin(theme: Theme): ListSkin {
         voiceIcon: () => textFile,
         voiceExt: ".log",
         voiceCount: (count) => `[${count}명 접속]`,
-        voiceSub: "접속 기록",
       };
     case "note":
       return {
@@ -192,7 +189,6 @@ export function listSkin(theme: Theme): ListSkin {
         voiceIcon: () => <span className="skin-emoji">🗒️</span>,
         voiceExt: "",
         voiceCount: (count) => `👥 ${count}`,
-        voiceSub: "함께 보는 중",
       };
     case "word":
       return {
@@ -210,7 +206,6 @@ export function listSkin(theme: Theme): ListSkin {
         voiceIcon: () => wordDoc,
         voiceExt: ".docx",
         voiceCount: (count) => `공동 작업 ${count}`,
-        voiceSub: "공동 작업",
       };
     default:
       // 기본, 다크: 메모 앱 폴더
@@ -233,7 +228,6 @@ export function listSkin(theme: Theme): ListSkin {
         voiceIcon: () => speaker,
         voiceExt: "",
         voiceCount: (count) => `${count}명`,
-        voiceSub: "음성 채널",
       };
   }
 }

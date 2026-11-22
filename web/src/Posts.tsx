@@ -406,7 +406,7 @@ export default function Posts({
         )}
         <div className="room-title">
           <strong>{parent ? `${isForum ? "▤" : "#"} ${parent.name}` : "…"}</strong>
-          <span className="room-sub">{parent ? (isForum ? "글 목록" : "스레드") : ""}</span>
+          <span className="room-sub">{parent?.group_name ?? ""}</span>
         </div>
         {isForum && parent?.can_post && !writing && (
           <button type="button" className="composer-send header-action" onClick={() => setWriting(true)}>

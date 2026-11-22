@@ -171,6 +171,7 @@ def voice_to_api(voice: VoiceChannelInfo, guild: GuildInfo) -> dict[str, Any]:
         "name": channel.name,
         "kind": channel.kind,
         "group_id": str(channel.guild_id),
+        "group_name": guild.name,
         "category_id": str(channel.category_id) if channel.category_id else None,
         "category_name": channel.category_name,
         "category_position": channel.category_position,

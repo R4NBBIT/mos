@@ -188,6 +188,7 @@ export interface VoiceChannel {
   name: string;
   kind: "voice" | "stage";
   group_id: string;
+  group_name: string;
   category_id: string | null;
   category_name: string | null;
   category_position: number;

@@ -1036,6 +1036,7 @@ def test_voice_channels_follow_view_permission(env: Env) -> None:
     assert [c["name"] for c in body["channels"]] == ["게임방", "비밀방"]  # 봇이 못 보는 방은 뺀다
     game = body["channels"][0]
     assert (game["kind"], game["private"], game["group_id"]) == ("voice", False, str(GUILD))
+    assert game["group_name"] == "서버 A"  # 화면 머리에 다른 채널처럼 서버 이름
     assert [m["name"] for m in game["members"]] == ["단월", "한민희", "음악봇"]  # 봇은 뒤로
     assert game["members"][0] == {
         "id": "42",
