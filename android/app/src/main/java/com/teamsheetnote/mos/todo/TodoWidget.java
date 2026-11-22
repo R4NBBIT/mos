@@ -17,7 +17,6 @@ import org.json.JSONObject;
 import java.time.LocalDate;
 import java.time.format.TextStyle;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
@@ -139,7 +138,7 @@ public class TodoWidget extends AppWidgetProvider {
         } else {
             views.setViewVisibility(R.id.message, View.GONE);
         }
-        // 안 한 것 먼저, 시각 순(PC 위젯과 같게)
+        // 순서는 TODO 화면 그대로(서버가 카테고리 순서, 사용자가 정한 순서로 준다. 2026-11-23 사용자 요청)
         List<JSONObject> items = new ArrayList<>();
         if (todos != null) {
             for (int index = 0; index < todos.length(); index++) {
@@ -149,9 +148,6 @@ public class TodoWidget extends AppWidgetProvider {
                 }
             }
         }
-        items.sort(Comparator
-                .comparing((JSONObject item) -> item.optBoolean("done", false))
-                .thenComparing(item -> item.isNull("time") ? "99" : item.optString("time", "99")));
         int total = items.size();
         int done = 0;
         for (JSONObject item : items) {

@@ -74,9 +74,13 @@ export default function TodoWidget({ compact = false, theme }: { compact?: boole
 
   const openCategories = (data?.categories ?? []).filter((category) => !category.closed);
   const known = chosen.filter((id) => openCategories.some((category) => category.id === id));
-  const items = [...(data?.items ?? [])]
+  // 순서는 TODO 화면 그대로: 카테고리 순서, 그 안에서는 사용자가 정한 순서(시각, 완료로 다시 줄 세우지 않음)
+  const rank = new Map((data?.categories ?? []).map((category, index) => [category.id, index]));
+  const items = (data?.items ?? [])
     .filter((item) => known.length === 0 || known.includes(item.category_id))
-    .sort((a, b) => Number(a.done) - Number(b.done) || (a.time ?? "99").localeCompare(b.time ?? "99"));
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => (rank.get(a.item.category_id) ?? 999) - (rank.get(b.item.category_id) ?? 999) || a.index - b.index)
+    .map(({ item }) => item);
   const colors = new Map((data?.categories ?? []).map((category) => [category.id, category.color]));
   const model: WidgetModel = {
     day,

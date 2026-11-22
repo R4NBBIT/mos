@@ -733,7 +733,12 @@ class TodoMcp:
             items: list[dict[str, Any]] = []
             for offset in range(span + 1):
                 day = (first + timedelta(days=offset)).isoformat()
-                items.extend((await self.todo.day(account_id, day))["items"])
+                shown = await self.todo.day(account_id, day)
+                # TODO 화면과 같은 순서: 카테고리 순서, 그 안은 사용자가 정한 순서(위젯도)
+                rank = {cat["id"]: index for index, cat in enumerate(shown["categories"])}
+                items.extend(
+                    sorted(shown["items"], key=lambda it: rank.get(it["category_id"], len(rank)))
+                )
             colors = await self._colors(account_id)
             listed = [
                 {**_public(item, names), "color": colors.get(item["category_id"], "")}
