@@ -128,6 +128,18 @@ def test_todo_commands(env: Env) -> None:
     assert "없어요" in missing["text"] and missing["choices"]
 
 
+def test_todo_range_adds_every_day(env: Env) -> None:
+    """기간으로 말하면 그 기간 날마다 하나씩 넣고, 메모에 기간을 남기지 않는다."""
+    signed_up(env, "mocha")
+    env.client.get("/api/todo/categories")
+    done = ok(env, "/todo 12.7~12.9 출장 [TODO]")
+    assert "날마다 3개" in done
+    for day in ("2026-12-07", "2026-12-08", "2026-12-09"):
+        items = env.client.get(f"/api/todo/day/{day}").json()["items"]
+        assert [(i["title"], i["memo"]) for i in items] == [("출장", "")]
+    assert env.client.get("/api/todo/day/2026-12-10").json()["items"] == []
+
+
 def test_todo_commands_more(env: Env) -> None:
     signed_up(env, "mocha")
     env.client.get("/api/todo/categories")

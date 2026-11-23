@@ -4,7 +4,7 @@ import { type CSSProperties, Fragment, type ReactNode, useEffect, useMemo, useRe
 import { dateWithWeekday, longLabel, timeLabel, today, WEEKDAY_NAMES } from "./dates";
 import { useEnterKey } from "./enterKey";
 import { TodoReactions } from "./TodoReactions";
-import { parseWhen } from "./parseWhen";
+import { daysBetween, parseWhen } from "./parseWhen";
 import {
   deleteTodo,
   fetchAudience,
@@ -649,7 +649,16 @@ export function CategoryBlock({
       place: typed.place.trim() || parsedValues.place,
       memo: typed.memo.trim() || parsedValues.memo,
     };
-    if (await onAdd(values)) {
+    // 기간으로 쓰면(11.16~11.20 등) 그 기간 날마다 하나씩(2026-11-23 사용자 요청). 날짜 칸을 직접 고르면 그날만
+    const days = !typed.day && found?.day && found.endDay ? daysBetween(found.day, found.endDay) : [values.day];
+    let added = true;
+    for (const day of days) {
+      if (!(await onAdd({ ...values, day }))) {
+        added = false;
+        break;
+      }
+    }
+    if (added) {
       setText(""); // 칸은 열린 채로 이어서 입력
       setFields({ day: "", time: "", place: "", memo: "" });
     }
@@ -660,7 +669,11 @@ export function CategoryBlock({
   let preview: ReactNode = null;
   if (shown) {
     const bits = [
-      shown.day && shown.day !== viewDay ? longLabel(shown.day) : "",
+      shown.day && shown.endDay
+        ? `${dateWithWeekday(shown.day)} ~ ${dateWithWeekday(shown.endDay)} 날마다`
+        : shown.day && shown.day !== viewDay
+          ? longLabel(shown.day)
+          : "",
       shown.time ? timeLabel(shown.time) : "",
       shown.place ?? "",
       shown.memo ? "메모 있음" : "",
@@ -814,6 +827,9 @@ export function CategoryBlock({
                 required
                 onChange={(value) => value && setFields({ ...fields, day: value })}
               />
+              {!fields.day && shown?.endDay && (
+                <span className="todo-range-note">~ {dateWithWeekday(shown.endDay)} 날마다</span>
+              )}
             </div>
             <div className="todo-add-field todo-pick-boxed">
               <span>시각</span>

@@ -25,6 +25,8 @@ from mos.services.todo_oauth import Grant
 
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 SERVER_INFO = {"name": "mos-todo", "title": "ㅁㅇㅅ TODO", "version": "1.0"}
+MAX_RANGE_DAYS = 31  # add_todos의 end_day 기간
+MAX_ADD_TOTAL = 200  # 기간을 펼친 뒤 한 번에 넣는 최대 개수
 MAX_ADD = 20
 MAX_LIST_DAYS = 14
 UNDO_WINDOW_SEC = 24 * 3600
@@ -45,6 +47,9 @@ INSTRUCTIONS = """ㅁㅇㅅ TODO에 사용자의 TODO를 넣고 고치는 도구
 - 1시~12시를 오전/오후(아침, 저녁, 밤) 없이 말하면 반드시 물어보세요.
   13시 이상, 15:00, 0시는 묻지 않아요.
 - 사용자가 말하지 않은 칸(시각, 장소, 메모)은 비워 두세요. 추측하지 마세요.
+- 기간(며칠부터 며칠까지)을 말하면 day에 첫날, end_day에 마지막 날을 넣으세요.
+  그 기간 날마다 하나씩 들어가요(31일까지). 기간을 메모에 적지 마세요.
+  확인할 때는 날짜 줄을 '11월 16일 (월) ~ 11월 20일 (금) 날마다'처럼 보여 주세요.
 - 카테고리는 list_categories에 있는 이름만. 애매하면 물어보세요.
   없는 카테고리가 필요하면 아래 두 단계로 add_category를 써서 만들 수 있어요.
 - 없는 칸은 줄에서 빼요(시각이 없으면 '- 장보기 [TODO]').
@@ -177,6 +182,13 @@ TOOLS: list[dict[str, Any]] = [
                         "properties": {
                             "title": {"type": "string", "maxLength": 100},
                             "day": {"type": "string", "description": "YYYY-MM-DD"},
+                            "end_day": {
+                                "type": "string",
+                                "description": (
+                                    "기간의 마지막 날 YYYY-MM-DD. 넣으면 day부터 이 날까지 "
+                                    "날마다 하나씩(31일까지). 기간을 메모에 쓰지 말 것"
+                                ),
+                            },
                             "time": {"type": "string", "description": "HH:MM(24시간), 없으면 빼기"},
                             "place": {"type": "string", "maxLength": 40},
                             "memo": {"type": "string", "maxLength": 1000},
@@ -767,7 +779,25 @@ class TodoMcp:
                     "memo": entry.get("memo") or "",
                     "category_id": await self._category_id(account_id, entry.get("category")),
                 }
-                prepared.append(body)
+                end_day = entry.get("end_day")
+                if end_day:
+                    # 기간: 그 기간 날마다 하나씩(2026-11-23 사용자 요청)
+                    try:
+                        first = date.fromisoformat(str(body["day"]))
+                        last = date.fromisoformat(str(end_day))
+                    except ValueError as error:
+                        raise ToolError("day와 end_day는 YYYY-MM-DD여야 해요") from error
+                    span = (last - first).days
+                    if span < 0 or span >= MAX_RANGE_DAYS:
+                        raise ToolError(f"기간은 {MAX_RANGE_DAYS}일까지예요")
+                    for offset in range(span + 1):
+                        prepared.append(
+                            {**body, "day": (first + timedelta(days=offset)).isoformat()}
+                        )
+                else:
+                    prepared.append(body)
+            if len(prepared) > MAX_ADD_TOTAL:
+                raise ToolError(f"한 번에 {MAX_ADD_TOTAL}개까지 넣을 수 있어요")
             batch = secrets.token_hex(8)
             added = []
             for body in prepared:

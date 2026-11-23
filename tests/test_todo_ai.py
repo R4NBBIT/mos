@@ -192,6 +192,28 @@ def test_full_flow_and_tools(env: Env) -> None:
     assert client_id
 
 
+def test_add_todos_range_every_day(env: Env) -> None:
+    _client_id, issued = connect(env)
+    token = issued["access_token"]
+    result = call(
+        env,
+        token,
+        "add_todos",
+        {"items": [{"title": "출장", "day": "2026-11-16", "end_day": "2026-11-20"}]},
+    )
+    assert len(result["structuredContent"]["added"]) == 5
+    for day in ("2026-11-16", "2026-11-18", "2026-11-20"):
+        items = env.client.get(f"/api/todo/day/{day}").json()["items"]
+        assert [(i["title"], i["memo"]) for i in items] == [("출장", "")]
+    too_long = call(
+        env,
+        token,
+        "add_todos",
+        {"items": [{"title": "긴 일", "day": "2026-11-01", "end_day": "2026-12-15"}]},
+    )
+    assert too_long["isError"] is True
+
+
 def test_refresh_rotation_and_reuse(env: Env) -> None:
     client_id, issued = connect(env)
     first = env.client.post(

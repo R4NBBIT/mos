@@ -27,7 +27,7 @@ from mos.services.command_more import MoreCommands, Reply
 from mos.services.menu import EMPTY, MenuError, MenuService
 from mos.services.todo import TodoError, TodoService
 from mos.services.todo_access import TodoAccess
-from mos.services.todo_words import HOUR, Understood, understand
+from mos.services.todo_words import HOUR, Understood, days_between, understand
 
 DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 SHORT_DAY_RE = re.compile(r"^(\d{1,2})[/.](\d{1,2})$")
@@ -331,6 +331,8 @@ class BotCommands:
             )
         category = match[0]
         day = words.days[0] if words.days else today
+        # 기간이면 그 기간 날마다 하나씩(메모에 기간을 남기지 않음, 2026-11-23 사용자 요청)
+        all_days = days_between(day, words.end_day) if words.end_day else [day]
         body = {
             "title": words.title,
             "day": day,
@@ -339,13 +341,19 @@ class BotCommands:
             "memo": words.memo or "",
             "category_id": str(category["id"]),
         }
-        parts = [self._day_word(day), str(category["name"]), words.title, words.time, words.place]
+        when = (
+            f"{self._day_word(day)} ~ {self._day_word(words.end_day)} 날마다 {len(all_days)}개"
+            if words.end_day
+            else self._day_word(day)
+        )
+        parts = [when, str(category["name"]), words.title, words.time, words.place]
         memo = "\n메모: " + words.memo if words.memo else ""
         if ask:
             reply = ask("넣을까요? " + " | ".join(p for p in parts if p) + memo)
             return CommandResult(reply.text, choices=reply.choices)
         try:
-            await self.todo.add_item(account_id, body, source="bot")
+            for each in all_days:
+                await self.todo.add_item(account_id, {**body, "day": each}, source="bot")
         except TodoError as error:
             return CommandResult(f"넣지 못했어요({error.code}).")
         return CommandResult("✅ 넣었어요: " + " | ".join(p for p in parts if p) + memo)

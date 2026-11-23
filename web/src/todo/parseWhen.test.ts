@@ -1,31 +1,71 @@
 // node --test 로 돌린다(기능명세서 TODO-13 예시 표 그대로). 오늘은 2026-11-22 일요일
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseWhen } from "./parseWhen.ts";
+import { daysBetween, parseWhen } from "./parseWhen.ts";
 
 const TODAY = "2026-11-22";
 const pick = (text: string) => {
   const r = parseWhen(text, TODAY);
-  return { title: r.title, day: r.day, time: r.time, ask: r.ask ? [r.ask.am, r.ask.pm] : null, place: r.place, memo: r.memo };
+  return {
+    title: r.title,
+    day: r.day,
+    time: r.time,
+    ask: r.ask ? [r.ask.am, r.ask.pm] : null,
+    place: r.place,
+    memo: r.memo,
+  };
 };
 
 test("명세서 예시", () => {
-  assert.deepEqual(pick("내일 3시 치과"), { title: "치과", day: "2026-11-23", time: null, ask: ["03:00", "15:00"], place: null, memo: null });
-  assert.deepEqual(pick("내일 오후 3시 치과"), { title: "치과", day: "2026-11-23", time: "15:00", ask: null, place: null, memo: null });
+  assert.deepEqual(pick("내일 3시 치과"), {
+    title: "치과",
+    day: "2026-11-23",
+    time: null,
+    ask: ["03:00", "15:00"],
+    place: null,
+    memo: null,
+  });
+  assert.deepEqual(pick("내일 오후 3시 치과"), {
+    title: "치과",
+    day: "2026-11-23",
+    time: "15:00",
+    ask: null,
+    place: null,
+    memo: null,
+  });
   assert.equal(pick("금요일까지 보고서").day, "2026-11-27");
   assert.equal(pick("금요일까지 보고서").title, "보고서");
-  assert.deepEqual(pick("모레 15시 회의"), { title: "회의", day: "2026-11-24", time: "15:00", ask: null, place: null, memo: null });
+  assert.deepEqual(pick("모레 15시 회의"), {
+    title: "회의",
+    day: "2026-11-24",
+    time: "15:00",
+    ask: null,
+    place: null,
+    memo: null,
+  });
   assert.deepEqual(pick("8시 운동").ask, ["08:00", "20:00"]);
   assert.equal(pick("8시 운동").day, null);
   assert.equal(pick("저녁 8시 반 약속").time, "20:30");
   assert.equal(pick("다음 주 월요일 서류 제출").day, "2026-11-30"); // 한 주는 일요일 시작
   assert.equal(pick("다음 주 월요일 서류 제출").title, "서류 제출");
-  assert.deepEqual(pick("우유 사기"), { title: "우유 사기", day: null, time: null, ask: null, place: null, memo: null });
+  assert.deepEqual(pick("우유 사기"), {
+    title: "우유 사기",
+    day: null,
+    time: null,
+    ask: null,
+    place: null,
+    memo: null,
+  });
 });
 
 test("장소와 메모", () => {
   assert.deepEqual(pick("내일 오후 3시 치과 @강남역 // 보험증 챙기기"), {
-    title: "치과", day: "2026-11-23", time: "15:00", ask: null, place: "강남역", memo: "보험증 챙기기",
+    title: "치과",
+    day: "2026-11-23",
+    time: "15:00",
+    ask: null,
+    place: "강남역",
+    memo: "보험증 챙기기",
   });
   assert.equal(pick("메일 me@example.com 보내기").place, null); // 글자 사이 @는 장소가 아님
   assert.equal(pick("자료 http://a.com 보기").memo, null); // 주소의 //는 메모가 아님
@@ -58,4 +98,19 @@ test("날짜 규칙", () => {
   assert.equal(pick("내일").title, "내일"); // 이름이 남지 않으면 떼지 않는다
   assert.equal(pick("내일").day, null);
   assert.equal(pick("일정 정리").day, null); // 낱말 안의 '일'은 건드리지 않음
+});
+
+test("기간은 첫날과 마지막 날로(날마다 넣기), 메모에 남기지 않음", () => {
+  const range = (text: string) => {
+    const r = parseWhen(text, TODAY);
+    return [r.title, r.day, r.endDay, r.memo];
+  };
+  assert.deepEqual(range("11.16~11.20 출장"), ["출장", "2026-11-16", "2026-11-20", null]);
+  assert.deepEqual(range("출장 11.16 ~ 11.20"), ["출장", "2026-11-16", "2026-11-20", null]);
+  assert.deepEqual(range("11/16~20 출장"), ["출장", "2026-11-16", "2026-11-20", null]);
+  assert.deepEqual(range("11월 30일~12월 2일 휴가"), ["휴가", "2026-11-30", "2026-12-02", null]);
+  assert.deepEqual(range("25일부터 28일까지 교육"), ["교육", "2026-11-25", "2026-11-28", null]);
+  assert.deepEqual(range("3~5 개 챙기기"), ["3~5 개 챙기기", null, null, null]); // 달도 '일'도 없으면 날짜 아님
+  assert.deepEqual(range("11.16 보고"), ["보고", "2026-11-16", null, null]);
+  assert.deepEqual(daysBetween("2026-11-29", "2026-12-02"), ["2026-11-29", "2026-11-30", "2026-12-01", "2026-12-02"]);
 });

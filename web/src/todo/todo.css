@@ -4570,3 +4570,15 @@
   flex: 1;
   min-width: 0;
 }
+
+/* 넣기 칸: 기간으로 쓰면 날짜 칸 아래 '~ 마지막 날 날마다' */
+.todo-range-note {
+  display: block;
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--sub);
+}
+
+.todo-preview-line > span {
+  word-break: keep-all;
+}

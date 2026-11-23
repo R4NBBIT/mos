@@ -7,6 +7,8 @@ export interface ParsedTodo {
   title: string;
   /** 정해진 날짜(YYYY-MM-DD). 없으면 지금 보는 날 */
   day: string | null;
+  /** 기간으로 썼을 때 마지막 날(이 날까지 날마다 하나씩 넣는다). 아니면 null */
+  endDay: string | null;
   /** HH:MM. 물어봐야 하면 null + ask */
   time: string | null;
   /** 1~12시를 오전, 오후 없이 썼을 때: 고를 두 시각 */
@@ -57,6 +59,10 @@ const DATE_RULES: { re: RegExp; resolve: (m: RegExpExecArray, today: string) => 
     resolve: (m, today) => makeDay(fromKey(today).getFullYear(), Number(m[2]), Number(m[3])),
   },
   {
+    re: wrap("(\\d{1,2})\\.(\\d{1,2})"),
+    resolve: (m, today) => makeDay(fromKey(today).getFullYear(), Number(m[2]), Number(m[3])),
+  },
+  {
     re: wrap("(\\d{1,2})/(\\d{1,2})"),
     resolve: (m, today) => makeDay(fromKey(today).getFullYear(), Number(m[2]), Number(m[3])),
   },
@@ -94,6 +100,35 @@ const DATE_RULES: { re: RegExp; resolve: (m: RegExpExecArray, today: string) => 
     },
   },
 ];
+
+/** 기간: 앞 날짜 ~ 뒤 날짜(달은 뒤에서 빼고 써도 됨). 2026-11-23 사용자 요청: 기간 동안 날마다 넣기 */
+export const MAX_RANGE_DAYS = 31;
+const RANGE_SIDE = "(?:(\\d{1,2})(?:[./]|월\\s?))?(\\d{1,2})일?";
+const RANGE_RE = wrap(`${RANGE_SIDE}\\s?(?:~|〜|부터)\\s?${RANGE_SIDE}`);
+
+function resolveRange(m: RegExpExecArray, today: string): { day: string; endDay: string } | null {
+  // 달도 '일'도 없는 '3~5'는 날짜로 보지 않는다(개수나 다른 뜻일 수 있음)
+  if (!m[2] && !m[4] && !m[0].includes("일")) return null;
+  const year = fromKey(today).getFullYear();
+  const thisMonth = fromKey(today).getMonth() + 1;
+  const startMonth = m[2] ? Number(m[2]) : m[4] ? Number(m[4]) : thisMonth;
+  let endMonth = m[4] ? Number(m[4]) : startMonth;
+  // 달을 안 썼는데 뒤 날짜가 앞보다 작으면 다음 달(25~3일)
+  if (!m[4] && Number(m[5]) < Number(m[3])) endMonth = startMonth + 1;
+  const endYear = endMonth > 12 ? year + 1 : endMonth < startMonth ? year + 1 : year;
+  const day = makeDay(year, startMonth, Number(m[3]));
+  const endDay = makeDay(endYear, endMonth > 12 ? endMonth - 12 : endMonth, Number(m[5]));
+  if (!day || !endDay || endDay <= day) return null;
+  const span = Math.round((fromKey(endDay).getTime() - fromKey(day).getTime()) / 86_400_000);
+  return span < MAX_RANGE_DAYS ? { day, endDay } : null;
+}
+
+/** day부터 endDay까지 날짜 목록 */
+export function daysBetween(day: string, endDay: string): string[] {
+  const out: string[] = [];
+  for (let at = day; at <= endDay && out.length < MAX_RANGE_DAYS; at = plus(at, 1)) out.push(at);
+  return out;
+}
 
 type TimeResult = { time: string } | { ask: { am: string; pm: string; label: string } };
 
@@ -147,7 +182,16 @@ function cut(text: string, match: RegExpExecArray): string {
 const tidy = (text: string) => text.replace(/\s+/g, " ").trim();
 
 export function parseWhen(raw: string, today: string): ParsedTodo {
-  const plain: ParsedTodo = { title: tidy(raw), day: null, time: null, ask: null, place: null, memo: null, found: false };
+  const plain: ParsedTodo = {
+    title: tidy(raw),
+    day: null,
+    endDay: null,
+    time: null,
+    ask: null,
+    place: null,
+    memo: null,
+    found: false,
+  };
   let text = raw;
   let memo: string | null = null;
   let place: string | null = null;
@@ -170,7 +214,15 @@ export function parseWhen(raw: string, today: string): ParsedTodo {
   }
 
   let day: string | null = null;
-  for (const rule of DATE_RULES) {
+  let endDay: string | null = null;
+  const range = RANGE_RE.exec(text);
+  const ranged = range ? resolveRange(range, today) : null;
+  if (range && ranged) {
+    day = ranged.day;
+    endDay = ranged.endDay;
+    text = cut(text, range);
+  }
+  for (const rule of day ? [] : DATE_RULES) {
     const match = rule.re.exec(text);
     if (!match) continue;
     const value = rule.resolve(match, today);
@@ -199,5 +251,5 @@ export function parseWhen(raw: string, today: string): ParsedTodo {
   const found = day !== null || time !== null || ask !== null || place !== null || memo !== null;
   if (!found) return plain;
   if (!title) return plain; // 이름이 남지 않으면 떼지 않고 쓴 그대로
-  return { title, day, time, ask, place, memo, found };
+  return { title, day, endDay, time, ask, place, memo, found };
 }

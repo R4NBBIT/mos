@@ -72,12 +72,47 @@ def _month_only(m: re.Match[str], today: str) -> str | None:
 DATE_RULES = [
     (_wrap(r"(\d{4})-(\d{1,2})-(\d{1,2})"), _iso),
     (_wrap(r"(\d{1,2})월\s?(\d{1,2})일"), _month_day),
+    (_wrap(r"(\d{1,2})\.(\d{1,2})"), _month_day),
     (_wrap(r"(\d{1,2})/(\d{1,2})"), _month_day),
     (_wrap(r"(오늘|내일|모레|글피|어제)"), _relative),
     (_wrap(r"(이번\s?주|다음\s?주|담주|다다음\s?주)\s?([일월화수목금토])요일?"), _week_day),
     (_wrap(r"([일월화수목금토])요일"), _weekday),
     (_wrap(r"(\d{1,2})일"), _month_only),
 ]
+
+# 기간: 앞 날짜 ~ 뒤 날짜(뒤의 달은 빼고 써도 됨). 2026-11-23 사용자 요청: 기간 동안 날마다 넣기
+MAX_RANGE_DAYS = 31
+_SIDE = r"(?:(\d{1,2})(?:[./]|월\s?))?(\d{1,2})일?"
+RANGE = _wrap(rf"{_SIDE}\s?(?:~|〜|부터)\s?{_SIDE}")
+
+
+def take_range(text: str, today: str) -> tuple[str, str, str] | None:
+    """(첫날, 마지막 날, 남은 글). 기간이 아니면 None.
+    달도 '일'도 없는 '3~5'는 날짜로 보지 않는다."""
+    match = RANGE.search(text)
+    if not match or (not match[2] and not match[4] and "일" not in match[0]):
+        return None
+    now = date.fromisoformat(today)
+    start_month = int(match[2] or match[4] or now.month)
+    end_month = int(match[4]) if match[4] else start_month
+    if not match[4] and int(match[5]) < int(match[3]):
+        end_month = start_month + 1  # 25~3일: 다음 달
+    end_year = now.year + 1 if end_month > 12 or end_month < start_month else now.year
+    first = _day(now.year, start_month, int(match[3]))
+    last = _day(end_year, end_month - 12 if end_month > 12 else end_month, int(match[5]))
+    if not first or not last or last <= first:
+        return None
+    if (date.fromisoformat(last) - date.fromisoformat(first)).days >= MAX_RANGE_DAYS:
+        return None
+    return first, last, _cut(text, match)
+
+
+def days_between(first: str, last: str) -> list[str]:
+    start, end = date.fromisoformat(first), date.fromisoformat(last)
+    return [(start + timedelta(days=n)).isoformat() for n in range((end - start).days + 1)][
+        :MAX_RANGE_DAYS
+    ]
+
 
 MORNING = ("오전", "아침", "새벽")
 EVENING = ("오후", "저녁", "밤")
@@ -202,6 +237,8 @@ class Understood:
     memo: str | None = None
     number: int | None = None
     category: str | None = None
+    # 기간으로 썼을 때 마지막 날(days[0]부터 이 날까지 날마다)
+    end_day: str | None = None
 
 
 def _strip_title(text: str) -> str:
@@ -249,7 +286,12 @@ def understand(raw: str, today: str, categories: list[str] | None = None) -> Und
                 text = _cut(text, hit)
                 break
 
-    days, text = take_days(text, today)
+    ranged = take_range(text, today)
+    end_day = None
+    if ranged:
+        days, end_day, text = [ranged[0]], ranged[1], ranged[2]
+    else:
+        days, text = take_days(text, today)
     clock, text = take_time(text)
     time_value = clock if isinstance(clock, str) else None
     ask = clock if isinstance(clock, Ask) else None
@@ -285,4 +327,5 @@ def understand(raw: str, today: str, categories: list[str] | None = None) -> Und
         memo=memo,
         number=number,
         category=category,
+        end_day=end_day if action == "add" else None,
     )
