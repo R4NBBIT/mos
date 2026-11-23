@@ -4195,17 +4195,18 @@
 
 /* TODO 목록 맨 아래 휴지통(작은 글자 단추) */
 .todo-trash-foot {
-  display: inline-flex;
+  display: flex;
+  width: fit-content;
   align-items: center;
-  gap: 6px;
-  margin: 28px 0 8px;
-  padding: 6px 10px;
-  border: 0;
-  border-radius: 8px;
-  background: none;
+  gap: 8px;
+  margin: 36px auto 16px;
+  padding: 9px 18px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
   color: var(--sub);
   font: inherit;
-  font-size: 12.5px;
+  font-size: 14px;
   cursor: pointer;
 }
 
@@ -4215,8 +4216,8 @@
 }
 
 .todo-trash-foot svg {
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
