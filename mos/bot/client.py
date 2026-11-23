@@ -52,6 +52,7 @@ DELETE_COMMAND_NAME = "ㅁㅇㅅ 메시지 삭제"
 UNKNOWN_WEBHOOK = 10015
 UNKNOWN_MESSAGE = 10008
 WEB_SENT_GRACE_SEC = 2.0  # 웹훅 메시지의 '웹에서 보낸 기록'을 기다리는 시간
+WEB_SENT_POLL_SEC = 0.1
 PINS_CACHE_SEC = 60  # 고정 메시지 목록을 다시 묻지 않는 시간(바뀌면 이벤트로 바로 지움)
 MAX_PINS_CACHE = 500
 
@@ -773,6 +774,8 @@ class MosBot(discord.Client):
         await self.repo.upsert(message_to_row(message))
         # 웹에서 보낸 메시지면 보낸 사람·답장 정보를 붙여서 알린다
         row = await self.repo.get(message.id)
+        if row is not None and row["webhook_id"] is not None and row.get("web_sender_id") is None:
+            row = await self._wait_web_sent(row)
         if row is not None:
             await self.hub.publish(message.channel.id, event_type, row_to_api(row))
             if event_type == "message_create":
@@ -781,6 +784,25 @@ class MosBot(discord.Client):
                 task = asyncio.create_task(self._notify(message.channel.id, row))
                 self._notify_tasks.add(task)
                 task.add_done_callback(self._notify_tasks.discard)
+
+    async def _wait_web_sent(self, row: dict[str, Any]) -> dict[str, Any]:
+        """ㅁㅇㅅ 웹훅으로 온 메시지는 디스코드가 웹훅 응답보다 먼저 알려 줄 때가 있다.
+        그때 바로 알리면 '보낸 사람' 없이 퍼져서 남이 보낸 '앱' 메시지처럼 보이므로
+        보낸 기록이 남을 때까지 잠깐(최대 2초) 기다렸다 다시 읽는다."""
+        sender = self.sender
+        if sender is None or not await sender.repo.is_own_webhook(int(row["webhook_id"])):
+            return row
+        waited = 0.0
+        while waited < WEB_SENT_GRACE_SEC:
+            await asyncio.sleep(WEB_SENT_POLL_SEC)
+            waited += WEB_SENT_POLL_SEC
+            fresh = await self.repo.get(int(row["id"]))
+            if fresh is None:
+                return row
+            if fresh.get("web_sender_id") is not None:
+                return fresh
+            row = fresh
+        return row
 
     async def _notify(self, channel_id: int, row: dict[str, Any]) -> None:
         """알림을 켠 사람에게. 웹에서 보낸 메시지는 보낸 기록이 조금 늦게 남을 수 있어

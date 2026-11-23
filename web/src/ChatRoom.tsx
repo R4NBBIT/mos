@@ -70,6 +70,17 @@ interface Props {
 function mergeMessages(current: Message[], incoming: Message[]): Message[] {
   const byId = new Map(current.map((message) => [message.id, message]));
   for (const message of incoming) {
+    const known = byId.get(message.id);
+    // 웹에서 보낸 기록(보낸 사람, 답장 대상)은 한 번 알면 지워지지 않는다.
+    // 늦게 도착한 옛 알림이 그것을 빼고 와도 남이 보낸 '앱' 메시지로 바뀌지 않게 지킨다
+    if (known?.web_sender_id && !message.web_sender_id) {
+      byId.set(message.id, {
+        ...message,
+        web_sender_id: known.web_sender_id,
+        reference_id: message.reference_id ?? known.reference_id,
+      });
+      continue;
+    }
     byId.set(message.id, message);
   }
   return [...byId.values()].sort((a, b) => compareIds(a.id, b.id));

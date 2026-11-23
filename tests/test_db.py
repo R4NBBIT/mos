@@ -110,3 +110,18 @@ def test_retention_purges_old_copies_but_keeps_post_starters(tmp_path: Path) -> 
     # 디스코드 ID의 시각 부분이 맞는지(90일 전 ≈ 기준 시각)
     millis = (retention.cutoff_snowflake(now) >> 22) + retention.DISCORD_EPOCH_MS
     assert abs(millis / 1000 - (now - 90 * 24 * 3600)) < 1
+
+
+def test_own_webhook_lookup(tmp_path: Path) -> None:
+    from mos.db.sender_repo import SenderRepo
+
+    async def scenario() -> None:
+        db = Database(tmp_path / "w.db")
+        await db.open()
+        repo = SenderRepo(db)
+        await repo.save_webhook(10, 555, "enc", 1)
+        assert await repo.is_own_webhook(555) is True
+        assert await repo.is_own_webhook(777) is False  # 다른 봇이나 사람이 만든 웹훅
+        await db.close()
+
+    asyncio.run(scenario())

@@ -31,6 +31,13 @@ class SenderRepo:
                 (channel_id, webhook_id, token_enc, now),
             )
 
+    async def is_own_webhook(self, webhook_id: int) -> bool:
+        """ㅁㅇㅅ가 만든 웹훅인지(웹에서 보낸 메시지일 수 있는지)."""
+        row = await self.db.fetch_one(
+            "SELECT 1 FROM channel_webhook WHERE webhook_id = ? LIMIT 1", (webhook_id,)
+        )
+        return row is not None
+
     async def forget_webhook(self, channel_id: int) -> None:
         async with self.db.writing() as conn:
             await conn.execute("DELETE FROM channel_webhook WHERE channel_id = ?", (channel_id,))
