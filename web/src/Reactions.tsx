@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import EmojiPicker from "./EmojiPicker";
 import { useLook } from "./lookContext";
 import type { Message, Reaction } from "./types";
-import { viaServer } from "./format";
+import { emojiImageUrl } from "./format";
 
 const PICKER_WIDTH = 360;
 const PICKER_HEIGHT = 340; // .emoji-picker 높이와 같게
@@ -21,7 +21,7 @@ export function ReactionEmoji({ reaction }: { reaction: Reaction }) {
     return (
       <img
         className="reaction-img"
-        src={viaServer(`https://cdn.discordapp.com/emojis/${id}.webp?size=48${animated ? "&animated=true" : ""}`)}
+        src={emojiImageUrl(id, 48, animated)}
         alt={`:${name}:`}
         loading="lazy"
         referrerPolicy="no-referrer"

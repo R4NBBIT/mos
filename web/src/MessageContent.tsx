@@ -2,7 +2,7 @@ import { type ReactNode, useState } from "react";
 import type { Mentions } from "./types";
 import { useLook } from "./lookContext";
 import type { StickersView } from "./theme";
-import { viaServer } from "./format";
+import { emojiImageUrl } from "./format";
 
 // 디스코드 본문 속 특수 코드:
 //   <:이름:ID> <a:이름:ID>  사용자 이모지(a는 움직이는 것)
@@ -69,7 +69,7 @@ function formatTimestamp(seconds: number, style: string): string {
 
 // 디스코드 권장 주소: 모두 webp, 움직이는 이모지는 animated=true(.gif는 요즘 올린 것에서 안 나올 수 있다)
 function emojiUrl(id: string, animated: boolean): string {
-  return viaServer(`https://cdn.discordapp.com/emojis/${id}.webp?size=96${animated ? "&animated=true" : ""}`);
+  return emojiImageUrl(id, 96, animated);
 }
 
 export function isEmojiOnly(content: string): boolean {

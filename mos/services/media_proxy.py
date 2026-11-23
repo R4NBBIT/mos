@@ -17,7 +17,7 @@ from collections import OrderedDict
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import quote, urlsplit
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit
 
 MEDIA_HOSTS = ("cdn.discordapp.com", "media.discordapp.net")
 _ID = r"[0-9]{15,21}"
@@ -76,6 +76,17 @@ def parse_media_url(value: str) -> MediaTarget | None:
         url = f"https://{parts.hostname}{parts.path}{query}"
         return MediaTarget(url, kind, channel, name)
     return None
+
+
+def thumbnail_of(url: str, width: int) -> str:
+    """media.discordapp.net 그림은 폭과 webp를 붙여 작게(디스코드가 줄여 준다). 그 밖은 그대로."""
+    parts = urlsplit(url)
+    if parts.hostname != "media.discordapp.net":
+        return url
+    kept = parse_qsl(parts.query)
+    query = [(key, value) for key, value in kept if key not in ("width", "format")]
+    query += [("width", str(width)), ("format", "webp")]
+    return f"https://{parts.hostname}{parts.path}?{urlencode(query)}"
 
 
 def response_headers(upstream: dict[str, str], filename: str, download: bool) -> dict[str, str]:

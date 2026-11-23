@@ -1,7 +1,7 @@
 import { type CSSProperties, memo, useState } from "react";
 import { useLook } from "./lookContext";
 import MessageContent, { isEmojiOnly } from "./MessageContent";
-import { formatSize, formatTime, isDiscordMediaUrl, thumbnailUrl, viaServer } from "./format";
+import { formatSize, formatTime, isDiscordMediaUrl, stickerImageUrl, thumbnailUrl, viaServer } from "./format";
 import type { Attachment, Message, Sticker } from "./types";
 import Reactions, { ReactionPickerButton } from "./Reactions";
 import { isEmptyMessage, isSystemMessage, systemText } from "./systemMessage";
@@ -75,8 +75,7 @@ const GIF_STICKER = 4;
 function stickerUrl(sticker: Sticker): string | null {
   if (!/^\d{15,21}$/.test(sticker.id) || sticker.format === LOTTIE_STICKER) return null;
   // PNG·APNG는 .png(APNG면 그대로 움직인다), GIF 스티커는 .gif
-  const extension = sticker.format === GIF_STICKER ? "gif" : "png";
-  return viaServer(`https://media.discordapp.net/stickers/${sticker.id}.${extension}?size=160`);
+  return stickerImageUrl(sticker.id, sticker.format === GIF_STICKER);
 }
 
 /** 스티커: 그림으로, 그림이 없는 형식이면 이름만 */

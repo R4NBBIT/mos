@@ -4,7 +4,7 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import BackIcon from "../BackIcon";
 import SplitToggle from "../SplitToggle";
 import { ApiError } from "../api";
-import { viaServer } from "../format";
+import { isDiscordMediaUrl, viaServer } from "../format";
 import {
   acceptFriend,
   blockPerson,
@@ -22,7 +22,7 @@ import { GroupsSection } from "./TodoGroups";
 import "./todo.css";
 
 function Avatar({ person }: { person: TodoPerson }) {
-  return person.avatar_url ? (
+  return isDiscordMediaUrl(person.avatar_url) ? (
     <img className="todo-friend-avatar" src={viaServer(person.avatar_url)} alt="" referrerPolicy="no-referrer" />
   ) : (
     <span className="todo-friend-avatar todo-friend-initial" aria-hidden="true">

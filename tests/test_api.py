@@ -28,6 +28,7 @@ from mos.services.directory import (
     VoiceMemberInfo,
 )
 from mos.services.discord_oauth import DiscordUser, OAuthError, TokenSet
+from mos.services.media_token import SEALED_PREFIX, MediaTokens
 from mos.services.messages import row_to_api
 from mos.services.permissions import (
     MENTION_EVERYONE,
@@ -2067,7 +2068,11 @@ def test_expired_attachment_urls_are_refreshed(env: Env) -> None:
     env.client.portal.call(env.repo.upsert_many, [old, fresh])
 
     listed = env.client.get(f"/api/channels/{CHANNEL}/messages").json()["messages"]
-    files = {item["filename"]: item for m in listed for item in m["attachments"]}
+    files = {
+        item["filename"]: {key: unseal(env, item[key]) for key in ("url", "proxy_url")}
+        for m in listed
+        for item in m["attachments"]
+    }
     # 끝난 주소만 50개씩 묻고, 새 서명을 media 주소에도 붙인다. 아직 안 끝난 것은 묻지 않는다
     assert env.bot.refreshed == [
         [
@@ -2084,6 +2089,14 @@ def test_expired_attachment_urls_are_refreshed(env: Env) -> None:
     assert len(env.bot.refreshed) == 1
     stored = env.client.portal.call(env.repo.get, old["id"])
     assert "ex=7fffffff" in stored["attachments_json"]
+
+
+def unseal(env: Env, path: str) -> str:
+    """화면에 나간 봉인 주소(/api/media/t/...)를 원래 디스코드 주소로(테스트에서만)."""
+    assert path.startswith(SEALED_PREFIX), path
+    opened = env.app.state.media_tokens.open(path.removeprefix(SEALED_PREFIX))
+    assert opened is not None
+    return opened
 
 
 class FakeFetcher:
@@ -2203,3 +2216,64 @@ def test_settings_are_per_device_but_lists_are_shared(env: Env) -> None:
         env.client.cookies.set(name, value)
     again = env.client.get("/api/settings").json()
     assert again["theme"] == "sheet" and again["doc_titles"] == {title_key: "주간 보고"}
+
+
+def test_media_addresses_never_show_discord(env: Env) -> None:
+    """화면에 나가는 응답과 그림 주소 어디에도 디스코드 주소가 글자로 보이지 않는다."""
+    fake = FakeFetcher()
+    env.app.state.media_fetcher = fake
+    signed_up(env, "latte")
+    row = make_row(snowflake_at(env.clock[0] - 60), channel_id=CHANNEL, content="사진")
+    row["author_avatar"] = "https://cdn.discordapp.com/avatars/43/" + "a" * 32 + ".png"
+    row["attachments_json"] = json.dumps(
+        [
+            {
+                "id": "9",
+                "filename": "p.png",
+                "size": 1,
+                "content_type": "image/png",
+                "url": f"https://cdn.discordapp.com/attachments/{CHANNEL}/1573319705849102999/p.png?ex=7fffffff&is=1&hm=ab",
+                "proxy_url": f"https://media.discordapp.net/attachments/{CHANNEL}/1573319705849102999/p.png?ex=7fffffff&is=1&hm=ab",
+            }
+        ]
+    )
+    env.client.portal.call(env.repo.upsert_many, [row])
+    response = env.client.get(f"/api/channels/{CHANNEL}/messages")
+    assert "discordapp" not in response.text
+    message = response.json()["messages"][-1]
+    picture = message["attachments"][0]
+    assert message["author"]["avatar_url"].startswith(SEALED_PREFIX)
+    # 같은 주소는 늘 같은 봉인(브라우저 캐시)
+    again = env.client.get(f"/api/channels/{CHANNEL}/messages").json()["messages"][-1]
+    assert again["attachments"][0]["proxy_url"] == picture["proxy_url"]
+
+    # 봉인 주소로 받고, w를 주면 디스코드가 줄인 그림을 받는다
+    assert env.client.get(picture["url"]).status_code == 200
+    assert fake.calls[-1][0] == unseal(env, picture["url"])
+    assert env.client.get(picture["proxy_url"], params={"w": 240}).status_code == 200
+    assert "width=240" in fake.calls[-1][0] and "format=webp" in fake.calls[-1][0]
+    # 고친 봉인, 아무 글자는 받지 않는다
+    token = picture["url"].removeprefix(SEALED_PREFIX)
+    broken = token[:-2] + ("AA" if token[-2:] != "AA" else "BB")
+    assert env.client.get(SEALED_PREFIX + broken).status_code == 404
+    assert env.client.get(SEALED_PREFIX + "x" * 40).status_code == 404
+
+    # 이모지, 스티커는 화면이 ID만 들고 부른다
+    emoji_id = "1046568093355327519"
+    assert env.client.get(f"/api/media/e/{emoji_id}", params={"s": 48, "a": 1}).status_code == 200
+    assert fake.calls[-1][0] == (
+        f"https://cdn.discordapp.com/emojis/{emoji_id}.webp?size=48&animated=true"
+    )
+    assert env.client.get(f"/api/media/s/{emoji_id}.png").status_code == 200
+    assert fake.calls[-1][0] == f"https://media.discordapp.net/stickers/{emoji_id}.png?size=160"
+    assert env.client.get("/api/media/s/12.svg").status_code == 422
+
+
+def test_hidden_media_keeps_written_text() -> None:
+    tokens = MediaTokens(b"k" * 32)
+    link = "https://cdn.discordapp.com/attachments/1/2/a.png"
+    hidden = tokens.hide({"content": link, "embeds": [{"title": link, "url": link}]})
+    assert hidden["content"] == link  # 사람이 쓴 글은 그대로
+    assert hidden["embeds"][0]["title"] == link
+    assert hidden["embeds"][0]["url"].startswith(SEALED_PREFIX)
+    assert tokens.open(hidden["embeds"][0]["url"].removeprefix(SEALED_PREFIX)) == link

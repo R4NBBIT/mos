@@ -69,6 +69,10 @@ async def _member_of_nothing(_user_id: int, _group_id: int) -> bool:
     return False
 
 
+def _same(value: Any) -> Any:
+    return value
+
+
 class RealtimeHub:
     def __init__(self) -> None:
         self._sockets: dict[JsonSocket, Subscriber] = {}
@@ -76,6 +80,11 @@ class RealtimeHub:
         self._notify_rule: NotifyRule = _notify_nothing
         self._after_notify: AfterNotify = _after_nothing
         self._group_check: GroupCheck = _member_of_nothing
+        # 보내기 직전에 거치는 변환(디스코드 미디어 주소 가리기)
+        self._outgoing: Callable[[Any], Any] = _same
+
+    def set_outgoing(self, transform: Callable[[Any], Any]) -> None:
+        self._outgoing = transform
 
     def set_access_check(self, check: AccessCheck) -> None:
         self._access_check = check
@@ -208,7 +217,10 @@ class RealtimeHub:
         if not sends:
             return
         results = await asyncio.gather(
-            *(asyncio.wait_for(socket.send_json(data), SEND_TIMEOUT_SEC) for socket, data in sends),
+            *(
+                asyncio.wait_for(socket.send_json(self._outgoing(data)), SEND_TIMEOUT_SEC)
+                for socket, data in sends
+            ),
             return_exceptions=True,
         )
         for (socket, _), result in zip(sends, results, strict=True):

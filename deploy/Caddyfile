@@ -7,7 +7,7 @@
 		Referrer-Policy "no-referrer"
 		X-Frame-Options "DENY"
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
-		Content-Security-Policy "default-src 'self'; img-src 'self' data: blob: https://cdn.discordapp.com https://media.discordapp.net; media-src 'self' blob: https://cdn.discordapp.com https://media.discordapp.net; connect-src 'self' wss://{{DOMAIN}}; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'"
+		Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' wss://{{DOMAIN}}; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'"
 		-Server
 	}
 

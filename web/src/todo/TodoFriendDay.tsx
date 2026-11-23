@@ -3,7 +3,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import BackIcon from "../BackIcon";
 import SplitToggle from "../SplitToggle";
-import { viaServer } from "../format";
+import { isDiscordMediaUrl, viaServer } from "../format";
 import { addDays, longLabel, timeLabel, today } from "./dates";
 import { CategoryDot, CHECK_PATH, checkStyle, MemoText, repeatLabel } from "./TodoItems";
 import { TodoReactions } from "./TodoReactions";
@@ -96,7 +96,7 @@ export default function TodoFriendDay({
             <BackIcon />
           </button>
         )}
-        {data?.person?.avatar_url && (
+        {isDiscordMediaUrl(data?.person?.avatar_url) && (
           <img className="todo-friend-avatar" src={viaServer(data.person.avatar_url)} alt="" referrerPolicy="no-referrer" />
         )}
         <div className="room-title">

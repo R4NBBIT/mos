@@ -17,6 +17,7 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Path,
     Query,
     Request,
     Response,
@@ -62,7 +63,9 @@ from mos.services.media_proxy import (
     MediaCache,
     parse_media_url,
     response_headers,
+    thumbnail_of,
 )
+from mos.services.media_token import MediaTokens
 from mos.services.media_urls import AttachmentRefresher
 from mos.services.menu import MenuService
 from mos.services.messages import row_to_api
@@ -356,6 +359,14 @@ def create_app(
     hub.set_access_check(perms.can_read)
     hub.set_group_check(perms.is_member)
     cipher = TokenCipher(settings.secret_key)
+    # 화면에 나가는 디스코드 미디어 주소는 봉인해서(/api/media/t/...) 디스코드 글자가 안 보이게
+    media_tokens = MediaTokens(settings.secret_key)
+    hub.set_outgoing(media_tokens.hide)
+
+    class HiddenMediaJSON(JSONResponse):
+        def render(self, content: Any) -> bytes:
+            return super().render(media_tokens.hide(content))
+
     boss_files = BossFiles(db, BytesCipher(cipher), clock=clock)
     emojis = EmojiService(directory, perms)
     lists = ListsRepo(db)
@@ -506,11 +517,18 @@ def create_app(
             if opened_here:
                 await db.close()
 
-    app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(
+        lifespan=lifespan,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+        default_response_class=HiddenMediaJSON,
+    )
     app.state.sender = sender  # 디스코드 앱 메시지 명령(봇)도 같은 서비스를 쓴다
     app.state.sessions = sessions  # 봇이 니트로 증거를 보면 알려 준다
     app.state.push = push
     app.state.media_fetcher = fetcher  # 테스트가 가짜로 바꿀 수 있게
+    app.state.media_tokens = media_tokens
 
     # ------------------------------------------------------------ 공통 보호
 
@@ -527,7 +545,9 @@ def create_app(
                 await egress.record(int(length))  # 월 송신량(가끔 모아서 기록)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
-        if request.url.path.startswith("/api/") and request.url.path != "/api/media":
+        if request.url.path.startswith("/api/") and not (
+            request.url.path == "/api/media" or request.url.path.startswith("/api/media/")
+        ):
             response.headers["Cache-Control"] = "no-store"
         return response
 
@@ -1220,8 +1240,48 @@ def create_app(
         u: str = Query(min_length=1, max_length=2000),
         dl: int = Query(default=0, ge=0, le=1),
     ) -> Response:
+        """예전 방식(주소를 그대로 받음). 이미 열려 있던 화면을 위해 남겨 둔다."""
+        return await serve_media(request, u, bool(dl))
+
+    @app.get("/api/media/t/{token}")
+    async def media_sealed(
+        request: Request,
+        token: str = Path(min_length=16, max_length=4000, pattern=r"^[A-Za-z0-9_-]+$"),
+        w: int | None = Query(default=None, ge=16, le=4096),
+        dl: int = Query(default=0, ge=0, le=1),
+    ) -> Response:
+        """봉인한 주소(화면에 디스코드 글자가 안 보임). w는 작은 그림 폭(media 주소만)."""
+        url = media_tokens.open(token)
+        if url is None:
+            raise HTTPException(status_code=404, detail="not found")
+        if w is not None:
+            url = thumbnail_of(url, w)
+        return await serve_media(request, url, bool(dl))
+
+    @app.get("/api/media/e/{emoji_id}")
+    async def media_emoji(
+        request: Request,
+        emoji_id: str = Path(pattern=r"^[0-9]{15,21}$"),
+        s: int = Query(default=96, ge=16, le=512),
+        a: int = Query(default=0, ge=0, le=1),
+    ) -> Response:
+        """서버 이모지 그림(화면은 ID만 안다)."""
+        animated = "&animated=true" if a else ""
+        url = f"https://cdn.discordapp.com/emojis/{emoji_id}.webp?size={s}{animated}"
+        return await serve_media(request, url, False)
+
+    @app.get("/api/media/s/{sticker}")
+    async def media_sticker(
+        request: Request,
+        sticker: str = Path(pattern=r"^[0-9]{15,21}\.(?:png|gif)$"),
+    ) -> Response:
+        """스티커 그림(화면은 ID와 형식만 안다)."""
+        url = f"https://media.discordapp.net/stickers/{sticker}?size=160"
+        return await serve_media(request, url, False)
+
+    async def serve_media(request: Request, raw_url: str, dl: bool) -> Response:
         """디스코드 그림, 동영상, 파일을 대신 받아 준다(회사 망에 디스코드 주소가 남지 않게)."""
-        target = parse_media_url(u)
+        target = parse_media_url(raw_url)
         if target is None:
             raise HTTPException(status_code=400, detail="bad_media_url")
         device = await current_device(request)
@@ -1242,7 +1302,7 @@ def create_app(
         cached = None if range_header else media_cache.get(target.url)
         if cached is not None:
             headers, body = cached
-            return Response(body, headers=response_headers(headers, target.filename, bool(dl)))
+            return Response(body, headers=response_headers(headers, target.filename, dl))
         try:
             fetched: Fetched = await app.state.media_fetcher.fetch(target.url, range_header)
         except Exception as error:
@@ -1252,7 +1312,7 @@ def create_app(
                 break
             status = 404 if fetched.status in (403, 404, 410) else 502
             raise HTTPException(status_code=status, detail="media_unavailable")
-        headers = response_headers(fetched.headers, target.filename, bool(dl))
+        headers = response_headers(fetched.headers, target.filename, dl)
         length = int(fetched.headers.get("content-length") or 0)
         if target.kind != "attachment" and fetched.status == 200 and 0 < length <= 512 * 1024:
             body = b"".join([chunk async for chunk in fetched.chunks])

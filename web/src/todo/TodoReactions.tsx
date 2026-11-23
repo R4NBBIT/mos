@@ -1,6 +1,6 @@
 // TODO 반응(T4, REACT): 이모지 칩(누르면 내 반응 켜고 끄기) + 반응 고르기(유니코드, 내가 쓸 수 있는 디스코드 이모지)
 import { lazy, Suspense, useState } from "react";
-import { viaServer } from "../format";
+import { emojiImageUrl } from "../format";
 import { fetchTodoEmojis, reactTodo, type TodoReaction, todoErrorText } from "./todoApi";
 
 const EmojiPicker = lazy(() => import("../EmojiPicker"));
@@ -10,9 +10,7 @@ const loadCustom = () => fetchTodoEmojis();
 export function EmojiFace({ emoji }: { emoji: string }) {
   const custom = CUSTOM.exec(emoji);
   if (custom?.[3]) {
-    const src = viaServer(
-      `https://cdn.discordapp.com/emojis/${custom[3]}.webp?size=48${custom[1] === "a" ? "&animated=true" : ""}`,
-    );
+    const src = emojiImageUrl(custom[3], 48, custom[1] === "a");
     return <img className="todo-react-img" src={src} alt={`:${custom[2]}:`} loading="lazy" referrerPolicy="no-referrer" />;
   }
   return <span className="todo-react-char">{emoji}</span>;
