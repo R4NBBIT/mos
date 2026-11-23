@@ -1068,6 +1068,12 @@ export default function App() {
   const enteredFullscreen = useRef(false);
   const toggle = useCallback(
     (on?: boolean) => {
+      // TODO 위젯 창은 위장 화면으로 바뀌지 않고 늘 TODO(2026-11-23 사용자 요청).
+      // 위젯에서 누른 보스키는 다른 ㅁㅇㅅ 창만 위장시킨다
+      if ((on ?? true) && window.location.hash === "#/todo/widget") {
+        announceDisguise();
+        return;
+      }
       if ((on ?? true) && mode === "url" && bossUrl && !isDisguised()) {
         window.location.assign(bossUrl); // 다른 사이트로 바로 이동(돌아오려면 뒤로 가기)
         return;
@@ -1149,7 +1155,8 @@ export default function App() {
 
   // 자동 위장(선택): 창에서 벗어나거나 마우스가 창 밖으로 나가면
   useEffect(() => {
-    if (!look.boss_auto || bossOn) return;
+    // 위젯 창은 자동 위장하지 않는다(위젯에서 다른 곳을 눌렀다고 다른 창까지 위장되지 않게)
+    if (!look.boss_auto || bossOn || window.location.hash === "#/todo/widget") return;
     const choosingFile = () =>
       document.activeElement instanceof HTMLInputElement && document.activeElement.type === "file";
     const onBlur = () => {
