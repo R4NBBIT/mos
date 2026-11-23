@@ -417,8 +417,10 @@ def test_ai_friend_actions_need_app_approval(tmp_path: Path) -> None:
         _client_id, issued = connect(env)  # 모카로 연결
         token = issued["access_token"]
         listed = call(env, token, "list_friends")
-        assert listed["structuredContent"]["candidates"] == ["라떼"]
-        asked = call(env, token, "friend_request", {"person": "라떼"})
+        assert "candidates" not in listed["structuredContent"]
+        # 친구 요청은 디스코드 아이디로만
+        assert call(env, token, "friend_request", {"person": "라떼"})["isError"] is True
+        asked = call(env, token, "friend_request", {"person": "latte"})
         assert "ㅁㅇㅅ 화면에서 한 번 더" in asked["content"][0]["text"]
         waiting = call(
             env, token, "confirm_action", {"confirm_id": asked["structuredContent"]["confirm_id"]}

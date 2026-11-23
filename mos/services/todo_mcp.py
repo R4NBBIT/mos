@@ -321,12 +321,16 @@ TOOLS: list[dict[str, Any]] = [
         "name": "friend_request",
         "title": "친구 요청(승인 필요)",
         "description": (
-            "같은 서버 사람에게 친구 요청. 확인 번호가 오고, 대화 확인 뒤 ㅁㅇㅅ에서 승인해야 실행."
+            "같은 서버 사람에게 친구 요청. 디스코드 아이디(닉네임 아님)로만 찾아요. "
+            "확인 번호가 오고, 대화 확인 뒤 ㅁㅇㅅ에서 승인해야 실행."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
-                "person": {"type": "string", "description": "사람 이름(list_friends에 나온 그대로)"}
+                "person": {
+                    "type": "string",
+                    "description": "상대의 디스코드 아이디(사용자명). 모르면 사용자에게 물어보기",
+                }
             },
             "required": ["person"],
             "additionalProperties": False,
@@ -901,7 +905,6 @@ class TodoMcp:
             "friends": names(people["friends"]),
             "incoming": names(people["incoming"]),
             "outgoing": names(people["outgoing"]),
-            "candidates": names(people["candidates"]),
             "blocked": names(people.get("blocked", [])),
             "groups": [{"name": g["name"], "members": names(g["members"])} for g in groups],
         }
@@ -909,7 +912,6 @@ class TodoMcp:
             "친구: " + (", ".join(data["friends"]) or "없음"),
             "받은 요청: " + (", ".join(data["incoming"]) or "없음"),
             "보낸 요청: " + (", ".join(data["outgoing"]) or "없음"),
-            "같은 서버 사람(요청 가능): " + (", ".join(data["candidates"]) or "없음"),
             "비공개한 사람: " + (", ".join(data["blocked"]) or "없음"),
             "그룹: "
             + (
@@ -959,16 +961,22 @@ class TodoMcp:
         account_id = grant.account_id
         if name == "block_person":
             person, shown = await self._person_id(
-                account_id, args.get("person"), ("friends", "incoming", "outgoing", "candidates")
+                account_id, args.get("person"), ("friends", "incoming", "outgoing")
             )
             kind, payload, summary = "block", {"person": person}, f"{shown}님에게 비공개"
         elif name == "unblock_person":
             person, shown = await self._person_id(account_id, args.get("person"), ("blocked",))
             kind, payload, summary = "unblock", {"person": person}, f"{shown}님 비공개 풀기"
         elif name == "friend_request":
-            person, shown = await self._person_id(
-                account_id, args.get("person"), ("candidates", "incoming")
-            )
+            # 친구 요청은 디스코드 아이디로만(목록에서 고르지 않음)
+            try:
+                found = await self.actions.friends.find(account_id, args.get("person"))
+            except TodoError as error:
+                raise ToolError(
+                    "그 디스코드 아이디인 사람을 찾지 못했어요. "
+                    "사용자에게 디스코드 아이디를 물어보세요"
+                ) from error
+            person, shown = found["id"], found["name"]
             kind, payload, summary = (
                 "friend_request",
                 {"person": person},

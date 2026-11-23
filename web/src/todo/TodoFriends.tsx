@@ -3,11 +3,13 @@
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import BackIcon from "../BackIcon";
 import SplitToggle from "../SplitToggle";
+import { ApiError } from "../api";
 import { viaServer } from "../format";
 import {
   acceptFriend,
   blockPerson,
   fetchPeople,
+  findPerson,
   removeFriend,
   requestFriend,
   setAcceptRequests,
@@ -48,6 +50,26 @@ export default function TodoFriends({
   const [adding, setAdding] = useState(false);
   const [blocking, setBlocking] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  // 디스코드 아이디로 찾은 사람(요청 가능한 사람 목록은 보여 주지 않음, 2026-11-23 사용자 요청)
+  const [found, setFound] = useState<Awaited<ReturnType<typeof findPerson>> | null | "none">(null);
+  const [finding, setFinding] = useState(false);
+  const find = async () => {
+    const username = search.trim().replace(/^@/, "");
+    if (!username || finding) return;
+    setError("");
+    setFinding(true);
+    try {
+      setFound(await findPerson(username));
+    } catch (failure) {
+      if (failure instanceof ApiError && failure.status === 404) setFound("none");
+      else {
+        setFound(null);
+        setError(todoErrorText(failure));
+      }
+    } finally {
+      setFinding(false);
+    }
+  };
   const load = useCallback(
     () =>
       fetchPeople()
@@ -180,41 +202,78 @@ export default function TodoFriends({
                 </button>
               </div>
               <p className="todo-field-help">
-                같은 디스코드 서버에서 TODO를 쓰는 사람에게 요청할 수 있어요. 친구가 되면 서로 '친구' 카테고리까지
-                보이고 반응을 달 수 있어요. 친구가 아니어도 같은 서버 사람은 내 '전체' 카테고리를 볼 수 있어요(비공개한
-                사람 빼고).
+                같은 디스코드 서버에서 TODO를 쓰는 사람에게 디스코드 아이디로 요청할 수 있어요. 친구가 되면 서로 '친구'
+                카테고리까지 보이고 반응을 달 수 있어요. 친구가 아니어도 같은 서버 사람은 내 '전체' 카테고리를 볼 수
+                있어요(비공개한 사람 빼고).
               </p>
               {adding && (
                 <div className="todo-friend-add">
-                  <input
-                    className="todo-friend-search"
-                    value={search}
-                    placeholder="이름으로 찾기"
-                    aria-label="요청할 사람 찾기"
-                    autoFocus
-                    onChange={(event) => setSearch(event.target.value)}
-                  />
-                  {people.candidates.length === 0 ? (
-                    <p className="todo-field-help">
-                      요청할 수 있는 사람이 없어요. 같은 디스코드 서버에 있고, TODO를 쓰고, '친구 요청 받기'를 켜 둔
-                      사람만 나와요.
-                    </p>
-                  ) : (
+                  <form
+                    className="todo-friend-find"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void find();
+                    }}
+                  >
+                    <input
+                      className="todo-friend-search"
+                      value={search}
+                      placeholder="디스코드 아이디"
+                      aria-label="요청할 사람의 디스코드 아이디"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      autoFocus
+                      onChange={(event) => {
+                        setSearch(event.target.value);
+                        setFound(null);
+                      }}
+                    />
+                    <button type="submit" className="todo-small-button" disabled={!search.trim() || finding}>
+                      찾기
+                    </button>
+                  </form>
+                  <p className="todo-field-help">
+                    닉네임이 아니라 디스코드 아이디(사용자명)를 정확히 써야 찾아져요. 같은 디스코드 서버에 있고 TODO를
+                    쓰는 사람만 나와요.
+                  </p>
+                  {found === "none" && <p className="todo-field-help">그 디스코드 아이디인 사람을 찾지 못했어요.</p>}
+                  {found && found !== "none" && (
                     <ul>
-                      {people.candidates
-                        .filter((person) => person.name.toLowerCase().includes(search.trim().toLowerCase()))
-                        .map((person) =>
-                          row(
-                            person,
-                            <button
-                              type="button"
-                              className="todo-small-button todo-primary"
-                              onClick={() => void run(() => requestFriend(person.id))}
-                            >
-                              요청
-                            </button>,
-                          ),
-                        )}
+                      {row(
+                        found,
+                        found.state === "none" ? (
+                          <button
+                            type="button"
+                            className="todo-small-button todo-primary"
+                            onClick={() =>
+                              void run(async () => {
+                                await requestFriend(found.id);
+                                setFound({ ...found, state: "outgoing" });
+                              })
+                            }
+                          >
+                            요청
+                          </button>
+                        ) : found.state === "incoming" ? (
+                          <button
+                            type="button"
+                            className="todo-small-button todo-primary"
+                            onClick={() =>
+                              void run(async () => {
+                                await acceptFriend(found.id);
+                                setFound({ ...found, state: "friend" });
+                              })
+                            }
+                          >
+                            수락
+                          </button>
+                        ) : (
+                          <span className="todo-field-help">
+                            {found.state === "friend" ? "이미 친구예요" : "요청을 보냈어요"}
+                          </span>
+                        ),
+                      )}
                     </ul>
                   )}
                 </div>

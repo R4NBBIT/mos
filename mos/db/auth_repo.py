@@ -103,15 +103,18 @@ class AuthRepo:
         token_expires_at: int,
         guild_ids: Iterable[int],
         now: int,
+        username: str = "",
     ) -> int:
         async with self.db.writing() as conn:
             await conn.execute(
                 "INSERT INTO account (discord_user_id, name, avatar_url, premium_type,"
-                " status, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', ?, ?)"
+                " status, created_at, updated_at, username)"
+                " VALUES (?, ?, ?, ?, 'active', ?, ?, NULLIF(?, ''))"
                 " ON CONFLICT(discord_user_id) DO UPDATE SET name = excluded.name,"
                 " avatar_url = excluded.avatar_url, premium_type = excluded.premium_type,"
-                " status = 'active', updated_at = excluded.updated_at",
-                (discord_user_id, name, avatar_url, premium_type, now, now),
+                " status = 'active', updated_at = excluded.updated_at,"
+                " username = COALESCE(excluded.username, account.username)",
+                (discord_user_id, name, avatar_url, premium_type, now, now, username),
             )
             async with conn.execute(
                 "SELECT id FROM account WHERE discord_user_id = ?", (discord_user_id,)

@@ -46,15 +46,28 @@ def befriend(env: Env, mocha: str, latte: str) -> None:
     env.tick(1)
 
 
-def test_candidates_request_accept(env: Env) -> None:
+def find(env: Env, username: str) -> tuple[int, dict]:
+    response = env.client.get("/api/todo/people/find", params={"username": username})
+    return response.status_code, response.json()
+
+
+def test_find_by_username_request_accept(env: Env) -> None:
     mocha, latte = two(env)
     use(env, mocha)
     people = env.client.get("/api/todo/people").json()
-    assert [p["name"] for p in people["candidates"]] == ["라떼"]
+    assert "candidates" not in people  # 요청 가능한 사람 목록은 보여 주지 않음
+    # 디스코드 아이디로만(대소문자, 앞 @ 무시). 닉네임으로는 못 찾음
+    for typed in ("latte", "Latte", "@latte"):
+        status, found = find(env, typed)
+        assert status == 200 and found["name"] == "라떼" and found["state"] == "none"
+    assert find(env, "라떼")[0] == 400
+    assert find(env, "late")[0] == 404
+    assert find(env, "mocha")[0] == 404  # 나 자신
     befriend(env, mocha, latte)
     use(env, mocha)
     people = env.client.get("/api/todo/people").json()
-    assert [p["name"] for p in people["friends"]] == ["라떼"] and people["candidates"] == []
+    assert [p["name"] for p in people["friends"]] == ["라떼"]
+    assert find(env, "latte")[1]["state"] == "friend"
     news = env.client.get("/api/todo/news").json()
     assert news["items"][0]["kind"] == "friend_accept"
     # 끊기
@@ -63,12 +76,32 @@ def test_candidates_request_accept(env: Env) -> None:
     assert env.client.get("/api/todo/people").json()["friends"] == []
 
 
+def test_old_account_username_filled_by_bot(env: Env, tmp_path: Path) -> None:
+    """아이디를 모르는 예전 계정은 처음 찾을 때 봇이 서버 멤버 정보로 채운다."""
+    import sqlite3
+
+    mocha, latte = two(env)
+    db_path = tmp_path / "todo.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("UPDATE account SET username = NULL WHERE id = ?", (int(latte),))
+    use(env, mocha)
+    assert find(env, "latte")[0] == 404  # 로그인 때 받은 아이디는 지워졌다
+    user_id = next(
+        row[0]
+        for row in sqlite3.connect(db_path).execute(
+            "SELECT discord_user_id FROM account WHERE id = ?", (int(latte),)
+        )
+    )
+    status, found = find(env, f"id{user_id}")
+    assert status == 200 and found["name"] == "라떼"
+
+
 def test_accept_requests_off_hides_me(env: Env) -> None:
     mocha, latte = two(env)
     use(env, latte)
     env.client.patch("/api/todo/people/settings", json={"accept_requests": False}, headers=POST)
     use(env, mocha)
-    assert env.client.get("/api/todo/people").json()["candidates"] == []
+    assert find(env, "latte")[0] == 404
     response = env.client.post(f"/api/todo/people/{latte}/request", headers=POST)
     assert response.status_code == 404
 
@@ -274,16 +307,16 @@ def test_block(env: Env) -> None:
     env.tick(1)
     assert env.client.post(f"/api/todo/people/{latte}/block", headers=POST).status_code == 204
     people = env.client.get("/api/todo/people").json()
-    assert people["friends"] == [] and people["candidates"] == []
+    assert people["friends"] == [] and find(env, "latte")[0] == 404
     assert [p["name"] for p in people["blocked"]] == ["라떼"]
     # 차단당한 쪽도 못 보고 요청도 못 함
     use(env, latte)
     assert env.client.get(f"/api/todo/friends/{mocha}/day/{DAY}").status_code == 404
     env.tick(1)
     assert env.client.post(f"/api/todo/people/{mocha}/request", headers=POST).status_code == 404
-    assert env.client.get("/api/todo/people").json()["candidates"] == []
-    # 풀면 다시 후보
+    assert find(env, "mocha")[0] == 404
+    # 풀면 다시 찾을 수 있음
     use(env, mocha)
     env.tick(1)
     assert env.client.delete(f"/api/todo/people/{latte}/block", headers=POST).status_code == 204
-    assert [p["name"] for p in env.client.get("/api/todo/people").json()["candidates"]] == ["라떼"]
+    assert find(env, "latte")[1]["name"] == "라떼"

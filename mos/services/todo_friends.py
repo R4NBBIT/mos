@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import time
 import unicodedata
@@ -19,6 +20,7 @@ from typing import Any
 
 from mos.db.database import Database
 from mos.db.todo_repo import TodoRepo
+from mos.services.discord_oauth import clean_username
 from mos.services.todo import TodoError, TodoService
 from mos.services.todo_access import TodoAccess
 
@@ -30,6 +32,8 @@ MAX_GROUPS = 30
 MAX_GROUP_NAME = 20
 
 # (디스코드 사용자 ID) → 지금 같이 있는 서버 ID들
+log = logging.getLogger(__name__)
+
 GuildsOf = Callable[[int], Awaitable[set[int]]]
 # (디스코드 사용자 ID, 니트로) → 쓸 수 있는 디스코드 이모지 코드들
 EmojisOf = Callable[[int, bool], Awaitable[set[str]]]
@@ -56,6 +60,13 @@ def check_unicode_emoji(value: str) -> bool:
     return has_symbol
 
 
+# (디스코드 사용자 ID, 같이 있는 서버들) → 디스코드 아이디(사용자명) 또는 None
+UsernameOf = Callable[[int, set[int]], Awaitable[str | None]]
+SEARCH_LIMIT = 20  # 아이디 찾기: 1분에 20번까지(아이디를 하나씩 넣어 보며 사람을 캐지 못하게)
+SEARCH_WINDOW = 60
+BACKFILL_MAX = 30  # 한 번 찾을 때 아이디를 채우는 예전 계정 수
+
+
 class TodoFriends:
     def __init__(
         self,
@@ -67,7 +78,13 @@ class TodoFriends:
         emojis_of: EmojisOf,
         notify: Notify | None = None,
         clock: Callable[[], float] = time.time,
+        username_of: UsernameOf | None = None,
     ) -> None:
+        self.username_of = username_of  # 예전 계정의 디스코드 아이디 채우기(봇이 멤버 정보로)
+        self._searches: dict[int, list[float]] = {}
+        self._tried: set[int] = (
+            set()
+        )  # 봇이 아이디를 못 찾은 계정(다시 묻지 않음, 다시 시작하면 다시)
         self.bin: Any = None  # TodoBin(앱이 이어 줌): 그룹 지우기도 휴지통으로
         self.db = db
         self.todo = todo
@@ -179,31 +196,89 @@ class TodoFriends:
                 outgoing.append(self._person(other))
             else:
                 incoming.append(self._person(other))
-        mine = await self.guilds_of(me["user_id"])
-        candidates = []
-        account_rows = await self.db.fetch_all(
-            "SELECT id FROM account WHERE status = 'active' AND id != ?", (me_id,)
-        )
-        for (other_id,) in account_rows:
-            if int(other_id) in related or int(other_id) in hidden:
-                continue
-            other = await self._account(int(other_id))
-            if other is None or not await self.accepts_requests(other["id"]):
-                continue
-            if mine & await self.guilds_of(other["user_id"]):
-                candidates.append(self._person(other))
         by_name = lambda person: person["name"].casefold()  # noqa: E731
         return {
             "friends": sorted(friends, key=by_name),
             "incoming": sorted(incoming, key=by_name),
             "outgoing": sorted(outgoing, key=by_name),
-            "candidates": sorted(candidates, key=by_name),
             "blocked": sorted(
                 [self._person(a) for a in [await self._account(i) for i in i_blocked] if a],
                 key=by_name,
             ),
             "accept_requests": await self.accepts_requests(me_id),
         }
+
+    # ------------------------------------------------------------ 디스코드 아이디로 찾기
+
+    async def find(self, me_id: int, raw: Any) -> dict[str, Any]:
+        """디스코드 아이디(사용자명)가 정확히 같은 사람 한 명(2026-11-23 사용자 요청:
+        요청 가능한 사람 목록은 보여 주지 않고, 닉네임이 아니라 아이디로만 찾기).
+        같은 서버가 아니거나, 비공개 사이거나, 요청을 안 받는 사람은 '없음'과 같게 답한다."""
+        me = await self._account(me_id)
+        if me is None:
+            raise TodoError("not_found", 404)
+        now = self.clock()
+        recent = [at for at in self._searches.get(me_id, []) if now - at < SEARCH_WINDOW]
+        if len(recent) >= SEARCH_LIMIT:
+            raise TodoError("too_many", 429)
+        self._searches[me_id] = [*recent, now]
+        username = clean_username(str(raw or "").strip().lstrip("@"))
+        if not username:
+            raise TodoError("bad_username")
+        await self._fill_usernames(me)
+        row = await self.db.fetch_one(
+            "SELECT id FROM account WHERE username = ? AND status = 'active' AND id != ?",
+            (username, me_id),
+        )
+        other = await self._account(int(row[0])) if row else None
+        if other is None or await self.blocked(me_id, other["id"]):
+            raise TodoError("not_found", 404)
+        if not await self._share_guild(me, other):
+            raise TodoError("not_found", 404)
+        pair = await self._pair(me_id, other["id"])
+        if pair is None:
+            if not await self.accepts_requests(other["id"]):
+                raise TodoError("not_found", 404)
+            state = "none"
+        elif pair["status"] == "accepted":
+            state = "friend"
+        else:
+            state = "outgoing" if pair["requester"] == me_id else "incoming"
+        return {**self._person(other), "state": state}
+
+    async def _fill_usernames(self, me: dict[str, Any]) -> None:
+        """아이디를 아직 모르는 예전 계정(같은 서버 사람만)은 봇이 서버 멤버 정보에서 채운다."""
+        if self.username_of is None:
+            return
+        mine = await self.guilds_of(me["user_id"])
+        rows = await self.db.fetch_all(
+            "SELECT a.id, a.discord_user_id FROM account a"
+            " WHERE a.username IS NULL AND a.status = 'active' AND a.id != ?"
+            " AND EXISTS (SELECT 1 FROM account_guild g WHERE g.account_id = a.id)"
+            " LIMIT ?",
+            (me["id"], BACKFILL_MAX),
+        )
+        for account_id, discord_user_id in rows:
+            if int(account_id) in self._tried:
+                continue
+            self._tried.add(int(account_id))
+            other = await self._account(int(account_id))
+            if other is None:
+                continue
+            shared = mine & await self.guilds_of(other["user_id"])
+            if not shared:
+                continue
+            try:
+                found = clean_username(await self.username_of(int(discord_user_id), shared))
+            except Exception:  # noqa: BLE001 - 봇이 못 찾으면 이번에는 건너뛴다
+                log.debug("username backfill failed", exc_info=True)
+                continue
+            if found:
+                async with self.db.writing() as conn:
+                    await conn.execute(
+                        "UPDATE account SET username = ? WHERE id = ? AND username IS NULL",
+                        (found, int(account_id)),
+                    )
 
     # ------------------------------------------------------------ 요청, 수락, 끊기
 

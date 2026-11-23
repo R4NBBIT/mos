@@ -478,6 +478,7 @@ class MosBot(discord.Client):
             display_name=member.display_name,
             avatar_url=str(member.display_avatar.url),
             timed_out_until=until.timestamp() if until else None,
+            username=member.name,
         )
 
     async def list_members(self, guild_id: int, limit: int) -> list[MemberInfo]:
@@ -497,6 +498,7 @@ class MosBot(discord.Client):
                         avatar_url=str(member.display_avatar.url),
                         timed_out_until=until.timestamp() if until else None,
                         is_bot=member.bot,
+                        username=member.name,
                     )
                 )
         except discord.HTTPException as error:

@@ -719,6 +719,18 @@ def create_app(
             for item in await emojis.usable_anywhere(user_id, premium)
         ]
 
+    async def todo_username_of(user_id: int, guild_ids: set[int]) -> str | None:
+        """예전 계정의 디스코드 아이디: 같이 있는 서버의 멤버 정보에서(봇)."""
+        for guild_id in sorted(guild_ids)[:3]:
+            try:
+                member = await directory.fetch_member(guild_id, user_id)
+            except Exception:  # noqa: BLE001 - 못 찾으면 다음 서버
+                log.debug("username lookup failed", exc_info=True)
+                continue
+            if member is not None and member.username:
+                return member.username
+        return None
+
     todo_friends = TodoFriends(
         db,
         todo_service,
@@ -728,6 +740,7 @@ def create_app(
         emojis_of=todo_emoji_codes,
         notify=notify_todo,
         clock=clock,
+        username_of=todo_username_of,
     )
     todo_service.decorate = todo_friends.annotate
     todo_actions.friends = todo_friends  # AI가 요청한 친구 일을 승인하면 실행

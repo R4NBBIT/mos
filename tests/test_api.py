@@ -207,7 +207,7 @@ class FakeDirectory:
         roles = self.members.get((guild_id, user_id))
         if roles is None:
             return None
-        return MemberInfo(guild_id, user_id, roles, f"user{user_id}", None)
+        return MemberInfo(guild_id, user_id, roles, f"user{user_id}", None, username=f"id{user_id}")
 
     async def list_members(self, guild_id: int, limit: int) -> list[MemberInfo]:
         self.member_lists += 1
@@ -291,7 +291,8 @@ class FakeOAuth:
         self.verifiers: list[str] = []
 
     def add(self, code: str, user_id: int, name: str, guilds: set[int], premium: int = 0) -> None:
-        self.users[code] = (DiscordUser(user_id, name, None, premium), guilds)
+        # 디스코드 아이디는 로그인 코드와 같게(테스트에서 'mocha', 'latte'로 찾기)
+        self.users[code] = (DiscordUser(user_id, name, None, premium, username=code), guilds)
 
     def authorize_url(self, state: str, code_challenge: str) -> str:
         return f"https://discord.com/oauth2/authorize?state={state}&code_challenge={code_challenge}"

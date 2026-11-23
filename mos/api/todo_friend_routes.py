@@ -47,6 +47,11 @@ def register_todo_friend_routes(
         account = await todo_account(request)
         return await friends.people(account.account_id)
 
+    @app.get("/api/todo/people/find")
+    async def todo_people_find(request: Request) -> dict[str, Any]:
+        account = await todo_account(request)
+        return await friends.find(account.account_id, request.query_params.get("username", ""))
+
     @app.patch("/api/todo/people/settings", status_code=204)
     async def todo_people_settings(request: Request) -> Response:
         account = await writer(request)

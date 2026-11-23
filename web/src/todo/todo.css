@@ -4557,3 +4557,15 @@
 .tw-float > button:first-child {
   margin-right: auto;
 }
+
+/* 친구 추가: 디스코드 아이디 칸과 찾기 */
+.todo-friend-find {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.todo-friend-find .todo-friend-search {
+  flex: 1;
+  min-width: 0;
+}

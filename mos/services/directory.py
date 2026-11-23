@@ -106,6 +106,8 @@ class MemberInfo:
     avatar_url: str | None
     timed_out_until: float | None = None
     is_bot: bool = False
+    # 디스코드 아이디(사용자명). 닉네임(display_name)과 다르다
+    username: str = ""
 
 
 @dataclass(frozen=True)

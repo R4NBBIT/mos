@@ -9,7 +9,8 @@ LLM 없이 규칙으로 알아듣는다. 넣기, 보기, 완료, 옮기기, 삭�
   '치과 이름 치과 예약으로', '치과 카테고리 업무로'
 - 카테고리: '카테고리 보여줘', '운동 카테고리 만들어줘', '운동 카테고리 끝내기/다시 열기/삭제'
 - 반복: '반복 보여줘', '매일 9시 출근 반복 만들어줘', '출근 반복 끝내기', '출근 반복 삭제'
-- 친구: '친구 보여줘', '라떼에게 친구 요청', '라떼 친구 수락', '라떼 친구 끊기',
+- 친구: '친구 보여줘', '디스코드아이디에게 친구 요청'(요청은 디스코드 아이디로만),
+  '라떼 친구 수락', '라떼 친구 끊기',
   '라떼 비공개', '라떼 비공개 풀기'(예전 말 '차단'도 알아들음)
 - 휴지통: '휴지통 보여줘', '휴지통 2번 되살려줘'
 
@@ -174,20 +175,32 @@ class MoreCommands:
         return None
 
     async def _friend_action(self, account_id: int, kind: str, name: str, ask: Any = None) -> Reply:
-        people = await self.friends.people(account_id)
-        pools = {
-            "request": people["candidates"] + people["incoming"],
-            "accept": people["incoming"],
-            "unfriend": people["friends"],
-            "block": people["friends"]
-            + people["incoming"]
-            + people["outgoing"]
-            + people["candidates"],
-            "unblock": people["blocked"],
-        }[kind]
-        matches = [p for p in pools if p["name"] == name] or [
-            p for p in pools if name.casefold() in p["name"].casefold()
-        ]
+        if kind == "request":
+            # 친구 요청은 디스코드 아이디로만(닉네임으로 찾지 않음, 2026-11-23 사용자 요청)
+            try:
+                found = await self.friends.find(account_id, name)
+            except TodoError as error:
+                if error.code == "too_many":
+                    return Reply("너무 자주 찾았어요. 잠시 뒤에 다시 해 주세요.")
+                return Reply(f"디스코드 아이디 '{name}'인 사람을 찾지 못했어요.")
+            if found["state"] == "friend":
+                return Reply(f"{found['name']}와(과) 이미 친구예요.")
+            if found["state"] == "outgoing":
+                return Reply(f"{found['name']}에게 이미 친구 요청을 보냈어요.")
+            if found["state"] == "incoming":
+                kind = "accept"
+            matches = [found]
+        else:
+            people = await self.friends.people(account_id)
+            pools = {
+                "accept": people["incoming"],
+                "unfriend": people["friends"],
+                "block": people["friends"] + people["incoming"] + people["outgoing"],
+                "unblock": people["blocked"],
+            }[kind]
+            matches = [p for p in pools if p["name"] == name] or [
+                p for p in pools if name.casefold() in p["name"].casefold()
+            ]
         if not matches:
             return Reply(f"'{name}'을(를) 찾지 못했어요.")
         if len(matches) > 1:

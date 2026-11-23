@@ -188,6 +188,7 @@ export function todoErrorText(error: unknown): string {
   if (status === 429) return "너무 빨라요. 잠시 뒤 다시 해 주세요.";
   const words: Record<string, string> = {
     bad_title: "TODO는 1~100자로 써 주세요.",
+    bad_username: "디스코드 아이디는 영어 소문자, 숫자, _ . 로 된 2~32자예요(닉네임 아님).",
     bad_name: "이름은 1~20자로 써 주세요.",
     duplicate_name: "같은 이름의 카테고리가 있어요.",
     too_many_items: "하루에 넣을 수 있는 TODO(200개)을 넘었어요.",
@@ -319,8 +320,7 @@ export interface TodoPeople {
   friends: TodoPerson[];
   incoming: TodoPerson[];
   outgoing: TodoPerson[];
-  candidates: TodoPerson[];
-  /** 내가 차단한 사람 */
+  /** 내가 비공개한 사람 */
   blocked: TodoPerson[];
   accept_requests: boolean;
 }
@@ -331,6 +331,11 @@ export interface FriendDay extends TodoDay {
 }
 
 export const fetchPeople = () => call<TodoPeople>("/api/todo/people");
+/** 디스코드 아이디(사용자명)로 한 명 찾기. 같은 서버가 아니거나 요청을 안 받으면 없음(404) */
+export const findPerson = (username: string) =>
+  call<TodoPerson & { state: "none" | "friend" | "incoming" | "outgoing" }>(
+    `/api/todo/people/find?username=${encodeURIComponent(username)}`,
+  );
 export const requestFriend = (id: string) =>
   call<{ state: string }>(`/api/todo/people/${encodeURIComponent(id)}/request`, "POST");
 export const acceptFriend = (id: string) =>

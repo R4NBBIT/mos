@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -36,6 +37,8 @@ class DiscordUser:
     name: str
     avatar_url: str | None
     premium_type: int
+    # 디스코드 아이디(사용자명, 소문자). 닉네임(name)과 다르다
+    username: str = ""
 
 
 class OAuthClient(Protocol):
@@ -59,6 +62,15 @@ def _avatar_url(user: dict[str, Any]) -> str | None:
     return f"https://cdn.discordapp.com/avatars/{user_id}/{avatar}.{extension}?size=128"
 
 
+USERNAME_RE = re.compile(r"[a-z0-9_.]{2,32}")
+
+
+def clean_username(value: object) -> str:
+    """디스코드 아이디 모양(소문자, 숫자, _ .)이 아니면 빈 글."""
+    text = str(value or "").strip().lower()
+    return text if USERNAME_RE.fullmatch(text) else ""
+
+
 def parse_user(data: dict[str, Any]) -> DiscordUser:
     user_id = str(data.get("id", ""))
     if not user_id.isdigit():
@@ -69,6 +81,7 @@ def parse_user(data: dict[str, Any]) -> DiscordUser:
         name=name or "이름 없음",
         avatar_url=_avatar_url(data),
         premium_type=int(data.get("premium_type") or 0),
+        username=clean_username(data.get("username")),
     )
 
 

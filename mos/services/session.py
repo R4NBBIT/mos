@@ -271,6 +271,7 @@ class SessionService:
         account_id = await self.repo.upsert_account(
             discord_user_id=user.id,
             name=user.name,
+            username=user.username,
             avatar_url=user.avatar_url,
             premium_type=user.premium_type,
             access_enc=self.cipher.encrypt(tokens.access_token, context + ":access"),
