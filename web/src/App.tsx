@@ -1181,7 +1181,7 @@ export default function App() {
         <BossTodoContext.Provider value={goTodoFromBoss}>
           {mode === "todo" ? (
             <Suspense fallback={null}>
-              <TodoBoss theme={look.theme} active={bossOn} />
+              <TodoBoss theme={look.theme} active={bossOn} onlyCategories={look.boss_todo_categories} />
             </Suspense>
           ) : mode === "image" ? (
             <ImageDisguise url={files.image?.url ?? null} fit={look.boss_fit} />

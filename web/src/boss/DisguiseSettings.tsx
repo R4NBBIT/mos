@@ -1,5 +1,6 @@
 // 설정 › 위장 화면: 보여 줄 화면 고르기(테마와 같은 이름으로 예시 4가지, 내 파일 4가지, 그 밖에 사진과 다른 사이트),
 // 파일 올리기와 지우기, 모두 처음으로 되돌리기. 파일과 고친 내용은 계정에 저장된다.
+import { fetchCategories, type TodoCategory } from "../todo/todoApi";
 import { type ChangeEvent, type ReactNode, useEffect, useState } from "react";
 import type { BossTemplate, Settings } from "../theme";
 import {
@@ -258,7 +259,18 @@ export default function DisguiseSettings({ settings, save, onFileChanged }: Prop
         <div className="boss-group" role="radiogroup" aria-label="위장 화면">
           <p className="boss-group-title">예시</p>
           {EXAMPLES.map((item) => choice(item.template, item.label))}
-          {todoOk && choice("todo", "내 TODO: 오늘 TODO(지금 테마 모양, 체크하면 저장됨)")}
+          {todoOk &&
+            choice(
+              "todo",
+              "내 TODO: 오늘 TODO(지금 테마 모양, 체크하면 저장됨)",
+              false,
+              current === "todo" ? (
+                <BossTodoCategories
+                  chosen={settings.boss_todo_categories}
+                  onChange={(ids) => void save({ boss_todo_categories: ids })}
+                />
+              ) : undefined,
+            )}
 
           <p className="boss-group-title">내 파일</p>
           {FILE_SLOTS.map((slot) => {
@@ -402,5 +414,36 @@ export default function DisguiseSettings({ settings, save, onFileChanged }: Prop
         </p>
       </div>
     </>
+  );
+}
+
+/** 위장 화면 'TODO'에 보일 카테고리 고르기(이 기기, 아무것도 고르지 않으면 모두) */
+function BossTodoCategories({ chosen, onChange }: { chosen: string[]; onChange: (ids: string[]) => void }) {
+  const [categories, setCategories] = useState<TodoCategory[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    fetchCategories()
+      .then((value) => setCategories(value.categories.filter((category) => !category.closed)))
+      .catch(() => setFailed(true));
+  }, []);
+  if (failed) return <p className="boss-hint">카테고리를 불러오지 못했어요.</p>;
+  if (!categories) return null;
+  const known = chosen.filter((id) => categories.some((category) => category.id === id));
+  return (
+    <div className="boss-todo-pick" role="group" aria-label="위장 화면에 보일 카테고리">
+      <p className="boss-hint">보일 카테고리(이 기기에만 적용돼요. 아무것도 고르지 않으면 모두 보여요)</p>
+      {categories.map((category) => (
+        <label key={category.id} className="boss-choice">
+          <input
+            type="checkbox"
+            checked={known.includes(category.id)}
+            onChange={(event) =>
+              onChange(event.target.checked ? [...known, category.id] : known.filter((id) => id !== category.id))
+            }
+          />
+          {category.name}
+        </label>
+      ))}
+    </div>
   );
 }

@@ -14,7 +14,12 @@ let lastDay: TodoDay | null = null; // 이 탭 메모리에만(브라우저 저�
 
 const SHEET_ROWS = 24;
 
-function useBossDay(active: boolean): { data: TodoDay | null; offline: boolean; reload: () => void; setData: (d: TodoDay) => void } {
+function useBossDay(active: boolean): {
+  data: TodoDay | null;
+  offline: boolean;
+  reload: () => void;
+  setData: (d: TodoDay) => void;
+} {
   const [data, setData] = useState<TodoDay | null>(lastDay);
   const [offline, setOffline] = useState(false);
   const reload = useCallback(() => {
@@ -40,7 +45,17 @@ function useBossDay(active: boolean): { data: TodoDay | null; offline: boolean; 
   };
 }
 
-function AddLine({ disabled, onAdd, className, placeholder }: { disabled: boolean; onAdd: (title: string) => Promise<void>; className: string; placeholder: string }) {
+function AddLine({
+  disabled,
+  onAdd,
+  className,
+  placeholder,
+}: {
+  disabled: boolean;
+  onAdd: (title: string) => Promise<void>;
+  className: string;
+  placeholder: string;
+}) {
   const [text, setText] = useState("");
   const ref = useRef(text);
   ref.current = text;
@@ -63,13 +78,26 @@ function AddLine({ disabled, onAdd, className, placeholder }: { disabled: boolea
   );
 }
 
-export default function TodoBoss({ theme, active }: { theme: Theme; active: boolean }) {
+export default function TodoBoss({
+  theme,
+  active,
+  onlyCategories = [],
+}: {
+  theme: Theme;
+  active: boolean;
+  /** 위장 설정에서 고른 카테고리 id(빈 목록 = 모두) */
+  onlyCategories?: string[];
+}) {
   const { data, offline, reload, setData } = useBossDay(active);
   const title = todoBossTitle(theme);
-  const categories = data?.categories ?? [];
+  // 위장 설정에서 고른 카테고리만(이 기기, 고르지 않았거나 고른 것이 다 없어졌으면 모두, 2026-11-23 사용자 요청)
+  const allCategories = data?.categories ?? [];
+  const chosen = onlyCategories.filter((id) => allCategories.some((category) => category.id === id));
+  const categories =
+    chosen.length > 0 ? allCategories.filter((category) => chosen.includes(category.id)) : allCategories;
   const firstOpen = categories.find((category) => !category.closed);
   const nameOf = (id: string) => categories.find((category) => category.id === id)?.name ?? "";
-  const items = data?.items ?? [];
+  const items = (data?.items ?? []).filter((item) => categories.some((category) => category.id === item.category_id));
 
   const toggle = async (item: TodoItem) => {
     if (!data || offline) return;
@@ -179,7 +207,12 @@ export default function TodoBoss({ theme, active }: { theme: Theme; active: bool
                 <div>== {category.name} ==</div>
                 {mine.map((item) => (
                   <div key={item.id} className="boss-todo-memoline">
-                    <button type="button" className="boss-todo-memocheck" disabled={offline} onClick={() => void toggle(item)}>
+                    <button
+                      type="button"
+                      className="boss-todo-memocheck"
+                      disabled={offline}
+                      onClick={() => void toggle(item)}
+                    >
                       {item.done ? "[✓]" : "[ ]"}
                     </button>{" "}
                     {item.title}
@@ -209,7 +242,9 @@ export default function TodoBoss({ theme, active }: { theme: Theme; active: bool
               <div key={item.id} className={item.done ? "boss-todo-item boss-todo-item-done" : "boss-todo-item"}>
                 {check(item)}
                 <span>{item.title}</span>
-                {(item.time || item.place) && <small>{[item.time, item.place ?? ""].filter(Boolean).join(" | ")}</small>}
+                {(item.time || item.place) && (
+                  <small>{[item.time, item.place ?? ""].filter(Boolean).join(" | ")}</small>
+                )}
               </div>
             ))}
           </section>

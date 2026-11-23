@@ -593,6 +593,20 @@ def test_lock_minutes_setting(env: Env) -> None:
         assert response.status_code == 400
 
 
+def test_boss_todo_categories_setting(env: Env) -> None:
+    signed_up(env)
+    assert env.client.get("/api/settings").json()["boss_todo_categories"] == []
+    changed = env.client.patch(
+        "/api/settings", json={"boss_todo_categories": ["3", "7", "3"]}, headers=POST
+    )
+    assert changed.json()["boss_todo_categories"] == ["3", "7"]
+    for bad in ("3", [3], ["abc"], ["1" * 19], ["1"] * 101):
+        response = env.client.patch(
+            "/api/settings", json={"boss_todo_categories": bad}, headers=POST
+        )
+        assert response.status_code == 400
+
+
 def test_boss_files_saved_per_account_encrypted(env: Env, tmp_path: Path) -> None:
     signed_up(env)
     png = b"\x89PNG\r\n\x1a\n" + b"secret-screen" * 10
@@ -1849,6 +1863,7 @@ def test_settings_per_account(env: Env) -> None:
         "boss_fit": "cover",
         "boss_fullscreen": False,
         "boss_url": None,
+        "boss_todo_categories": [],
         "notify": True,
         "notify_scope": "pinned",
         "notify_preview": False,

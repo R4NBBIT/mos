@@ -40,6 +40,8 @@ export interface Settings {
   boss_fullscreen: boolean;
   /** 다른 사이트로 이동 위장의 주소(https만) */
   boss_url: string | null;
+  /** 위장 화면 'TODO'에 보일 카테고리 id(이 기기, 비면 모두) */
+  boss_todo_categories: string[];
   /** 알림(기본 켬): 범위는 나를 부른 것만 / 나를 부른 것 + 고정한 채널, 내용 보이기는 기본 끔 */
   notify: boolean;
   notify_scope: NotifyScope;
@@ -110,6 +112,7 @@ export const DEFAULT_SETTINGS: Settings = {
   boss_fit: "cover",
   boss_fullscreen: false,
   boss_url: null,
+  boss_todo_categories: [],
   notify: true,
   notify_scope: "pinned",
   notify_preview: false,
@@ -151,14 +154,24 @@ const svg = (body: string) =>
   `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">${body}</svg>`)}`;
 
 const FAVICONS: Record<Theme, string> = {
-  moon: svg('<rect x="6" y="3" width="20" height="26" rx="3" fill="#f1f2f4" stroke="#62666d" stroke-width="2"/><path d="M11 11h10M11 16h10M11 21h6" stroke="#62666d" stroke-width="2"/>'),
-  night: svg('<rect x="6" y="3" width="20" height="26" rx="3" fill="#1e2230" stroke="#a7a08f" stroke-width="2"/><path d="M11 11h10M11 16h10M11 21h6" stroke="#a7a08f" stroke-width="2"/>'),
-  sheet: svg('<rect x="3" y="3" width="26" height="26" rx="3" fill="#1f6e43"/><path d="M8 10h16M8 16h16M8 22h16M14 7v18M20 7v18" stroke="#fff" stroke-width="1.6"/>'),
-  memo: svg('<rect x="6" y="3" width="20" height="26" fill="#ffffff" stroke="#3b6fb6" stroke-width="2"/><path d="M10 10h12M10 15h12M10 20h8" stroke="#555" stroke-width="1.6"/>'),
+  moon: svg(
+    '<rect x="6" y="3" width="20" height="26" rx="3" fill="#f1f2f4" stroke="#62666d" stroke-width="2"/><path d="M11 11h10M11 16h10M11 21h6" stroke="#62666d" stroke-width="2"/>',
+  ),
+  night: svg(
+    '<rect x="6" y="3" width="20" height="26" rx="3" fill="#1e2230" stroke="#a7a08f" stroke-width="2"/><path d="M11 11h10M11 16h10M11 21h6" stroke="#a7a08f" stroke-width="2"/>',
+  ),
+  sheet: svg(
+    '<rect x="3" y="3" width="26" height="26" rx="3" fill="#1f6e43"/><path d="M8 10h16M8 16h16M8 22h16M14 7v18M20 7v18" stroke="#fff" stroke-width="1.6"/>',
+  ),
+  memo: svg(
+    '<rect x="6" y="3" width="20" height="26" fill="#ffffff" stroke="#3b6fb6" stroke-width="2"/><path d="M10 10h12M10 15h12M10 20h8" stroke="#555" stroke-width="1.6"/>',
+  ),
   // 노션 페이지처럼 페이지 아이콘(이모지)을 탭 아이콘으로
   note: svg('<text x="16" y="26" font-size="26" text-anchor="middle">📝</text>'),
   // 파란 문서 아이콘(글자 줄)
-  word: svg('<rect x="4" y="3" width="24" height="26" rx="3" fill="#185abd"/><path d="M9 10h14M9 15h14M9 20h14M9 25h8" stroke="#fff" stroke-width="2"/>'),
+  word: svg(
+    '<rect x="4" y="3" width="24" height="26" rx="3" fill="#185abd"/><path d="M9 10h14M9 15h14M9 20h14M9 25h8" stroke="#fff" stroke-width="2"/>',
+  ),
 };
 
 const CACHE_KEY = "mos.look"; // 잠금 화면에서도 같은 제목·아이콘을 쓰려고 이 브라우저에 기억
@@ -264,14 +277,22 @@ export function cachedLook(): Settings {
             typeof value.boss_key === "string" && BOSS_KEY_RE.test(value.boss_key) ? value.boss_key : "Escape*2",
           boss_fit: value.boss_fit === "contain" ? "contain" : "cover",
           boss_fullscreen: value.boss_fullscreen === true,
-          boss_url: typeof value.boss_url === "string" && /^https:\/\/\S+$/.test(value.boss_url) ? value.boss_url : null,
+          boss_url:
+            typeof value.boss_url === "string" && /^https:\/\/\S+$/.test(value.boss_url) ? value.boss_url : null,
+          boss_todo_categories: Array.isArray(value.boss_todo_categories)
+            ? value.boss_todo_categories
+                .filter((id) => typeof id === "string" && /^[0-9]{1,18}$/.test(id))
+                .slice(0, 100)
+            : [],
           notify: value.notify !== false,
           notify_scope:
             value.notify_scope === "mentions" || value.notify_scope === "all" ? value.notify_scope : "pinned",
           notify_preview: value.notify_preview === true,
           guide_done: value.guide_done === true,
           lock_minutes:
-            typeof value.lock_minutes === "number" && LOCK_MINUTES.includes(value.lock_minutes) ? value.lock_minutes : 30,
+            typeof value.lock_minutes === "number" && LOCK_MINUTES.includes(value.lock_minutes)
+              ? value.lock_minutes
+              : 30,
           show_avatars: value.show_avatars !== false,
           voice_view: value.voice_view !== false,
           reactions_view:

@@ -2,13 +2,13 @@
 // PC: 따로 뜨는 작은 창(#/todo/widget)이라 ㅁㅇㅅ 탭을 닫아도 남는다(2026-11-22 사용자 요청).
 // 크롬, 엣지는 '항상 위에 띄우기'로 위젯 자체를 항상 위 창(Document Picture-in-Picture)으로 옮긴다.
 // 원래 창은 작게 줄여 두고, '되돌아가기'를 누르면 위젯이 원래 창으로 돌아온다(원래 창을 닫으면 같이 닫힘).
-// 어느 창에서든 위장(보스키)하면 위젯 창도 같이 닫힌다. 테마마다 그 프로그램 모양(TodoWidgetLooks).
+// 위장(보스키)해도 위젯 창은 그대로 남는다(2026-11-23 사용자 요청). 테마마다 그 프로그램 모양(TodoWidgetLooks).
 // 본 화면과 위젯 창은 서로 바꾼 것을 바로 알린다(todoSync).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { isDisguised, onDisguiseChange } from "../boss/bossState";
+import { isDisguised } from "../boss/bossState";
 import { today } from "./dates";
-import { onTodoRefresh, onTodoSync } from "./todoSync";
+import { onTodoRefresh } from "./todoSync";
 import { type WidgetModel, WidgetLook, widgetLook } from "./TodoWidgetLooks";
 import { fetchTodoDay, type TodoDay, type TodoItem, updateTodo } from "./todoApi";
 import { saveWidgetCategories, useWidgetCategories } from "./widgetFilter";
@@ -43,24 +43,7 @@ export default function TodoWidget({ compact = false, theme }: { compact?: boole
     load();
     return onTodoRefresh(load, REFRESH_MS); // 다른 창에서 바꾸면 바로, 다른 기기는 15초마다
   }, [load]);
-  // 따로 뜬 위젯 창: 어느 창에서든 위장하면 닫는다
-  useEffect(() => {
-    if (compact) return;
-    const hide = () => {
-      pipApi()?.window?.close();
-      window.close();
-    };
-    const stopSync = onTodoSync((message) => {
-      if (message === "disguise") hide();
-    });
-    const stopOwn = onDisguiseChange((value) => {
-      if (value) hide();
-    });
-    return () => {
-      stopSync();
-      stopOwn();
-    };
-  }, [compact]);
+  // 위장해도 위젯 창은 그대로 둔다(2026-11-23 사용자 요청. 예전에는 위장하면 같이 닫혔다)
 
   const toggle = async (item: TodoItem) => {
     if (!data) return;
@@ -240,12 +223,7 @@ async function openFloating(onClosed: () => void): Promise<Window | null> {
   pip.document.addEventListener("keydown", (event) => {
     window.dispatchEvent(new KeyboardEvent("keydown", event));
   });
-  const stop = onDisguiseChange((value) => {
-    if (value) pip.close(); // 위장하면 위젯 창도 바로 닫는다
-  });
-  pip.addEventListener("pagehide", () => {
-    stop();
-    onClosed();
-  });
+  // 위장해도 항상 위 위젯 창은 그대로 둔다(2026-11-23 사용자 요청)
+  pip.addEventListener("pagehide", () => onClosed());
   return pip;
 }

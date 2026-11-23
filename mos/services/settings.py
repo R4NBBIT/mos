@@ -106,6 +106,8 @@ DEFAULTS: dict[str, Any] = {
     "doc_titles": {},
     "list_order": {},
     "hidden": [],
+    # 위장 화면 'TODO'에 보일 카테고리 id(이 기기, 비면 모두, 2026-11-23 사용자 요청)
+    "boss_todo_categories": [],
     "hidden_notify": "mentions",
     "hidden_unread": "mentions",
 }
@@ -181,6 +183,23 @@ def _clean_hidden(value: Any) -> list[str]:
     return result
 
 
+MAX_BOSS_TODO_CATEGORIES = 100
+TODO_ID_RE = re.compile(r"[0-9]{1,18}")
+
+
+def _clean_boss_todo_categories(value: Any) -> list[str]:
+    """위장 화면 TODO에 보일 카테고리: 통째로 바꾼다(겹치면 처음 것만, 비면 모두)."""
+    if not isinstance(value, list) or len(value) > MAX_BOSS_TODO_CATEGORIES:
+        raise SettingsError("bad_boss_todo_categories")
+    result: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or not TODO_ID_RE.fullmatch(item):
+            raise SettingsError("bad_boss_todo_categories")
+        if item not in result:
+            result.append(item)
+    return result
+
+
 def _clean_doc_titles(value: Any) -> dict[str, str | None]:
     """문서 제목 바꾸기: 값이 비었거나 None이면 그 제목을 지운다(원래 이름으로)."""
     if not isinstance(value, dict) or len(value) > MAX_DOC_TITLES:
@@ -241,6 +260,8 @@ def clean(update: dict[str, Any]) -> dict[str, Any]:
             result[key] = _clean_list_order(value)
         elif key == "hidden":
             result[key] = _clean_hidden(value)
+        elif key == "boss_todo_categories":
+            result[key] = _clean_boss_todo_categories(value)
         elif key in ("hidden_notify", "hidden_unread"):
             if value not in HIDDEN_NOTIFY:
                 raise SettingsError(f"bad_{key}")
