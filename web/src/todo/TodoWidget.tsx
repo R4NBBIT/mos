@@ -187,6 +187,32 @@ export function openTodoWidget(): void {
   opened?.focus();
 }
 
+/** 본 창의 스타일을 항상 위 창에 붙인다(이미 붙인 것은 건너뜀) */
+function copyStylesInto(pip: Window): void {
+  const doc = pip.document;
+  const linked = new Set(Array.from(doc.querySelectorAll<HTMLLinkElement>("link[rel=stylesheet]")).map((l) => l.href));
+  const adopted: CSSStyleSheet[] = [];
+  for (const sheet of Array.from(document.styleSheets)) {
+    if (sheet.href && !linked.has(sheet.href)) {
+      const link = doc.createElement("link");
+      link.rel = "stylesheet";
+      link.href = sheet.href;
+      doc.head.appendChild(link);
+    }
+    try {
+      const text = Array.from(sheet.cssRules)
+        .map((rule) => rule.cssText)
+        .join("\n");
+      const copy = new (pip as unknown as { CSSStyleSheet: typeof CSSStyleSheet }).CSSStyleSheet();
+      copy.replaceSync(text);
+      adopted.push(copy);
+    } catch {
+      // 읽을 수 없는 스타일은 건너뜀
+    }
+  }
+  doc.adoptedStyleSheets = adopted;
+}
+
 /** 이 창(따로 뜬 위젯 창)에서 항상 위 창 열기. 위젯은 부르는 쪽이 그 안에 그린다 */
 async function openFloating(onClosed: () => void): Promise<Window | null> {
   const api = pipApi();
@@ -204,32 +230,32 @@ async function openFloating(onClosed: () => void): Promise<Window | null> {
   } catch {
     return null;
   }
-  // 지금 화면의 스타일과 테마를 그대로 옮긴다. 배포 서버는 CSP(style-src 'self')라 글자로 넣은
-  // <style>은 막히므로, 파일로 된 스타일은 같은 주소의 <link>로 붙인다(개발 서버만 글자로).
-  for (const sheet of Array.from(document.styleSheets)) {
-    if (sheet.href) {
-      const link = pip.document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = sheet.href;
-      pip.document.head.appendChild(link);
-      continue;
+  // 지금 화면의 스타일과 테마를 그대로 옮기고, 그 뒤 바뀌는 것(테마, 새로 불러온 스타일)도 따라간다.
+  // 배포 서버는 CSP(style-src 'self')라 글자로 넣은 <style>은 막힌다. 그래서 같은 주소의 <link>와 함께
+  // 규칙을 통째로 담은 스타일 시트(adoptedStyleSheets, CSP에 막히지 않음)로도 붙인다(2026-11-23 테마가 빠지던 것)
+  const copyStyles = () => copyStylesInto(pip);
+  copyStyles();
+  const syncRoot = () => {
+    const target = pip.document.documentElement;
+    for (const attribute of Array.from(target.attributes)) {
+      if (attribute.name.startsWith("data-") && !document.documentElement.hasAttribute(attribute.name)) {
+        target.removeAttribute(attribute.name);
+      }
     }
-    try {
-      const style = pip.document.createElement("style");
-      style.textContent = Array.from(sheet.cssRules)
-        .map((rule) => rule.cssText)
-        .join("\n");
-      pip.document.head.appendChild(style);
-    } catch {
-      // 읽을 수 없는 스타일은 건너뜀
+    for (const attribute of Array.from(document.documentElement.attributes)) {
+      if (attribute.name.startsWith("data-")) target.setAttribute(attribute.name, attribute.value);
     }
-  }
-  for (const attribute of Array.from(document.documentElement.attributes)) {
-    if (attribute.name.startsWith("data-")) {
-      pip.document.documentElement.setAttribute(attribute.name, attribute.value);
-    }
-  }
-  pip.document.documentElement.style.cssText = document.documentElement.style.cssText;
+    target.style.cssText = document.documentElement.style.cssText;
+  };
+  syncRoot();
+  const rootWatch = new MutationObserver(syncRoot);
+  rootWatch.observe(document.documentElement, { attributes: true });
+  // 새로 붙은 <link>는 다 받은 뒤에야 규칙을 읽을 수 있어 조금 뒤 한 번 더
+  const headWatch = new MutationObserver(() => {
+    copyStyles();
+    window.setTimeout(copyStyles, 1500);
+  });
+  headWatch.observe(document.head, { childList: true });
   pip.document.title = "TODO";
   pip.document.body.className = "todo-widget-body";
   // 위젯 창에서 누른 보스키도 본 창이 받게
@@ -237,6 +263,10 @@ async function openFloating(onClosed: () => void): Promise<Window | null> {
     window.dispatchEvent(new KeyboardEvent("keydown", event));
   });
   // 위장해도 항상 위 위젯 창은 그대로 둔다(2026-11-23 사용자 요청)
-  pip.addEventListener("pagehide", () => onClosed());
+  pip.addEventListener("pagehide", () => {
+    rootWatch.disconnect();
+    headWatch.disconnect();
+    onClosed();
+  });
   return pip;
 }
