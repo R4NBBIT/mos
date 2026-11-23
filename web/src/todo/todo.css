@@ -4582,3 +4582,9 @@
 .todo-preview-line > span {
   word-break: keep-all;
 }
+
+.tw-pick-title {
+  margin: 8px 0 2px;
+  font-size: 12px;
+  opacity: 0.75;
+}

@@ -12,6 +12,7 @@ import { onTodoRefresh } from "./todoSync";
 import { type WidgetModel, WidgetLook, widgetLook } from "./TodoWidgetLooks";
 import { fetchTodoDay, type TodoDay, type TodoItem, updateTodo } from "./todoApi";
 import { saveWidgetCategories, useWidgetCategories } from "./widgetFilter";
+import { saveCloseWithApp, useCloseWhenAppCloses, useCloseWithApp } from "./widgetLife";
 import "./todo.css";
 
 const REFRESH_MS = 15_000;
@@ -25,6 +26,9 @@ export default function TodoWidget({ compact = false, theme }: { compact?: boole
   // 이 기기 위젯에 보일 카테고리(빈 목록 = 모두)
   const chosen = useWidgetCategories();
   const [picking, setPicking] = useState(false);
+  // ㅁㅇㅅ 창을 모두 닫으면 위젯도 닫을지(이 기기, 기본은 남겨 두기)
+  const closeWithApp = useCloseWithApp();
+  useCloseWhenAppCloses(!compact && closeWithApp);
 
   const load = useCallback(() => {
     const now = today();
@@ -98,8 +102,17 @@ export default function TodoWidget({ compact = false, theme }: { compact?: boole
     <div className={`todo-widget tw-${look}${compact ? " todo-widget-compact" : ""}`}>
       <WidgetLook look={look} model={model} />
       {!compact && picking && (
-        <div className="tw-pick" role="group" aria-label="위젯에 보일 카테고리">
-          <p className="tw-pick-note">이 기기 위젯에만 적용돼요. 아무것도 고르지 않으면 모두 보여요.</p>
+        <div className="tw-pick" role="group" aria-label="위젯 설정">
+          <p className="tw-pick-note">이 기기 위젯에만 적용돼요.</p>
+          <label className="tw-pick-row">
+            <input
+              type="checkbox"
+              checked={closeWithApp}
+              onChange={(event) => saveCloseWithApp(event.target.checked)}
+            />
+            <span>ㅁㅇㅅ 창을 모두 닫으면 위젯도 닫기</span>
+          </label>
+          <p className="tw-pick-title">보일 카테고리(아무것도 고르지 않으면 모두)</p>
           {openCategories.map((category) => (
             <label key={category.id} className="tw-pick-row">
               <input
@@ -119,7 +132,7 @@ export default function TodoWidget({ compact = false, theme }: { compact?: boole
       {!compact && (
         <div className="tw-float">
           <button type="button" aria-expanded={picking} onClick={() => setPicking(!picking)}>
-            {picking ? "닫기" : known.length > 0 ? `카테고리 ${known.length}개만` : "카테고리"}
+            {picking ? "닫기" : known.length > 0 ? `설정 | 카테고리 ${known.length}개만` : "설정"}
           </button>
           {!canFloat() ? null : floatWindow ? (
             <button type="button" onClick={() => floatWindow.close()}>

@@ -7,6 +7,7 @@ import { DOUBLE_PRESS_MS, keyFromEvent, parseBossKey, sameKey } from "./boss/bos
 import { type AssetList, cachedInfo, fetchBossInfo, loadAsset, uploadAsset } from "./boss/bossStore";
 import { isCapturingKey, isDisguised, onDisguiseChange, setDisguised } from "./boss/bossState";
 import { announceDisguise, onTodoSync } from "./todo/todoSync";
+import { startAppPresence } from "./todo/widgetLife";
 import { loadMyFile, type StoredFile } from "./boss/myFile";
 import { docTitle, memoExample, NoteDisguise, noteExample, WordDisguise, wordExample } from "./boss/DocDisguise";
 import { EDIT_KEYS, ImageDisguise, TextDisguise } from "./boss/OtherDisguise";
@@ -1104,6 +1105,9 @@ export default function App() {
     },
     [relock, fullscreen, mode, bossUrl],
   );
+
+  // TODO 위젯 창에 '본 창이 아직 있어요'를 알려 준다(위젯을 같이 닫기로 고른 기기에서 쓰임)
+  useEffect(() => startAppPresence(), []);
 
   // 위장 화면 안의 'TODO' 자리를 누르면 위장을 풀고 TODO 화면으로(잠그기 설정이면 잠금 화면을 거친다)
   const goTodoFromBoss = useCallback(() => {
