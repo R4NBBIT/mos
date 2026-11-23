@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Literal
 import discord
 from discord import app_commands
 
-from mos.services.commands import CommandError
+from mos.services.commands import TODO_HELP, CommandError
 from mos.services.menu import EMPTY, MenuError
 
 if TYPE_CHECKING:
@@ -135,9 +135,9 @@ def register_commands(bot: MosBot) -> None:
             return
         await interaction.response.send_message(result.text, ephemeral=True)
 
-    @tree.command(name="todo", description="ㅁㅇㅅ TODO를 말로")
+    @tree.command(name="todo", description=TODO_HELP)
     @app_commands.rename(said="할말")
-    @app_commands.describe(said="하고 싶은 말(비우면 오늘 TODO)")
+    @app_commands.describe(said="하고 싶은 말(비우면 오늘 TODO, '도움말'이면 쓰는 법)")
     async def todo_command(interaction: discord.Interaction, said: str = "") -> None:
         if bot.commands is None:
             return

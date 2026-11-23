@@ -33,6 +33,20 @@ DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 SHORT_DAY_RE = re.compile(r"^(\d{1,2})[/.](\d{1,2})$")
 DELETE_CONFIRM = re.compile(r"삭제 확인 ([0-9a-zA-Z:\-]{1,40})")
 
+# /todo 설명(디스코드 명령 설명은 100자까지). 2026-11-23 사용자 요청: 규칙으로 읽는다는 것과 내 AI
+TODO_HELP = (
+    "ㅁㅇㅅ TODO를 말로. 정해 둔 규칙으로 읽어서 자유로운 문장은 잘 못 알아들어요. "
+    "자유롭게 쓰려면 내 AI(Claude, ChatGPT)를 연결하세요"
+)
+TODO_GUIDE = (
+    "📝 /todo는 LLM 없이 정해 둔 규칙으로 문장을 읽어요. 그래서 정해진 모양의 말은 잘 알아듣지만, "
+    "자유로운 문장은 AI처럼 알아듣지 못해요.\n"
+    "- 알아듣는 것: 날짜(오늘, 내일, 요일, 월.일, 기간), 시각, @ 뒤 장소, // 뒤 메모, [카테고리]\n"
+    "- 하는 일: 넣기, 보기, 완료, 옮기기, 고치기, 삭제, 반복, 카테고리, 친구, 휴지통\n"
+    "- 바꾸는 일은 실행 전에 [확인] [취소]로 한 번 보여 줘요.\n"
+    "자유롭게 말로 쓰고 싶으면 ㅁㅇㅅ TODO › AI 화면에서 내 Claude나 ChatGPT를 연결해서 쓰세요."
+)
+
 COMMANDS = [
     {"name": "점메추", "usage": "/점메추", "help": "오늘의 점심 메뉴 추천(리롤 가능)"},
     {"name": "메뉴판", "usage": "/메뉴판", "help": "이 서버에서 보이는 전체 메뉴"},
@@ -51,7 +65,7 @@ COMMANDS = [
     {
         "name": "todo",
         "usage": "/todo <하고 싶은 말>",
-        "help": "ㅁㅇㅅ TODO를 말로",
+        "help": TODO_HELP,
         "todo": True,
     },
 ]
@@ -255,6 +269,8 @@ class BotCommands:
             return await self._delete(account_id, confirm[1])
         if said in ("취소", "삭제 취소"):
             return CommandResult("취소했어요. 아무것도 바꾸지 않았어요.")
+        if said in ("도움말", "사용법", "도움", "help", "?"):
+            return CommandResult(TODO_GUIDE)
         # 바꾸는 일은 모두 한 번 보여 주고 [확인] [취소]로 묻는다(2026-11-23 사용자 요청)
         run = said.startswith("실행 ")
         if run:

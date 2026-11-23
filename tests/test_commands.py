@@ -89,6 +89,9 @@ def test_todo_commands(env: Env) -> None:
     env.client.get("/api/todo/categories")
     names = [c["name"] for c in env.client.get("/api/commands").json()["commands"]]
     assert "todo" in names and "todo 보기" not in names
+    helps = {c["name"]: c["help"] for c in env.client.get("/api/commands").json()["commands"]}
+    assert "규칙" in helps["todo"] and len(helps["todo"]) <= 100  # 디스코드 명령 설명은 100자까지
+    assert "내 Claude나 ChatGPT" in run(env, "/todo 도움말")["text"]
     asked = run(env, "/todo 3시 치과 넣어줘")
     assert asked["text"] == "3시가 오전인가요, 오후인가요?"
     assert [c["label"] for c in asked["choices"]] == ["오전 (03:00)", "오후 (15:00)", "시각 없이"]
